@@ -1,0 +1,5 @@
+python-dotenv==1.0.0
+requests==2.31.0
+elevenlabs
+moviepy==1.0.3
+tqdm==4.66.1
