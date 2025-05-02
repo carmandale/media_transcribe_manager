@@ -7,3 +7,4 @@ pyyaml==6.0.1
 deepl==1.16.0
 google-cloud-translate==3.11.3
 openai
+langdetect==1.0.9
