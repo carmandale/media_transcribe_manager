@@ -1,0 +1,55 @@
+Current State Snapshot
+=====================
+
+Objective
+---------
+Restore reliable Hebrew translations by fixing provider errors (401 auth, recursion, oversized requests) and adding robust chunking and fallback logic.
+
+Key File Modified
+-----------------
+`scribe/translation.py` – hub for all fixes.
+
+Changes Made
+------------
+1. **Provider setup**  
+   • Added `MS_TRANSLATOR_LOCATION` env‑var fallback and stripped inline comments.
+
+2. **Removed infinite recursion**  
+   • Replaced self‑calls in `translate_text` with a flat chunk loop.
+
+3. **Chunking strategy**  
+   • Provider‑specific `chunk_limit`: **2 500 chars for Microsoft**, **4 500 for Google**.  
+   • `_split_text_into_chunks` now hard‑splits paragraphs that exceed the limit.
+
+4. **Fallback logic**  
+   • Per chunk: Microsoft → Google when Microsoft fails.
+
+5. **Language‑code normalisation**  
+   • Converts internal codes (`deu` → `de`) before provider calls.
+
+6. **Diagnostics**  
+   • Logs full Microsoft error payload when the response status is not 200.
+
+7. **Bug fixes & clean-ups**  
+   • Removed comment noise in region string; replaced static limit checks; ensured empty-text guard.
+
+Issues Resolved
+---------------
+• 401 “invalid key/region”  
+• Recursive overflow  
+• 400077 “maximum request size exceeded” (lower chunk size + smarter splitting)  
+• Google 403 rate‑limit (reduced once Microsoft succeeds)  
+• Passing invalid source code (`deu`) to APIs
+
+Current Status
+--------------
+• Small sanity test (“Hello” → “12u”) works.  
+• Problem file `225f0880-e414-43cd-b3a5-2bd6e5642f07` still fails with Microsoft 400, but code now chunks at 2 500 chars and splits long paragraphs. Needs re‑test.
+
+Next Action
+-----------
+Run:
+```bash
+python process_translations.py --file-id 225f0880-e414-43cd-b3a5-2bd6e5642f07 --languages he --force
+```
+to verify Hebrew translation succeeds.

@@ -52,3 +52,6 @@ log.txt
 *.swp
 *.swo
 .DS_Store
+
+# Secrets
+secrets/

@@ -1,0 +1,31 @@
+error_id,file_id,process_stage,error_message,error_details,timestamp
+389,104f0e86-69b4-4553-a88c-4f8cdf3f872d,transcription,"Transcription failed","status_code: 500, body: {'detail': {'status': 'something_went_wrong', 'message': 'We are sorry, something went wrong. You are not charged for this request.'}}","2025-04-08 20:35:19"
+390,52f763db-9c2e-42c9-b1b7-97aede60a0ab,transcription,"Transcription failed","status_code: 400, body: {'detail': {'status': 'invalid_audio_duration', 'message': 'We currently only accept audio with a maximum duration of 16200 seconds, but we received a file which is longer than that, we will extend this limit in the future.'}}","2025-04-08 22:13:51"
+392,cb07ae10-6bd6-4294-a49c-c45f2bff4d7b,transcription,"Transcription failed","[Errno 54] Connection reset by peer","2025-04-08 22:35:36"
+395,57517bfc-370d-4ded-b4e5-9e87c67c2f0a,transcription,"Transcription failed","status_code: 502, body: 
+<html><head>
+<meta http-equiv=""content-type"" content=""text/html;charset=utf-8"">
+<title>502 Server Error</title>
+</head>
+<body text=#000000 bgcolor=#ffffff>
+<h1>Error: Server Error</h1>
+<h2>The server encountered a temporary error and could not complete your request.<p>Please try again in 30 seconds.</h2>
+<h2></h2>
+</body></html>
+","2025-04-09 03:47:21"
+1158,52f763db-9c2e-42c9-b1b7-97aede60a0ab,transcription,"Transcription failed","status_code: 400, body: {'detail': {'status': 'invalid_audio_duration', 'message': 'We currently only accept audio with a maximum duration of 16200 seconds, but we received a file which is longer than that, we will extend this limit in the future.'}}","2025-04-09 16:30:23"
+1162,cb07ae10-6bd6-4294-a49c-c45f2bff4d7b,transcription,"Transcription failed","status_code: 502, body: 
+<html><head>
+<meta http-equiv=""content-type"" content=""text/html;charset=utf-8"">
+<title>502 Server Error</title>
+</head>
+<body text=#000000 bgcolor=#ffffff>
+<h1>Error: Server Error</h1>
+<h2>The server encountered a temporary error and could not complete your request.<p>Please try again in 30 seconds.</h2>
+<h2></h2>
+</body></html>
+","2025-04-09 16:37:33"
+1165,104f0e86-69b4-4553-a88c-4f8cdf3f872d,transcription,"Transcription failed","status_code: 500, body: {'detail': {'status': 'something_went_wrong', 'message': 'We are sorry, something went wrong. You are not charged for this request.'}}","2025-04-09 16:46:49"
+1256,52f763db-9c2e-42c9-b1b7-97aede60a0ab,transcription,"Transcription failed","status_code: 400, body: {'detail': {'status': 'invalid_audio_duration', 'message': 'We currently only accept audio with a maximum duration of 16200 seconds, but we received a file which is longer than that, we will extend this limit in the future.'}}","2025-04-17 11:34:19"
+1261,104f0e86-69b4-4553-a88c-4f8cdf3f872d,transcription,"Transcription failed","status_code: 500, body: {'detail': {'status': 'something_went_wrong', 'message': 'We are sorry, something went wrong. You are not charged for this request.'}}","2025-04-17 22:22:34"
+1263,52f763db-9c2e-42c9-b1b7-97aede60a0ab,transcription,"Transcription failed","status_code: 400, body: {'detail': {'status': 'invalid_audio_duration', 'message': 'We currently only accept audio with a maximum duration of 16200 seconds, but we received a file which is longer than that, we will extend this limit in the future.'}}","2025-04-17 22:23:13"
