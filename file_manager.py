@@ -21,6 +21,7 @@ import unicodedata
 import tempfile
 import time
 import subprocess
+import uuid  # for unique filename suffix
 
 try:
     import moviepy.editor as mp
@@ -268,11 +269,10 @@ class FileManager:
         if not base_name:
             base_name = "file"
         
-        # Add timestamp to ensure uniqueness
-        timestamp = int(time.time())
-        
-        # Create the safe filename
-        safe_filename = f"{base_name}_{timestamp}{extension}"
+        # Add timestamp and random suffix to ensure uniqueness
+        timestamp = int(time.time() * 1000)
+        suffix = uuid.uuid4().hex[:6]
+        safe_filename = f"{base_name}_{timestamp}_{suffix}{extension}"
         
         return safe_filename
     
@@ -294,17 +294,20 @@ class FileManager:
             
             # Get media duration
             duration = None
-            try:
-                if media_type == 'video':
-                    clip = mp.VideoFileClip(file_path)
-                    duration = clip.duration
-                    clip.close()
-                elif media_type == 'audio':
-                    clip = mp.AudioFileClip(file_path)
-                    duration = clip.duration
-                    clip.close()
-            except Exception as e:
-                logger.warning(f"Could not determine duration for {file_path}: {e}")
+            if mp is not None:
+                try:
+                    if media_type == 'video':
+                        clip = mp.VideoFileClip(file_path)
+                        duration = clip.duration
+                        clip.close()
+                    elif media_type == 'audio':
+                        clip = mp.AudioFileClip(file_path)
+                        duration = clip.duration
+                        clip.close()
+                except Exception as e:
+                    logger.warning(f"Could not determine duration for {file_path}: {e}")
+            else:
+                logger.warning(f"MoviePy not installed; skipping duration extraction for {file_path}")
             
             # Update database
             return self.db_manager.update_media_file(
@@ -317,7 +320,7 @@ class FileManager:
             logger.error(f"Error updating metadata for {file_path}: {e}")
             return False
     
-    def _calculate_file_checksum(self, file_path: str, algorithm: str = 'md5') -> str:
+    def _calculate_file_checksum(self, file_path: str, algorithm: Optional[str] = None) -> str:
         """
         Calculate a file checksum.
         
@@ -328,6 +331,7 @@ class FileManager:
         Returns:
             Hexadecimal checksum string
         """
+        algorithm = algorithm or self.config.get('checksum_alg', 'sha256')
         hash_alg = hashlib.new(algorithm)
         
         with open(file_path, 'rb') as f:
@@ -352,7 +356,7 @@ class FileManager:
         
         if not file_details:
             logger.error(f"File not found in database: {file_id}")
-            return False
+            raise ValueError(f"File not found in database: {file_id}")
         
         # Check if this is a video file
         if file_details['media_type'] != 'video':
@@ -432,7 +436,7 @@ class FileManager:
             # Update database with the audio path
             self.db_manager.update_status(
                 file_id=file_id,
-                status='completed',
+                status='pending',
                 transcription_status='not_started'
             )
             
@@ -505,7 +509,7 @@ class FileManager:
         
         if not file_details:
             logger.error(f"File not found in database: {file_id}")
-            return None
+            raise ValueError(f"File not found in database: {file_id}")
         
         # For audio files, return the original path
         if file_details['media_type'] == 'audio':
@@ -537,7 +541,7 @@ class FileManager:
         
         if not file_details:
             logger.error(f"File not found in database: {file_id}")
-            return None
+            raise ValueError(f"File not found in database: {file_id}")
         
         safe_filename = file_details['safe_filename']
         base_name = os.path.splitext(safe_filename)[0]
@@ -565,7 +569,7 @@ class FileManager:
         
         if not file_details:
             logger.error(f"File not found in database: {file_id}")
-            return None
+            raise ValueError(f"File not found in database: {file_id}")
         
         safe_filename = file_details['safe_filename']
         base_name = os.path.splitext(safe_filename)[0]
@@ -594,7 +598,7 @@ class FileManager:
         
         if not file_details:
             logger.error(f"File not found in database: {file_id}")
-            return None
+            raise ValueError(f"File not found in database: {file_id}")
         
         safe_filename = file_details['safe_filename']
         base_name = os.path.splitext(safe_filename)[0]
@@ -622,7 +626,7 @@ class FileManager:
         
         if not file_details:
             logger.error(f"File not found in database: {file_id}")
-            return None
+            raise ValueError(f"File not found in database: {file_id}")
         
         # Skip non-video files
         if file_details['media_type'] != 'video':

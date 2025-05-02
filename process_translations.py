@@ -57,6 +57,9 @@ def parse_args():
                         help='Process only the specified file')
     parser.add_argument('--languages', type=str, default='en,de,he',
                         help='Comma-separated list of target languages (default: en,de,he)')
+    parser.add_argument('--provider', type=str, choices=['deepl','google','microsoft','openai'],
+                        default=None,
+                        help='Override translation provider (deepl, google, microsoft, openai)')
     return parser.parse_args()
 
 def get_files_for_translation(db_manager: DatabaseManager, args) -> List[Dict]:
@@ -125,7 +128,8 @@ def get_files_for_translation(db_manager: DatabaseManager, args) -> List[Dict]:
     return filtered_files
 
 def process_batch(batch: List[Dict], translation_manager: TranslationManager, 
-                  target_languages: List[str], dry_run: bool, force: bool) -> Tuple[int, int]:
+                  target_languages: List[str], provider: Optional[str],
+                  dry_run: bool, force: bool) -> Tuple[int, int]:
     """
     Process a batch of files for translation.
     
@@ -133,6 +137,7 @@ def process_batch(batch: List[Dict], translation_manager: TranslationManager,
         batch: List of files to process
         translation_manager: Translation manager instance
         target_languages: List of target languages
+        provider: Optional translation provider
         dry_run: Whether to perform a dry run
         force: Whether to force reprocessing of files with failed status
         
@@ -153,8 +158,8 @@ def process_batch(batch: List[Dict], translation_manager: TranslationManager,
                 current_targets.append('de')
             logger.info(f"English source detected for {file_id}, adding German to target languages")
         
-        # Skip source language if it's in the targets
-        current_targets = [lang for lang in current_targets if lang.lower() != source_language.lower()]
+        # Allow same-language copy and subtitle generation (do not filter out source language)
+        # current_targets = [lang for lang in current_targets if lang.lower() != source_language.lower()]
         
         if dry_run:
             logger.info(f"[DRY RUN] Would translate {file_id} from {source_language} to {', '.join(current_targets)}")
@@ -166,7 +171,8 @@ def process_batch(batch: List[Dict], translation_manager: TranslationManager,
             file_success = True
             for target_language in current_targets:
                 logger.info(f"Translating {file_id} from {source_language} to {target_language}")
-                if not translation_manager.translate_file(file_id, target_language, force=force):
+                if not translation_manager.translate_file(file_id, target_language,
+                                                        provider=provider, force=force):
                     logger.warning(f"Translation to {target_language} failed for {file_id}")
                     file_success = False
                 else:
@@ -218,9 +224,8 @@ def process_translations(translation_manager: TranslationManager, db_manager: Da
             batch=batch, 
             translation_manager=translation_manager, 
             target_languages=target_languages,
-            dry_run=args.dry_run,
-            force=args.force
-        )
+            provider=args.provider,
+            dry_run=args.dry_run, force=args.force)
         
         total_success += success
         total_fail += fail

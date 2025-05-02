@@ -16,12 +16,15 @@ import datetime
 from typing import Dict, Any, Optional, List, Tuple
 from pathlib import Path
 import re
+import math  # needed for splitting logic
 
 import time
 try:
     from elevenlabs.core.api_error import ApiError
 except ImportError:
-    ApiError = Exception
+    class ApiError(Exception):
+        """Stub for ElevenLabs API errors."""
+        pass
 
 try:
     import requests
@@ -156,7 +159,6 @@ class TranscriptionManager:
                 self._split_temp_dir = None
             return []
         # Determine number of segments
-        import math
         num_segments = int(file_size_mb / max_size_mb) + 1
         segment_duration = duration / num_segments
         # Cap each segment to 10 minutes to avoid oversized chunks that sometimes
@@ -434,14 +436,15 @@ class TranscriptionManager:
                 # Store detected language in the database
                 # Extract language from the response - check for top-level language_code field
                 detected_language = None
-                language_probability = None
+                prob = getattr(transcription, 'language_probability', None)
                 
                 # Check different possible locations for language information
                 if hasattr(transcription, 'language_code'):
                     detected_language = transcription.language_code
-                    if hasattr(transcription, 'language_probability'):
-                        language_probability = transcription.language_probability
-                    logger.info(f"Detected language: {detected_language} (confidence: {language_probability:.2f})")
+                    if prob is not None:
+                        logger.info(f"Detected language: {detected_language} (confidence: {prob:.2f})")
+                    else:
+                        logger.info(f"Detected language: {detected_language}")
                 elif hasattr(transcription, 'detected_language'):
                     detected_language = transcription.detected_language
                     logger.info(f"Detected language: {detected_language}")

@@ -468,6 +468,10 @@ class TranslationManager:
                 return out
             
             elif provider == 'openai':
+                if len(text) > 90000:
+                    chunks = self._split_text_into_chunks(text, max_chars=45000)
+                    results = [self._translate_with_openai(c, target_language) for c in chunks]
+                    return "\n\n".join(filter(None, results))
                 out = self._translate_with_openai(
                     text=text,
                     target_language=norm_target_lang,
@@ -548,65 +552,84 @@ class TranslationManager:
             logger.error(f"Microsoft Translator API error: {e}")
             return None
     
-    def _translate_with_openai(self, text: str, target_language: str, 
-                              source_language: Optional[str] = None) -> Optional[str]:
+    def _translate_with_openai(self, text: str, target_language: str, source_language: Optional[str] = None) -> Optional[str]:
         """
-        Translate text using OpenAI API.
-        
-        Args:
-            text: Text to translate
-            target_language: Target language code
-            source_language: Source language code (optional)
-            
-        Returns:
-            Translated text or None if translation failed
+        Translate text using OpenAI API via a single-shot JSON-based workflow with automatic fallback.
+        Ensures only target-language output; no words from any other language except proper nouns.
         """
         if 'openai' not in self.providers:
             logger.error("OpenAI Translator not initialized")
             return None
-        
-        try:
-            # Format the language names more naturally
-            language_names = {
-                'en': 'English',
-                'de': 'German',
-                'he': 'Hebrew',
-                'fr': 'French',
-                'es': 'Spanish',
-                'it': 'Italian',
-                'nl': 'Dutch',
-                'pl': 'Polish',
-                'pt': 'Portuguese',
-                'ru': 'Russian',
-                'ja': 'Japanese',
-                'zh': 'Chinese'
-            }
-            
-            target_lang_name = language_names.get(target_language.lower(), target_language)
-            source_lang_name = language_names.get(source_language.lower(), source_language) if source_language else "the source language"
-            
-            # Create the translation prompt
-            prompt = f"Translate the following text from {source_lang_name} to {target_lang_name}. Preserve paragraph breaks and formatting as much as possible. Only respond with the translated text, without any explanations, notes, or any other additional text:\n\n{text}"
-            
-            # Call the ChatGPT API
-            response = openai.chat.completions.create(
-                model="gpt-3.5-turbo",  # Use 3.5 model for cost-efficiency, can be upgraded to 4 if needed
+
+        # Map language codes to human-readable names
+        language_names = {
+            'en': 'English', 'de': 'German', 'he': 'Hebrew',
+            'fr': 'French', 'es': 'Spanish', 'it': 'Italian',
+            'nl': 'Dutch', 'pl': 'Polish', 'pt': 'Portuguese',
+            'ru': 'Russian', 'ja': 'Japanese', 'zh': 'Chinese'
+        }
+        target_lang_name = language_names.get(target_language.lower(), target_language)
+
+        # Single consolidated system instruction
+        system_msg = (
+            f"You are a professional translator. "
+            f"Translate any incoming text to {target_lang_name} only. "
+            "No words from any other language may appear except immutable proper nouns "
+            "(people, place, organisation names). "
+            "Retain paragraph and line breaks and speaker labels. "
+            "Return strict JSON with keys \"translation\" (string) and \"has_foreign\" (boolean)."
+        )
+
+        def call_model(model_name: str, user_text: str) -> str:
+            resp = openai.chat.completions.create(
+                model=model_name,
                 messages=[
-                    {"role": "system", "content": f"You are a professional translator. Translate the input text from {source_lang_name} to {target_lang_name} accurately."},
-                    {"role": "user", "content": prompt}
+                    {"role": "system", "content": system_msg},
+                    {"role": "user", "content": user_text}
                 ],
-                temperature=0.3  # Lower temperature for more consistent translation
+                temperature=0.0,
+                response_format={"type": "json_object"}
             )
-            
-            # Extract the translated text
-            translated_text = response.choices[0].message.content.strip()
-            
-            return translated_text
-            
+            return resp.choices[0].message.content.strip()
+
+        try:
+            # Primary pass
+            content = call_model(self.PRIMARY_MODEL, text)
+            obj = json.loads(content)
+            translation = obj.get("translation", "").strip()
+            has_foreign = obj.get("has_foreign", True)
         except Exception as e:
-            logger.error(f"OpenAI Translator API error: {e}")
-            return None
-    
+            logger.warning(f"Primary JSON translate failed: {e}")
+            # Fallback to mini model
+            try:
+                content = call_model(self.FALLBACK_MODEL, text)
+                obj = json.loads(content)
+                translation = obj.get("translation", "").strip()
+                has_foreign = obj.get("has_foreign", False)
+            except Exception as e2:
+                logger.error(f"Fallback JSON translate failed: {e2}")
+                return translation or None
+
+        # Automatic retry if flagged
+        if has_foreign:
+            try:
+                content = call_model(self.FALLBACK_MODEL, translation)
+                obj = json.loads(content)
+                translation = obj.get("translation", "").strip()
+                has_foreign = obj.get("has_foreign", False)
+            except Exception as e:
+                logger.error(f"Second fallback failed: {e}")
+
+        # Final regex lint for untranslated fragments
+        if re.search(r"[äöüßÄÖÜ]", translation):
+            raise ValueError("Untranslated fragment detected")
+
+        return translation
+
+    # Model selection for translation passes
+    PRIMARY_MODEL = "gpt-4.1"
+    FALLBACK_MODEL = "gpt-4.1-mini"
+
     def translate_file(self, file_id: str, target_language: str, 
                       provider: Optional[str] = None, force: bool = False) -> bool:
         """
@@ -647,7 +670,7 @@ class TranslationManager:
         status_field = f"translation_{target_language}_status"
         
         # Skip if already translated unless force flag is set
-        if not force and hasattr(file_details, status_field) and getattr(file_details, status_field) == 'completed':
+        if not force and file_details.get(status_field) == 'completed':
             logger.info(f"File already translated to {target_language}: {file_id}")
             return True
         
@@ -666,23 +689,6 @@ class TranslationManager:
         # Get source language from file details
         source_language = file_details.get('detected_language')
         
-        # When source language matches target language, copy the original transcript
-        if source_language and self.is_same_language(source_language, target_language):
-            logger.info(f"Source language {source_language} matches target language {target_language}, copying original transcript")
-            # Get translation output path
-            translation_path = self.file_manager.get_translation_path(file_id, target_language)
-            # Create directory if it doesn't exist
-            os.makedirs(os.path.dirname(translation_path), exist_ok=True)
-            # Copy the original transcript to the translation file
-            with open(translation_path, 'w', encoding='utf-8') as f:
-                f.write(transcript_text)
-            # Update status to completed
-            status_update = {}
-            status_update[status_field] = 'completed'
-            self.db_manager.update_status(file_id=file_id, status='completed', **status_update)
-            logger.info(f"Original transcript copied as {target_language} translation for {file_id}")
-            return True
-        
         # Get translation output path
         translation_path = self.file_manager.get_translation_path(file_id, target_language)
         
@@ -695,20 +701,6 @@ class TranslationManager:
         except Exception as e:
             logger.warning(f"Could not update status field {status_field}: {e}")
             # Continue with default status fields
-        
-        # Ensure we don't use DeepL for Hebrew (unsupported)
-        if target_language.lower() == 'he':
-            if provider is None or provider == 'deepl':
-                # Prefer Microsoft, then Google, then OpenAI
-                if 'microsoft' in self.providers:
-                    provider = 'microsoft'
-                elif 'google' in self.providers:
-                    provider = 'google'
-                elif 'openai' in self.providers:
-                    provider = 'openai'
-                else:
-                    logger.error("No suitable provider available for Hebrew translation")
-                    provider = None  # will fail below
         
         try:
             logger.info(f"Translating file {file_id} from {source_language} to {target_language}")
@@ -778,7 +770,7 @@ class TranslationManager:
                 if lang == target_language:
                     continue  # Skip current language
                 
-                if not hasattr(file_details, field) or getattr(file_details, field) != 'completed':
+                if file_details.get(field) != 'completed':
                     all_completed = False
                     break
             
@@ -1172,14 +1164,16 @@ class TranslationManager:
                 client = openai.OpenAI()
                 completion = client.chat.completions.create(
                     model="gpt-4.1",
-                    messages=[{"role": "user", "content": prompt}],
+                    messages=[{"role": "system", "content": f"You are a professional translator. Translate from the source language to Hebrew accurately and entirely in Hebrew. Do not include any source-language words, except proper nouns."},
+                    {"role": "user", "content": prompt}],
                     temperature=0.2,
                 )
                 return completion.choices[0].message.content.strip()
             else:
                 completion = openai.ChatCompletion.create(
                     model="gpt-4.1",
-                    messages=[{"role": "user", "content": prompt}],
+                    messages=[{"role": "system", "content": f"You are a professional translator. Translate from the source language to Hebrew accurately and entirely in Hebrew. Do not include any source-language words, except proper nouns."},
+                    {"role": "user", "content": prompt}],
                     temperature=0.2,
                 )
                 return completion["choices"][0]["message"]["content"].strip()
