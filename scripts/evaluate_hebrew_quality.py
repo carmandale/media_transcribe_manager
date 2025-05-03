@@ -69,12 +69,19 @@ def build_paths(uuid: str) -> Dict[str, pathlib.Path]:
     base_dir = pathlib.Path("./output/translations")
     paths: Dict[str, pathlib.Path] = {}
     for lang in ("en", "de", "he"):
-        dir_path = base_dir.joinpath(lang)
-        matches = list(dir_path.glob(f"{uuid}*_{lang}.txt"))
-        # Fallback: use original transcripts if translation missing
-        if not matches and lang in ("en", "de"):
-            fallback_dir = pathlib.Path("./output/transcripts").joinpath(lang)
-            matches = list(fallback_dir.glob(f"{uuid}*_{lang}.txt"))
+        dir_path = base_dir / lang
+        # Look for translation file
+        pattern = f"{uuid}*_{lang}.txt"
+        matches = list(dir_path.glob(pattern))
+        # Fallback to transcripts for English source and German reference
+        if lang == "en" and not matches:
+            fallback_dir = pathlib.Path("./output/transcripts")
+            # transcripts saved without lang suffix
+            matches = list(fallback_dir.glob(f"{uuid}*.txt"))
+        if lang == "de" and not matches:
+            fallback_dir = pathlib.Path("./output/transcripts")
+            # transcripts saved without suffix
+            matches = list(fallback_dir.glob(f"{uuid}*.txt"))
         if not matches:
             raise FileNotFoundError(f"No {lang} file found for {uuid}")
         paths[lang] = matches[0]

@@ -56,7 +56,8 @@ class DatabaseManager:
         Establish connection to the SQLite database.
         """
         try:
-            self.conn = sqlite3.connect(self.db_file)
+            # Allow usage of connection across threads for parallel QA
+            self.conn = sqlite3.connect(self.db_file, check_same_thread=False)
             # Enable foreign key support
             self.conn.execute("PRAGMA foreign_keys = ON")
             # Return rows as dictionaries
@@ -125,6 +126,21 @@ class DatabaseManager:
             )
             """)
             
+            # Quality Evaluations Table
+            self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS quality_evaluations (
+                eval_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                file_id TEXT NOT NULL,
+                language TEXT NOT NULL,
+                model TEXT NOT NULL,
+                score REAL NOT NULL,
+                issues TEXT,
+                comment TEXT,
+                evaluated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (file_id) REFERENCES media_files(file_id)
+            )
+            """)
+            
             self.conn.commit()
             logger.debug("Database initialized with required tables")
         except sqlite3.Error as e:
@@ -139,6 +155,7 @@ class DatabaseManager:
         try:
             # Drop tables if they exist
             self.cursor.execute("DROP TABLE IF EXISTS errors")
+            self.cursor.execute("DROP TABLE IF EXISTS quality_evaluations")
             self.cursor.execute("DROP TABLE IF EXISTS processing_status")
             self.cursor.execute("DROP TABLE IF EXISTS media_files")
             
@@ -355,6 +372,48 @@ class DatabaseManager:
             logger.error(f"Error logging error for file {file_id}: {e}")
             return False
     
+    def add_quality_evaluation(self, file_id: str, language: str, model: str, score: float, issues: List[str], comment: str = None) -> bool:
+        """
+        Insert a quality evaluation record into the database.
+        """
+        try:
+            issues_json = json.dumps(issues, ensure_ascii=False)
+            self.cursor.execute(
+                """
+                INSERT INTO quality_evaluations (
+                    file_id, language, model, score, issues, comment, evaluated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (file_id, language, model, score, issues_json, comment, datetime.now())
+            )
+            self.conn.commit()
+            logger.debug(f"Logged quality evaluation for {file_id} [{language}] → {score}")
+            return True
+            
+        except sqlite3.Error as e:
+            self.conn.rollback()
+            logger.error(f"Error logging quality evaluation for {file_id}: {e}")
+            return False
+            
+    def update_translation_status(self, file_id: str, language: str, status: str) -> bool:
+        """
+        Update a specific translation_{language}_status field for a file.
+        """
+        try:
+            col = f"translation_{language}_status"
+            now = datetime.now()
+            self.cursor.execute(
+                f"UPDATE processing_status SET {col} = ?, last_updated = ? WHERE file_id = ?",
+                (status, now, file_id)
+            )
+            self.conn.commit()
+            logger.debug(f"Updated {col} for {file_id} → {status}")
+            return True
+        except sqlite3.Error as e:
+            self.conn.rollback()
+            logger.error(f"Error updating {col} for {file_id}: {e}")
+            return False
+            
     def execute_query(self, query: str, params: tuple = None) -> List[Dict[str, Any]]:
         """
         Execute an arbitrary SQL query and return results as a list of dictionaries.

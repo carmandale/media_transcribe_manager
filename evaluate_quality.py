@@ -67,6 +67,8 @@ def _normalise(lang: Optional[str]) -> Optional[str]:
 def evaluate_file(file_row: Dict[str, Any],
                   fm: FileManager) -> Dict[str, Any]:
     fid = file_row["file_id"]
+    # record detected language for original subtitle summary
+    det_lang = _normalise(file_row.get("detected_language"))
     checks: Dict[str, str] = {}
     failures: List[str] = []
 
@@ -106,8 +108,15 @@ def evaluate_file(file_row: Dict[str, Any],
     for lang in TARGET_LANGS:
         _check_path(f"subtitle_{lang}", fm.get_subtitle_path(fid, lang))
 
+    # determine status of original subtitle (in detected language)
+    orig_status = None
+    if det_lang:
+        orig_status = checks.get(f"subtitle_{det_lang}")
+
     return {
         "file_id": fid,
+        "detected_language": det_lang,
+        "original_subtitle_status": orig_status,
         "checks": checks,
         "fail_reasons": failures,
         "evaluated_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
@@ -124,7 +133,7 @@ def main() -> None:
     fm = FileManager(db, {"output_dir": "./output"})
 
     if args.all:
-        rows = db.get_files_by_status("*")
+        rows = db.get_files_by_status(['pending', 'in-progress', 'completed', 'failed'])
         if args.limit:
             rows = rows[:args.limit]
     else:
@@ -142,20 +151,20 @@ def main() -> None:
 
     results: List[Dict[str, Any]] = []
     exit_code = 0
-    with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as ex:
-        for res in ex.map(lambda r: evaluate_file(r, fm), rows_iter):
-            results.append(res)
-            if any("lang_mismatch" in x for x in res["fail_reasons"]):
-                exit_code = max(exit_code, 2)
-            elif res["fail_reasons"]:
-                exit_code = max(exit_code, 1)
-
-            qa_status = "failed" if res["fail_reasons"] else "passed"
-            db.update_status(
-                file_id=res["file_id"],
-                qa_status=qa_status,
-                qa_errors=";".join(res["fail_reasons"]) if res["fail_reasons"] else None,
-            )
+    # process files sequentially to avoid DB threading issues
+    for r in rows_iter:
+        res = evaluate_file(r, fm)
+        results.append(res)
+        # determine exit code based on fail reasons
+        if any("lang_mismatch" in x for x in res["fail_reasons"]):
+            exit_code = max(exit_code, 2)
+        elif res["fail_reasons"]:
+            exit_code = max(exit_code, 1)
+        # update overall status based on QA results
+        db.update_status(
+            res["file_id"],
+            "failed" if res["fail_reasons"] else "completed"
+        )
 
     if args.json_out:
         with open(args.json_out, "w", encoding="utf-8") as fh:
@@ -168,6 +177,44 @@ def main() -> None:
     pass_ct = sum(1 for r in results if not r["fail_reasons"])
     fail_ct = len(results) - pass_ct
     log.info("QA finished → %d passed  %d failed", pass_ct, fail_ct)
+    # summary of transcripts
+    trans_ok = sum(1 for r in results if r["checks"].get("transcript") == "ok")
+    trans_missing = sum(1 for r in results if r["checks"].get("transcript") == "missing")
+    trans_empty = sum(1 for r in results if r["checks"].get("transcript") == "empty")
+    log.info(f"Transcripts → ok:{trans_ok} missing:{trans_missing} empty:{trans_empty}")
+    # summary of translations per language
+    for lang in TARGET_LANGS:
+        tr_ok = sum(1 for r in results if r["checks"].get(f"translation_{lang}") == "ok")
+        tr_missing = sum(1 for r in results if r["checks"].get(f"translation_{lang}") == "missing")
+        tr_empty = sum(1 for r in results if r["checks"].get(f"translation_{lang}") == "empty")
+        tr_unknown = sum(1 for r in results if r["checks"].get(f"translation_{lang}") == "lang_unknown")
+        tr_mismatch = sum(1 for r in results if r["checks"].get(f"translation_{lang}") == "lang_mismatch")
+        log.info(f"Translations {lang} → ok:{tr_ok} missing:{tr_missing} empty:{tr_empty} unknown:{tr_unknown} mismatch:{tr_mismatch}")
+    # summary of subtitles per language
+    for lang in TARGET_LANGS:
+        sub_ok = sum(1 for r in results if r["checks"].get(f"subtitle_{lang}") == "ok")
+        sub_missing = sum(1 for r in results if r["checks"].get(f"subtitle_{lang}") == "missing")
+        sub_empty = sum(1 for r in results if r["checks"].get(f"subtitle_{lang}") == "empty")
+        log.info(f"Subtitles {lang} → ok:{sub_ok} missing:{sub_missing} empty:{sub_empty}")
+    # summary of original subtitles by detected language
+    for lang in TARGET_LANGS:
+        lang_files = [r for r in results if r.get("detected_language") == lang]
+        total = len(lang_files)
+        orig_ok = sum(1 for r in lang_files if r.get("original_subtitle_status") == "ok")
+        orig_missing = sum(1 for r in lang_files if r.get("original_subtitle_status") == "missing")
+        orig_empty = sum(1 for r in lang_files if r.get("original_subtitle_status") == "empty")
+        log.info(f"Original subtitles ({lang}) → total:{total} ok:{orig_ok} missing:{orig_missing} empty:{orig_empty}")
+    # overall original subtitles summary
+    orig_ok_total = sum(1 for r in results if r.get("original_subtitle_status") == "ok")
+    orig_missing_total = sum(1 for r in results if r.get("original_subtitle_status") == "missing")
+    orig_empty_total = sum(1 for r in results if r.get("original_subtitle_status") == "empty")
+    log.info(f"Original subtitles overall → ok:{orig_ok_total} missing:{orig_missing_total} empty:{orig_empty_total}")
+    # matrix of transcript vs original subtitle
+    trans_ok_sub_ok = sum(1 for r in results if r["checks"].get("transcript")=="ok" and r.get("original_subtitle_status")=="ok")
+    trans_ok_sub_missing = sum(1 for r in results if r["checks"].get("transcript")=="ok" and r.get("original_subtitle_status")=="missing")
+    trans_missing_sub_ok = sum(1 for r in results if r["checks"].get("transcript")=="missing" and r.get("original_subtitle_status")=="ok")
+    trans_missing_sub_missing = sum(1 for r in results if r["checks"].get("transcript")=="missing" and r.get("original_subtitle_status")=="missing")
+    log.info(f"Transcript vs original subtitle → both_ok:{trans_ok_sub_ok} trans_ok_sub_missing:{trans_ok_sub_missing} trans_missing_sub_ok:{trans_missing_sub_ok} both_missing:{trans_missing_sub_missing}")
     sys.exit(exit_code)
 
 if __name__ == "__main__":
