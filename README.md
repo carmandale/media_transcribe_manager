@@ -382,6 +382,44 @@ request_options = {
 
 ## Special Processing Scripts
 
+### Hebrew Translation Fix
+
+The `fix_hebrew_translations.py` script fixes Hebrew translations with placeholder text and improves RTL formatting:
+
+```bash
+# Fix Hebrew translations in batches of 10
+python fix_hebrew_translations.py --batch-size 10
+
+# Preview which files would be fixed without making changes
+python fix_hebrew_translations.py --dry-run
+```
+
+Features:
+- Identifies Hebrew translations with placeholder text "[HEBREW TRANSLATION]"
+- Translates properly using OpenAI with Hebrew glossary support
+- Applies RTL (right-to-left) formatting fixes
+- Updates subtitles with correct Hebrew formatting
+
+See `docs/HEBREW_TRANSLATION_FIX.md` for more details.
+
+### Full Translation Pipeline
+
+The `run_full_pipeline.py` script automates the entire process:
+
+```bash
+# Run the full pipeline with default settings
+python run_full_pipeline.py
+
+# Process specific languages only
+python run_full_pipeline.py --languages en,he
+```
+
+Features:
+- Processes missing translations for all languages
+- Fixes Hebrew translations with placeholder text
+- Evaluates translation quality using historical criteria
+- Generates comprehensive reports
+
 ### Processing Untranscribed Files
 
 The `process_untranscribed.py` script is designed to specifically target files that have never been transcribed (those with a transcription status of 'not_started').

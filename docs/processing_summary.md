@@ -75,3 +75,45 @@ _Data collected on 2025-04-24_
 | 00b414f3-97a0-4355-b3f7-9cfa1a1fe874  | de     | 9     | Highly accurate and fluent; near publication quality with minor tweaks needed.                                  |
 | 00d2c753-4160-43c6-97d1-9b9f0315e804  | de     | 10    | Verbatim German source; perfect fidelity and fluency.                                                           |
 | 00d2fc02-29b0-4fcb-b38f-d1fbe7bc430d  | de     | 2     | Mix of English and German; lacks fluency, not suitable for publication.                                          |
+_Data collected on 2025-05-03_
+time: 08:48am cdt
+
+| Category                          | Count |
+|-----------------------------------|------:|
+| Total media files                 | 728   |
+| Transcripts completed             | 686   |
+| English translations completed    | 360   |
+| German translations completed     | 330   |
+| Hebrew translations completed     | 264   |
+| English subtitles generated       | 112     |
+| German subtitles generated        | 258     |
+| Hebrew subtitles generated        | 332     |
+
+_Data collected on 2025-05-03_
+time: 11:12am cdt
+
+| Category                          | Count |
+|-----------------------------------|------:|
+| Total media files                 | 728   |
+| Transcripts completed             | 686   |
+| English translations completed    | 452   |
+| German translations completed     | 406   |
+| Hebrew translations completed     | 310   |
+| English subtitles generated       | 210     |
+| German subtitles generated        | 315     |
+| Hebrew subtitles generated        | 388     |
+
+_Data collected on 2025-05-03_
+time: 06:00pm cdt
+
+| Category                          | Count |
+|-----------------------------------|------:|
+| Total media files                 | 728   |
+| Transcripts completed             | 686   |
+| English translations completed    | 555   |
+| German translations completed     | 494   |
+| Hebrew translations completed     | 360   |
+| English subtitles generated       | 342     |
+| German subtitles generated        | 401     |
+| Hebrew subtitles generated        | 459     |
+

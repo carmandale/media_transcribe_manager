@@ -7,24 +7,30 @@ import logging
 import sys
 from db_manager import DatabaseManager
 
-# Import Hebrew evaluator
+# Import language evaluators
 try:
     from scripts.evaluate_hebrew_quality import evaluate as eval_hebrew
 except ImportError:
     eval_hebrew = None
 
-# Placeholder for future EN/DE evaluators
-# from scripts.evaluate_english_quality import evaluate as eval_en
-# from scripts.evaluate_german_quality import evaluate as eval_de
+try:
+    from scripts.evaluate_english_quality import evaluate as eval_english
+except ImportError:
+    eval_english = None
+
+try:
+    from scripts.evaluate_german_quality import evaluate as eval_german
+except ImportError:
+    eval_german = None
 
 
 def get_evaluator(lang: str):
     if lang == "he" and eval_hebrew:
         return lambda fid, model: eval_hebrew(fid, model)
-    # elif lang == "en" and eval_en:
-    #     return lambda fid, model: eval_en(fid, model)
-    # elif lang == "de" and eval_de:
-    #     return lambda fid, model: eval_de(fid, model)
+    elif lang == "en" and eval_english:
+        return lambda fid, model: eval_english(fid, model)
+    elif lang == "de" and eval_german:
+        return lambda fid, model: eval_german(fid, model)
     else:
         raise NotImplementedError(f"No evaluator implemented for language '{lang}'")
 

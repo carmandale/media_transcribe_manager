@@ -75,8 +75,33 @@ python batch_evaluate_quality.py --db media_tracking.db --languages he,en,de --t
 > - *Option 1* (second suggestion) integrates GPT scoring directly into the existing `evaluate_quality.py` command under a new flag, providing a unified experience but adding latency and complexity to the core tool.
 > - *Option 2* (third suggestion) uses a separate batch script (`batch_evaluate_quality.py`), keeping the core CLI lean and letting you run semantic QA as its own job.
 
-## 6. Next Steps
+## 6. Hebrew Translation Fix
 
-- Implement and test `evaluate_english_quality.py` and `evaluate_german_quality.py`.
-- Integrate EN/DE evaluators into the batch runner.
-- Schedule regular QA runs (e.g. CI job, cron).
+For Hebrew translations with quality issues, a new system has been implemented to fix the placeholder text problem and ensure proper RTL formatting:
+
+- **fix_hebrew_translations.py**: Identifies and properly translates files with Hebrew placeholder text
+- **Hebrew Glossary**: A glossary at `docs/glossaries/he_seed.csv` ensures consistent translation of historical terms
+- **Post-processing**: Applies RTL formatting and glossary terms to improve Hebrew readability
+
+See `docs/HEBREW_TRANSLATION_FIX.md` for complete documentation on the Hebrew translation fix process.
+
+## 7. Full Translation Pipeline
+
+A comprehensive pipeline script is now available to automate the entire process:
+
+```bash
+python run_full_pipeline.py --batch-size 10
+```
+
+This script handles:
+1. Processing missing translations for all languages
+2. Fixing Hebrew translations with placeholder text
+3. Evaluating translation quality using historical criteria
+4. Generating comprehensive reports
+
+## 8. Next Steps
+
+- Implement and test `evaluate_english_quality.py` and `evaluate_german_quality.py`
+- Integrate EN/DE evaluators into the batch runner
+- Schedule regular QA runs (e.g. CI job, cron)
+- Expand the Hebrew glossary with more specialized terms

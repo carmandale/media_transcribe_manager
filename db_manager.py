@@ -372,19 +372,32 @@ class DatabaseManager:
             logger.error(f"Error logging error for file {file_id}: {e}")
             return False
     
-    def add_quality_evaluation(self, file_id: str, language: str, model: str, score: float, issues: List[str], comment: str = None) -> bool:
+    def add_quality_evaluation(self, file_id: str, language: str, model: str, score: float, 
+                         issues: List[str], comment: str = None, custom_data: str = None) -> bool:
         """
         Insert a quality evaluation record into the database.
+        
+        Args:
+            file_id: Unique ID of the file
+            language: Language code (en, de, he)
+            model: Model used for evaluation (e.g., gpt-4, historical-gpt-4)
+            score: Quality score (0-10)
+            issues: List of issues identified
+            comment: Optional comment or overall assessment
+            custom_data: Optional JSON string with additional evaluation data
+            
+        Returns:
+            True if successful, False otherwise
         """
         try:
             issues_json = json.dumps(issues, ensure_ascii=False)
             self.cursor.execute(
                 """
                 INSERT INTO quality_evaluations (
-                    file_id, language, model, score, issues, comment, evaluated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    file_id, language, model, score, issues, comment, evaluated_at, custom_data
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (file_id, language, model, score, issues_json, comment, datetime.now())
+                (file_id, language, model, score, issues_json, comment, datetime.now(), custom_data)
             )
             self.conn.commit()
             logger.debug(f"Logged quality evaluation for {file_id} [{language}] → {score}")

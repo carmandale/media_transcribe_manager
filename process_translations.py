@@ -20,8 +20,16 @@ import time
 import sys
 from typing import List, Dict, Tuple, Optional
 
-from tqdm import tqdm
-from dotenv import load_dotenv
+try:
+    from tqdm import tqdm
+except ImportError:
+    # Fallback if tqdm is not installed
+    tqdm = lambda iterable, **kwargs: iterable
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    # Fallback if python-dotenv is not installed
+    load_dotenv = lambda *args, **kwargs: None
 
 from db_manager import DatabaseManager
 from file_manager import FileManager
