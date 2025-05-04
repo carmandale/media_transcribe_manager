@@ -10,7 +10,7 @@ The translation pipeline processes hundreds of audio/video files through multipl
 3. Quality evaluation
 4. Reporting
 
-During processing, some translations may stall in the 'in-progress' state. This guide explains how to monitor and recover from such issues.
+During processing, issues may arise such as stalled translations or missing transcript files. This guide explains how to monitor and recover from such issues.
 
 ## Status Checking Tools
 
@@ -42,6 +42,42 @@ This will:
 1. Find files that have been in the 'in-progress' state for over 30 minutes
 2. Reset them to 'not_started' state so they can be processed again
 3. Show which files were reset
+
+To automatically reset stuck files:
+
+```bash
+python check_stuck_files.py --reset
+```
+
+### Identify and Fix Missing Transcripts
+
+Several tools are available to address "Transcript text not found" errors:
+
+```bash
+# Check transcript details for a specific file
+python check_transcript_file.py <file_id>
+
+# Find and fix files with "Transcript text not found" errors
+python fix_missing_transcripts.py --reset
+
+# Identify any files marked as completed but with missing transcript files
+python find_all_missing_transcripts.py
+```
+
+### Debug Transcription Issues
+
+For troubleshooting specific transcription problems:
+
+```bash
+# Debug transcription for a specific file
+python debug_transcription.py --file-id <file_id>
+```
+
+This script:
+- Checks file integrity and format
+- Tests API connectivity
+- Attempts to transcribe a small sample
+- Identifies potential issues
 
 ## Automated Monitoring
 
@@ -83,7 +119,23 @@ python monitor_and_restart.py > monitoring.log 2>&1 &
 tail -f monitoring.log
 ```
 
-## Troubleshooting Stalled Translations
+### Verifying Monitoring is Running
+
+To check if the monitoring script is running:
+
+```bash
+ps -ef | grep monitor_and_restart.py | grep -v grep
+```
+
+To check if the pipeline is running:
+
+```bash
+ps -ef | grep run_full_pipeline.py | grep -v grep
+```
+
+## Troubleshooting Common Issues
+
+### Stalled Translations
 
 If translations appear to be stalled:
 
@@ -91,21 +143,72 @@ If translations appear to be stalled:
    - Look at "Last database update" - if >30 minutes, translations are stalled
    - Check how many translations are still in progress
 
-2. **Reset Stuck Processes**: Run `python check_stuck_files.py` to reset any stuck processes
+2. **Reset Stuck Processes**: Run `python check_stuck_files.py --reset` to reset any stuck processes
 
 3. **Restart Pipeline**: Run `python run_full_pipeline.py --batch-size 10 --languages en,de,he` to restart processing
 
 4. **Start Monitoring**: For continued monitoring, use `python monitor_and_restart.py`
 
+### Missing Transcript Files
+
+If translations fail with "Transcript text not found" errors:
+
+1. **Identify Files**: Run `python fix_missing_transcripts.py` to identify affected files
+
+2. **Reset for Retranscription**: Run `python fix_missing_transcripts.py --reset` to mark files for retranscription
+
+3. **Verify Reset**: Use `python check_transcript_file.py <file_id>` to verify status was reset correctly
+
+4. **Monitor Progress**: Check status regularly to ensure files are being retranscribed
+
+### Persistent Transcription Failures
+
+If certain files repeatedly fail to transcribe:
+
+1. **Debug Specific File**: Run `python debug_transcription.py --file-id <file_id>` to diagnose issues
+
+2. **Check File Format**: Verify audio format and integrity using the debug script
+
+3. **Check API Access**: Ensure the ElevenLabs API key is valid and has sufficient quota
+
+4. **Try Manual Splitting**: For large files, consider manually splitting into smaller segments
+
 ## Common Issues and Solutions
 
 | Issue | Symptoms | Solution |
 |-------|----------|----------|
-| Stalled translations | No database updates for >30 minutes | Run `check_stuck_files.py` and restart pipeline |
+| Stalled translations | No database updates for >30 minutes | Run `check_stuck_files.py --reset` and restart pipeline |
+| Missing transcript files | "Transcript text not found" errors | Run `fix_missing_transcripts.py --reset` |
 | Process crashes | No Python processes running | Restart pipeline with `run_full_pipeline.py` |
 | Database errors | SQLite errors in logs | Check database file permissions and integrity |
 | API rate limiting | Many API errors in error log | Reduce batch size, increase sleep between calls |
 | Quality failure pattern | Many files failing quality checks | Review quality evaluation criteria |
+| Large file failures | Transcription timeouts on large files | Ensure the file splitting logic is working correctly |
+
+## Regular Maintenance Tasks
+
+To ensure the pipeline runs smoothly:
+
+1. **Daily Status Checks**:
+   ```bash
+   python check_status.py
+   ```
+
+2. **Monitor Running Processes**:
+   ```bash
+   ps -ef | grep monitor_and_restart.py
+   ps -ef | grep run_full_pipeline.py
+   ```
+
+3. **Check Recent Errors**:
+   ```bash
+   python -c "import sqlite3; conn = sqlite3.connect('media_tracking.db'); cursor = conn.cursor(); cursor.execute('SELECT process_stage, COUNT(*) FROM errors WHERE timestamp > datetime(\"now\", \"-24 hours\") GROUP BY process_stage'); print('\n'.join([f'{row[0]}: {row[1]}' for row in cursor.fetchall()]))"
+   ```
+
+4. **Verify File Integrity**:
+   - Check for missing original files
+   - Verify transcript files exist for completed transcriptions
+   - Ensure translations are being completed for all languages
 
 ## Monitoring Best Practices
 
@@ -114,3 +217,4 @@ If translations appear to be stalled:
 3. **Error Review**: Regularly review error logs to catch patterns
 4. **Database Backups**: Make regular backups of the database file
 5. **Batch Size Management**: Adjust batch size based on API limits and system capacity
+6. **Verify Completed Files**: Periodically check that completed files have all necessary outputs

@@ -309,20 +309,56 @@ The `--summary` flag shows:
 - Stage completion statistics
 - Recent errors (last 24 hours by default)
 
+### Database Query Utility
+
+The `db_query.py` utility simplifies database interaction and makes SQL queries much easier:
+
+```bash
+# Basic usage
+python db_query.py "SELECT * FROM processing_status LIMIT 5"
+
+# Output as a formatted table
+python db_query.py --format table "SELECT * FROM processing_status LIMIT 5"
+
+# Check translation progress
+python db_query.py --format table "
+SELECT 
+    SUM(CASE WHEN translation_en_status = 'completed' THEN 1 ELSE 0 END) as en_completed,
+    SUM(CASE WHEN translation_de_status = 'completed' THEN 1 ELSE 0 END) as de_completed,
+    SUM(CASE WHEN translation_he_status = 'completed' THEN 1 ELSE 0 END) as he_completed,
+    COUNT(*) as total
+FROM processing_status
+"
+```
+
+For a comprehensive list of useful database queries, see `docs/DB_QUERIES.md`.
+
 ### Error Handling and Debugging
 
 #### View Error Details
 
-Error reports now filter by recency (last 24 hours by default) to prevent confusion with historical errors. To see all historical errors:
+To see recent errors (last 24 hours):
 
 ```bash
-python -c "from reporter import Reporter; from db_manager import DatabaseManager; r = Reporter(DatabaseManager('./media_tracking.db'), {}); r.display_error_analysis(recent_only=False)"
+python db_query.py --format table "
+SELECT process_stage, error_message, COUNT(*) as count 
+FROM errors 
+WHERE timestamp > datetime('now', '-24 hours') 
+GROUP BY process_stage, error_message
+ORDER BY count DESC
+"
 ```
 
-To see only recent errors (last 24 hours):
+To see specific error details:
 
 ```bash
-python -c "from reporter import Reporter; from db_manager import DatabaseManager; r = Reporter(DatabaseManager('./media_tracking.db'), {}); r.display_error_analysis(recent_only=True)"
+python db_query.py --format table "
+SELECT file_id, process_stage, error_message, timestamp  
+FROM errors 
+WHERE process_stage = 'translation_he'
+ORDER BY timestamp DESC
+LIMIT 10
+"
 ```
 
 #### Clear Error Records
@@ -330,7 +366,7 @@ python -c "from reporter import Reporter; from db_manager import DatabaseManager
 Clear all error records (useful after resolving known issues):
 
 ```bash
-python -c "from db_manager import DatabaseManager; db = DatabaseManager('./media_tracking.db'); success, count = db.clear_errors(); print(f'Cleared {count} error records')"
+python db_query.py "DELETE FROM errors; SELECT 'Cleared all errors' as message"
 ```
 
 #### Clear Errors for Specific Files
@@ -338,7 +374,7 @@ python -c "from db_manager import DatabaseManager; db = DatabaseManager('./media
 Clear errors for a specific file:
 
 ```bash
-python -c "from db_manager import DatabaseManager; db = DatabaseManager('./media_tracking.db'); db.clear_file_errors('FILE_ID_HERE')"
+python db_query.py "DELETE FROM errors WHERE file_id = 'YOUR_FILE_ID_HERE'; SELECT 'Errors cleared' as message"
 ```
 
 ### Retry Failed Extractions
@@ -497,6 +533,12 @@ When a retry succeeds, the error records for that file are automatically cleared
 - **API Rate Limiting**: Use batch processing with delays between batches to avoid hitting API limits
 - **Timeout Errors**: Large files may cause API timeouts. The system now uses a 5-minute timeout by default, which should handle most files
 - **Stale Error Records**: If reports show errors but files process correctly, the errors might be historical - they are now automatically cleared on successful retries
+- **Stalled Translations**: If translations appear stalled, use `python check_stuck_files.py --reset` to reset stuck files and restart the pipeline
+- **Missing Transcript Issues**: When encountering "Transcript text not found" errors, run `python fix_missing_transcripts.py --reset` to reset files with missing transcript files
+- **Monitoring**: The `monitor_and_restart.py` script provides automated pipeline monitoring and recovery - run with `python monitor_and_restart.py --check-interval 10` for 10-minute checking intervals
+- **Debug Transcription**: For files with repeated transcription issues, use `python debug_transcription.py --file-id <file_id>` to diagnose specific file problems
+
+For comprehensive monitoring and troubleshooting documentation, see [docs/MONITORING_GUIDE.md](docs/MONITORING_GUIDE.md).
 
 ## Notes on ElevenLabs Scribe
 

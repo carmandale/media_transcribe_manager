@@ -14,14 +14,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Monitoring Commands
 - Check status: `python check_status.py`
-- Reset stuck processes: `python check_stuck_files.py`
+- Reset stuck processes: `python check_stuck_files.py --reset`
 - Start automated monitoring: `python monitor_and_restart.py --check-interval 10`
 - Start monitoring with custom settings: `python monitor_and_restart.py --check-interval 10 --batch-size 20 --languages en,de,he`
+- Check transcript for a specific file: `python check_transcript_file.py <file_id>`
+- Fix files with missing transcripts: `python fix_missing_transcripts.py --reset`
+- Find all files with missing transcripts: `python find_all_missing_transcripts.py`
+- Debug transcription issues: `python debug_transcription.py --file-id <file_id>`
+- Check if monitoring is running: `ps -ef | grep monitor_and_restart.py | grep -v grep`
+- Check if pipeline is running: `ps -ef | grep run_full_pipeline.py | grep -v grep`
 
-## Status Check Commands
-- Check Hebrew translations: `python -c "from db_manager import DatabaseManager; db = DatabaseManager('media_tracking.db'); query='SELECT COUNT(*) as count FROM processing_status WHERE translation_he_status = \"completed\"'; result = db.execute_query(query)[0]['count']; print(f'Hebrew translations completed: {result}')"`
-- Check English translations: `python -c "from db_manager import DatabaseManager; db = DatabaseManager('media_tracking.db'); query='SELECT COUNT(*) as count FROM processing_status WHERE translation_en_status = \"completed\"'; result = db.execute_query(query)[0]['count']; print(f'English translations completed: {result}')"`
-- Check German translations: `python -c "from db_manager import DatabaseManager; db = DatabaseManager('media_tracking.db'); query='SELECT COUNT(*) as count FROM processing_status WHERE translation_de_status = \"completed\"'; result = db.execute_query(query)[0]['count']; print(f'German translations completed: {result}')"`
+## Database Query Commands
+- Use the database query utility for all SQL queries: `python db_query.py "SQL QUERY"`
+- Check Hebrew translations: `python db_query.py "SELECT COUNT(*) as count FROM processing_status WHERE translation_he_status = 'completed'"`
+- Check English translations: `python db_query.py "SELECT COUNT(*) as count FROM processing_status WHERE translation_en_status = 'completed'"`
+- Check German translations: `python db_query.py "SELECT COUNT(*) as count FROM processing_status WHERE translation_de_status = 'completed'"`
+- Show results in table format: `python db_query.py --format table "SELECT * FROM processing_status LIMIT 5"`
+- Get completion summary: `python db_query.py --format table "SELECT SUM(CASE WHEN translation_en_status = 'completed' THEN 1 ELSE 0 END) as en_done, SUM(CASE WHEN translation_de_status = 'completed' THEN 1 ELSE 0 END) as de_done, SUM(CASE WHEN translation_he_status = 'completed' THEN 1 ELSE 0 END) as he_done, COUNT(*) as total FROM processing_status"`
+- See docs/DB_QUERIES.md for a comprehensive list of useful queries
 
 ## Quality Evaluation
 - For interview transcripts, use historical accuracy evaluation via `historical_evaluate_quality.py`

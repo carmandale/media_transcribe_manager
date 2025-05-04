@@ -41,7 +41,41 @@ import subprocess
 import time
 import datetime
 import sys
+import os
 from db_manager import DatabaseManager
+
+# Ensure environment variables are set
+def load_environment():
+    """Load environment variables and ensure API keys are set."""
+    print("Loading environment variables...")
+    
+    # Define critical keys with default values
+    critical_keys = {
+        'ELEVENLABS_API_KEY': "sk_e067dc46fad47e2ef355ba909b7ad5ff938c0b1d6cf63e43",
+        'OPENAI_API_KEY': "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",
+        'DEEPL_API_KEY': "3c08c92c-daee-4567-8ec6-736faa2ec2b5"
+    }
+    
+    # Try to load from .env file if available
+    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env')
+    if os.path.exists(env_path):
+        try:
+            import dotenv
+            dotenv.load_dotenv(env_path)
+            print("Loaded environment from .env file")
+        except ImportError:
+            print("dotenv not available, using defaults")
+    
+    # Check and set keys if needed
+    for key, default in critical_keys.items():
+        if not os.environ.get(key):
+            print(f"Setting {key} from default value")
+            os.environ[key] = default
+        else:
+            value = os.environ.get(key)
+            print(f"{key} is set: {value[:5]}...{value[-5:]}")
+            
+    return True
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Monitor and restart stuck translation processes")
@@ -132,10 +166,12 @@ def restart_pipeline(languages, batch_size):
     """Restart the full pipeline."""
     print(f"Restarting pipeline with languages: {languages}, batch_size: {batch_size}")
     
+    # Use our new script that ensures environment variables are loaded
     cmd = [
-        "python", "run_full_pipeline.py",
-        "--languages", languages,
-        "--batch-size", str(batch_size)
+        "python", "run_transcription_pipeline.py",
+        "--restart",
+        "--batch-size", str(batch_size),
+        "--languages", languages
     ]
     
     try:
@@ -159,6 +195,9 @@ def generate_status_report():
         print(f"Error generating status report: {e}")
 
 def main():
+    # Load environment variables first
+    load_environment()
+    
     args = parse_args()
     check_interval_seconds = args.check_interval * 60
     runs = 0
