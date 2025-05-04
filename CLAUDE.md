@@ -6,11 +6,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Run: `python media_processor.py [options]`
 - Transcribe single file: `python transcribe_single_file.py -f [file_path]`
 - Generate report: `python generate_report.py --summary`
-- Process translations: `python process_missing_translations.py --languages en,de,he --batch-size 10`
-- Evaluate historical accuracy: `python historical_evaluate_quality.py --language en --limit 10`
-- Fix Hebrew translations: `python fix_hebrew_translations.py --batch-size 10`
-- Run full pipeline: `python run_full_pipeline.py --batch-size 10`
+- Process translations: `python process_missing_translations.py --languages en,de,he --batch-size 20 --db-path media_tracking.db`
+- Evaluate historical accuracy: `python historical_evaluate_quality.py --language en --limit 20`
+- Fix Hebrew translations: `python fix_hebrew_translations.py --batch-size 20 --db-path media_tracking.db`
+- Run full pipeline: `python run_full_pipeline.py --batch-size 20 --languages en,de,he`
 - Run test: `python media_processor.py -d [test_directory] --test`
+
+## Monitoring Commands
+- Check status: `python check_status.py`
+- Reset stuck processes: `python check_stuck_files.py`
+- Start automated monitoring: `python monitor_and_restart.py --check-interval 10`
+- Start monitoring with custom settings: `python monitor_and_restart.py --check-interval 10 --batch-size 20 --languages en,de,he`
+
+## Status Check Commands
+- Check Hebrew translations: `python -c "from db_manager import DatabaseManager; db = DatabaseManager('media_tracking.db'); query='SELECT COUNT(*) as count FROM processing_status WHERE translation_he_status = \"completed\"'; result = db.execute_query(query)[0]['count']; print(f'Hebrew translations completed: {result}')"`
+- Check English translations: `python -c "from db_manager import DatabaseManager; db = DatabaseManager('media_tracking.db'); query='SELECT COUNT(*) as count FROM processing_status WHERE translation_en_status = \"completed\"'; result = db.execute_query(query)[0]['count']; print(f'English translations completed: {result}')"`
+- Check German translations: `python -c "from db_manager import DatabaseManager; db = DatabaseManager('media_tracking.db'); query='SELECT COUNT(*) as count FROM processing_status WHERE translation_de_status = \"completed\"'; result = db.execute_query(query)[0]['count']; print(f'German translations completed: {result}')"`
 
 ## Quality Evaluation
 - For interview transcripts, use historical accuracy evaluation via `historical_evaluate_quality.py`

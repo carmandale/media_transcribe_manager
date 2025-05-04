@@ -117,3 +117,17 @@ time: 06:00pm cdt
 | German subtitles generated        | 401     |
 | Hebrew subtitles generated        | 459     |
 
+_Data collected on 2025-05-03_
+time: 08:30pm cdt
+
+| Category                          | Count |
+|-----------------------------------|------:|
+| Total media files                 | 728   |
+| Transcripts completed             | 686   |
+| English translations completed    | 614   |
+| German translations completed     | 494   |
+| Hebrew translations completed     | 360   |
+| English subtitles generated       | 401     |
+| German subtitles generated        | 401     |
+| Hebrew subtitles generated        | 459     |
+
