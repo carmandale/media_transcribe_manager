@@ -42,8 +42,13 @@ class DatabaseManager:
         os.makedirs(os.path.dirname(os.path.abspath(db_file)), exist_ok=True)
         
         self.db_file = db_file
-        self.conn = None
-        self.cursor = None
+        
+        # For backwards compatibility
+        self._main_conn = None
+        self._main_cursor = None
+        
+        # Connection per thread storage
+        self._local_connections = {}
         
         # Connect to database
         self.connect()
@@ -56,13 +61,18 @@ class DatabaseManager:
         Establish connection to the SQLite database.
         """
         try:
-            # Allow usage of connection across threads for parallel QA
-            self.conn = sqlite3.connect(self.db_file, check_same_thread=False)
+            # Create the main connection
+            self._main_conn = sqlite3.connect(self.db_file, check_same_thread=False)
             # Enable foreign key support
-            self.conn.execute("PRAGMA foreign_keys = ON")
+            self._main_conn.execute("PRAGMA foreign_keys = ON")
             # Return rows as dictionaries
-            self.conn.row_factory = sqlite3.Row
-            self.cursor = self.conn.cursor()
+            self._main_conn.row_factory = sqlite3.Row
+            self._main_cursor = self._main_conn.cursor()
+            
+            # For backwards compatibility
+            self.conn = self._main_conn
+            self.cursor = self._main_cursor
+            
             logger.debug(f"Connected to database: {self.db_file}")
         except sqlite3.Error as e:
             logger.error(f"Database connection error: {e}")
@@ -70,11 +80,38 @@ class DatabaseManager:
             
     def close(self) -> None:
         """
-        Close the database connection.
+        Close all database connections.
         """
-        if self.conn:
-            self.conn.close()
-            logger.debug("Database connection closed")
+        # Close the main connection
+        if self._main_conn:
+            self._main_conn.close()
+            
+        # Close all thread-local connections
+        for conn in self._local_connections.values():
+            if conn:
+                conn.close()
+                
+        self._local_connections = {}
+        logger.debug("All database connections closed")
+        
+    def _get_connection(self):
+        """
+        Get a connection for the current thread.
+        This ensures each thread has its own connection to avoid SQLite threading issues.
+        """
+        import threading
+        thread_id = threading.get_ident()
+        
+        # Create a new connection for this thread if it doesn't exist
+        if thread_id not in self._local_connections:
+            # Important: Always use check_same_thread=True for thread-specific connections
+            # This forces SQLite to enforce that a connection is only used in its own thread
+            conn = sqlite3.connect(self.db_file, check_same_thread=True)
+            conn.execute("PRAGMA foreign_keys = ON")
+            conn.row_factory = sqlite3.Row
+            self._local_connections[thread_id] = conn
+            
+        return self._local_connections[thread_id]
             
     def initialize_database(self) -> None:
         """
@@ -357,13 +394,17 @@ class DatabaseManager:
             True if successful, False otherwise
         """
         try:
-            self.cursor.execute("""
+            # Get a thread-safe connection
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute("""
             INSERT INTO errors (
                 file_id, process_stage, error_message, error_details
             ) VALUES (?, ?, ?, ?)
             """, (file_id, process_stage, error_message, error_details))
             
-            self.conn.commit()
+            conn.commit()
             logger.debug(f"Logged error for file {file_id} in stage {process_stage}")
             return True
             
@@ -439,23 +480,50 @@ class DatabaseManager:
             List of dictionaries with query results
         """
         try:
+            # Get a thread-safe connection
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            
+            # Execute the query
             if params:
-                self.cursor.execute(query, params)
+                cursor.execute(query, params)
             else:
-                self.cursor.execute(query)
+                cursor.execute(query)
                 
             # Get column names
-            columns = [description[0] for description in self.cursor.description]
+            columns = [description[0] for description in cursor.description]
             
             # Convert rows to dictionaries
             results = []
-            for row in self.cursor.fetchall():
+            for row in cursor.fetchall():
                 results.append({columns[i]: row[i] for i in range(len(columns))})
+                
+            # Commit changes if this is a write operation
+            if query.strip().lower().startswith(('insert', 'update', 'delete')):
+                conn.commit()
                 
             return results
             
         except sqlite3.Error as e:
             logger.error(f"Error executing query: {e}")
+            
+            # If this is a recursive cursor error, get a fresh connection
+            if "Recursive use of cursors not allowed" in str(e):
+                import threading
+                thread_id = threading.get_ident()
+                try:
+                    # Close the problematic connection
+                    if thread_id in self._local_connections:
+                        try:
+                            self._local_connections[thread_id].close()
+                        except:
+                            pass
+                        # Remove from connection pool
+                        del self._local_connections[thread_id]
+                    logger.warning(f"Refreshed connection for thread {thread_id} due to recursive cursor error")
+                except Exception as refresh_error:
+                    logger.error(f"Error refreshing connection: {refresh_error}")
+            
             return []
             
     def get_file_by_path(self, file_path: str) -> Optional[Dict[str, Any]]:
@@ -494,14 +562,18 @@ class DatabaseManager:
             Status record as a dictionary or None if not found
         """
         try:
-            self.cursor.execute("""
+            # Get a thread-safe connection
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute("""
             SELECT m.*, p.*
             FROM media_files m
             JOIN processing_status p ON m.file_id = p.file_id
             WHERE m.file_id = ?
             """, (file_id,))
             
-            row = self.cursor.fetchone()
+            row = cursor.fetchone()
             
             if row:
                 return dict(row)
@@ -1076,23 +1148,50 @@ class DatabaseManager:
             List of dictionaries with query results
         """
         try:
+            # Get a thread-safe connection
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            
+            # Execute the query
             if params:
-                self.cursor.execute(query, params)
+                cursor.execute(query, params)
             else:
-                self.cursor.execute(query)
+                cursor.execute(query)
                 
             # Get column names
-            columns = [description[0] for description in self.cursor.description]
+            columns = [description[0] for description in cursor.description]
             
             # Convert rows to dictionaries
             results = []
-            for row in self.cursor.fetchall():
+            for row in cursor.fetchall():
                 results.append({columns[i]: row[i] for i in range(len(columns))})
+                
+            # Commit changes if this is a write operation
+            if query.strip().lower().startswith(('insert', 'update', 'delete')):
+                conn.commit()
                 
             return results
             
         except sqlite3.Error as e:
             logger.error(f"Error executing query: {e}")
+            
+            # If this is a recursive cursor error, get a fresh connection
+            if "Recursive use of cursors not allowed" in str(e):
+                import threading
+                thread_id = threading.get_ident()
+                try:
+                    # Close the problematic connection
+                    if thread_id in self._local_connections:
+                        try:
+                            self._local_connections[thread_id].close()
+                        except:
+                            pass
+                        # Remove from connection pool
+                        del self._local_connections[thread_id]
+                    logger.warning(f"Refreshed connection for thread {thread_id} due to recursive cursor error")
+                except Exception as refresh_error:
+                    logger.error(f"Error refreshing connection: {refresh_error}")
+            
             return []
 
     def get_file_by_id(self, file_id: str) -> Optional[Dict[str, Any]]:
