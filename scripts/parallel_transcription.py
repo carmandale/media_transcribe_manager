@@ -12,26 +12,21 @@ Usage:
 import os
 import sys
 import time
-import logging
 import argparse
 import concurrent.futures
 from typing import List, Dict, Any, Optional
+import pathlib
+
+# Add core_modules to the Python path
+sys.path.append(str(pathlib.Path(__file__).parent.parent / 'core_modules'))
 
 from db_manager import DatabaseManager
 from file_manager import FileManager
 from transcription import TranscriptionManager
+from log_config import setup_logger
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler('parallel_transcription.log')
-    ]
-)
-
-logger = logging.getLogger(__name__)
+logger = setup_logger('parallel_transcription', 'parallel_transcription.log')
 
 def load_environment():
     """Load environment variables and verify API keys are set."""
@@ -187,8 +182,9 @@ def main():
         logger.error("Failed to load environment variables")
         return 1
     
-    # Connect to database
-    db = DatabaseManager('media_tracking.db')
+    # Connect to database using Path to ensure correct path handling
+    db_file = str(Path(__file__).parent.parent / 'media_tracking.db')
+    db = DatabaseManager(db_file)
     
     # Get files for transcription
     files = get_files_for_transcription(db, args.batch_size)

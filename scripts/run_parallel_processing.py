@@ -19,23 +19,19 @@ Options:
 import os
 import sys
 import time
-import logging
 import argparse
 import subprocess
 import concurrent.futures
 from typing import List, Dict
+from pathlib import Path
+
+# Add core_modules to the Python path
+sys.path.append(str(Path(__file__).parent.parent / 'core_modules'))
+
+from log_config import setup_logger
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler('parallel_processing.log')
-    ]
-)
-
-logger = logging.getLogger(__name__)
+logger = setup_logger('parallel_processing', 'parallel_processing.log')
 
 def load_environment():
     """Ensure environment variables are loaded."""
@@ -58,7 +54,8 @@ def run_transcription(workers: int, batch_size: int = None) -> bool:
     """Run parallel transcription process."""
     logger.info(f"Starting parallel transcription with {workers} workers")
     
-    cmd = ["python", "parallel_transcription.py", "--workers", str(workers)]
+    script_path = str(Path(__file__).parent / "parallel_transcription.py")
+    cmd = ["python", script_path, "--workers", str(workers)]
     if batch_size:
         cmd.extend(["--batch-size", str(batch_size)])
     
@@ -91,7 +88,8 @@ def run_translation(language: str, workers: int, batch_size: int = None) -> bool
     """Run parallel translation process for a specific language."""
     logger.info(f"Starting parallel {language} translation with {workers} workers")
     
-    cmd = ["python", "parallel_translation.py", "--language", language, "--workers", str(workers)]
+    script_path = str(Path(__file__).parent / "parallel_translation.py")
+    cmd = ["python", script_path, "--language", language, "--workers", str(workers)]
     if batch_size:
         cmd.extend(["--batch-size", str(batch_size)])
     

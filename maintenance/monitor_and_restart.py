@@ -17,23 +17,20 @@ Options:
 import os
 import sys
 import time
-import logging
 import argparse
 import subprocess
 from typing import List, Dict, Tuple, Set
 import sqlite3
+import pathlib
+
+# Add core_modules to the Python path
+sys.path.append(str(pathlib.Path(__file__).parent.parent / 'core_modules'))
+
+# Import centralized logging configuration
+from log_config import setup_logger
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler('monitor.log')
-    ]
-)
-
-logger = logging.getLogger(__name__)
+logger = setup_logger('monitor', 'monitor.log')
 
 def get_status(db_file: str = 'media_tracking.db') -> Dict[str, Dict[str, int]]:
     """Get current processing status from database."""

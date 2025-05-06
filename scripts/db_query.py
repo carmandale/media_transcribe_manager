@@ -15,11 +15,16 @@ The results are returned in a readable JSON format.
 import sys
 import json
 import argparse
+from pathlib import Path
+sys.path.append(str(Path(__file__).parent.parent / 'core_modules'))
 from db_manager import DatabaseManager
 
-def execute_query(query, params=None, format_output="json"):
+def execute_query(query, params=None, format_output="json", db_path=None):
     """Execute an SQL query and return the results."""
-    db = DatabaseManager('media_tracking.db')
+    if db_path is None:
+        # Use Path to ensure correct path handling
+        db_path = str(Path(__file__).parent.parent / 'media_tracking.db')
+    db = DatabaseManager(db_path)
     results = db.execute_query(query, params)
     
     if format_output == "json":
@@ -56,9 +61,10 @@ def main():
     parser.add_argument("query", help="SQL query to execute")
     parser.add_argument("--format", choices=["json", "table", "raw"], default="json",
                        help="Output format (default: json)")
+    parser.add_argument("--db-path", help="Path to the database file (default: project root/media_tracking.db)")
     args = parser.parse_args()
     
-    execute_query(args.query, format_output=args.format)
+    execute_query(args.query, format_output=args.format, db_path=args.db_path)
 
 if __name__ == "__main__":
     main()

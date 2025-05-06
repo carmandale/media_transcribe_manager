@@ -505,11 +505,18 @@ python process_untranscribed.py --dry-run
 
 **Update (May 6, 2025)**
 - Implemented comprehensive codebase refactoring for better maintainability
-- Consolidated multiple small scripts into unified modules:
-  - `db_maintenance.py`: Handles all database maintenance tasks
-  - `pipeline_manager.py`: Manages all pipeline operations
-- Created a unified command-line interface with `scribe_manager.py`
-- See `docs/refactoring/USAGE.md` for the new simplified workflow
+- Completely reorganized project structure for a clean, modular codebase:
+  - `core_modules/`: Core functionality modules
+  - `scripts/`: Utility scripts
+  - `maintenance/`: Database and system maintenance scripts
+  - `legacy_scripts/`: Original versions of scripts being phased out
+  - `alias_scripts/`: Alias scripts that forward to new commands
+  - `logs/`: Centralized logging directory for all log files
+- Consolidated multiple small scripts into unified modules
+- Created a unified command-line interface with `core_modules/scribe_manager.py`
+- Implemented connection pooling to address resource management issues
+- Implemented centralized logging system with consistent formatting and organization
+- See `docs/MIGRATION_GUIDE.md` for migration details and `docs/LOGGING_GUIDE.md` for logging usage
 
 ### Unified Scribe Manager
 
@@ -532,7 +539,7 @@ python scribe_manager.py fix stalled|paths|transcripts|mark|hebrew [options]
 python scribe_manager.py verify [--auto-fix]
 ```
 
-For complete documentation, see [Scribe Manager Usage Guide](docs/refactoring/USAGE.md)
+For complete documentation, see `docs/MIGRATION_GUIDE.md`
 
 ### Retrying Failed Files
 

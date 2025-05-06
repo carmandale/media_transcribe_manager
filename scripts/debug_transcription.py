@@ -26,8 +26,14 @@ import shutil
 import json
 from typing import Optional, Dict, Any, List, Tuple
 
+# Add core_modules to the Python path
+sys.path.append(str(Path(__file__).parent.parent / 'core_modules'))
+from log_config import setup_logger
 from db_manager import DatabaseManager
 from file_manager import FileManager
+
+# Configure logging
+logger = setup_logger('debug_transcription', 'debug_transcription.log')
 from transcription import TranscriptionManager
 import elevenlabs
 

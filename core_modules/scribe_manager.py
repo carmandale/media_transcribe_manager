@@ -28,22 +28,16 @@ Commands:
 import os
 import sys
 import argparse
-import logging
 import json
+import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Union, Any
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler('scribe_manager.log')
-    ]
-)
+# Use centralized logging configuration
+from log_config import setup_logger
 
-logger = logging.getLogger(__name__)
+# Configure logging
+logger = setup_logger('scribe_manager', 'scribe_manager.log')
 
 # Import local modules
 try:

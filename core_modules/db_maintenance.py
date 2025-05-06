@@ -485,8 +485,12 @@ class DatabaseMaintenance:
         """
         logger.info("Verifying database and filesystem consistency...")
         
-        # Get all files from database
-        all_files = self.db_manager.execute_query("SELECT * FROM processing_status")
+        # Get all files from database with their file paths
+        all_files = self.db_manager.execute_query("""
+            SELECT m.*, p.* 
+            FROM media_files m
+            JOIN processing_status p ON m.file_id = p.file_id
+        """)
         
         # Statistics
         stats = {
@@ -509,7 +513,7 @@ class DatabaseMaintenance:
             inconsistencies = []
             
             # 1. Check source file existence
-            source_path = Path(file['file_path'])
+            source_path = Path(file['original_path'])
             if not source_path.exists():
                 stats['missing_source'] += 1
                 inconsistencies.append('missing_source')
