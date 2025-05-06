@@ -503,6 +503,37 @@ python process_untranscribed.py --dry-run
   - Parallel translation: Process multiple languages simultaneously
   - See `docs/PARALLEL_PROCESSING.md` for usage details
 
+**Update (May 6, 2025)**
+- Implemented comprehensive codebase refactoring for better maintainability
+- Consolidated multiple small scripts into unified modules:
+  - `db_maintenance.py`: Handles all database maintenance tasks
+  - `pipeline_manager.py`: Manages all pipeline operations
+- Created a unified command-line interface with `scribe_manager.py`
+- See `docs/refactoring/USAGE.md` for the new simplified workflow
+
+### Unified Scribe Manager
+
+The new Scribe Manager provides a single command-line interface for all operations:
+
+```bash
+# Check status
+python scribe_manager.py status [--detailed] [--format text|json|markdown]
+
+# Start monitoring
+python scribe_manager.py monitor [--check-interval 60] [--restart-interval 600]
+
+# Start processing
+python scribe_manager.py start --transcription --translation en,de,he [--transcription-workers 10] [--translation-workers 8]
+
+# Fix database issues
+python scribe_manager.py fix stalled|paths|transcripts|mark|hebrew [options]
+
+# Verify consistency
+python scribe_manager.py verify [--auto-fix]
+```
+
+For complete documentation, see [Scribe Manager Usage Guide](docs/refactoring/USAGE.md)
+
 ### Retrying Failed Files
 
 The system includes a dedicated tool for retrying failed extractions and transcriptions:
@@ -531,6 +562,16 @@ When a retry succeeds, the error records for that file are automatically cleared
 
 ## Common Workflow for Error Resolution
 
+### Using Scribe Manager (Recommended)
+
+1. **Check pipeline status**: `python scribe_manager.py status --detailed`
+2. **Verify database consistency**: `python scribe_manager.py verify`
+3. **Fix any inconsistencies**: `python scribe_manager.py verify --auto-fix`
+4. **Retry problematic files**: `python scribe_manager.py retry`
+5. **Start continuous monitoring**: `python scribe_manager.py monitor`
+
+### Using Legacy Tools
+
 1. **Identify issues**: `python generate_report.py --summary`
 2. **Preview failed files**: `python retry_extraction.py --dry-run`
 3. **Test fix on a single file**: `python retry_extraction.py --file-id UUID_OF_FAILED_FILE`
@@ -538,6 +579,18 @@ When a retry succeeds, the error records for that file are automatically cleared
 5. **Check results**: `python generate_report.py --summary`
 
 ## Troubleshooting
+
+### Using Scribe Manager (Recommended)
+
+- **Check Status**: `python scribe_manager.py status --detailed`
+- **Verify Consistency**: `python scribe_manager.py verify` to check database/filesystem consistency
+- **Reset Stalled Processes**: `python scribe_manager.py fix stalled --reset-all`
+- **Fix Missing Transcripts**: `python scribe_manager.py fix transcripts`
+- **Retry Problem Files**: `python scribe_manager.py retry`
+- **Monitor Pipeline**: `python scribe_manager.py monitor --check-interval 10`
+- **Special Processing**: `python scribe_manager.py special` for difficult files
+
+### Using Legacy Tools
 
 - **API Key Issues**: Make sure your API keys are correctly set in the `.env` file
 - **Database Errors**: If you encounter database corruption, try resetting it with `--reset-db`
