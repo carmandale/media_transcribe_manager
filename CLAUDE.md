@@ -12,6 +12,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Run full pipeline: `python run_full_pipeline.py --batch-size 20 --languages en,de,he`
 - Run test: `python media_processor.py -d [test_directory] --test`
 
+## Parallel Processing Commands
+- Run parallel processing (all languages): `python run_parallel_processing.py --transcription-workers 10 --translation-workers 8`
+- Run parallel processing (specific languages): `python run_parallel_processing.py --languages en,de --transcription-workers 10 --translation-workers 8`
+- Run parallel transcription only: `python parallel_transcription.py --workers 10 --batch-size 20`
+- Run parallel translation (English): `python parallel_translation.py --language en --workers 8 --batch-size 20`
+- Run parallel translation (German): `python parallel_translation.py --language de --workers 8 --batch-size 20`
+- Run parallel translation (Hebrew): `python parallel_translation.py --language he --workers 8 --batch-size 20`
+- For full documentation: See docs/PARALLEL_PROCESSING.md
+
 ## Monitoring Commands
 - Check status: `python check_status.py`
 - Reset stuck processes: `python check_stuck_files.py --reset`
@@ -47,6 +56,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Error handling: Use try/except blocks with specific error types
 - Naming: snake_case for variables/functions, PascalCase for classes
 - Log errors with the logging module at appropriate levels
+
+## Path Handling (CRITICAL)
+- ALWAYS use pathlib.Path for path manipulation (never string concatenation)
+- ALWAYS use proper quoting for paths in shell commands
+- ALWAYS use subprocess.run with command args as list (not shell=True) for external processes
+- Use raw strings (r"path/with/spaces") when writing path literals
+- Implement unicode normalization for paths with special characters 
+- Verify paths exist before operations
+- Never assume directory structure - check existence and create directories as needed
+- When using Bash tool through Claude, always enclose paths in double quotes
 
 ## Project Structure
 - Core modules: media_processor.py, db_manager.py, file_manager.py, transcription.py, translation.py
