@@ -39,20 +39,28 @@ def load_environment():
     except ImportError:
         logger.warning("python-dotenv not available, environment may not be fully loaded")
     
-    # Verify critical keys
-    critical_keys = {
-        'ELEVENLABS_API_KEY': "sk_e067dc46fad47e2ef355ba909b7ad5ff938c0b1d6cf63e43",
-        'OPENAI_API_KEY': "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",
-        'DEEPL_API_KEY': "3c08c92c-daee-4567-8ec6-736faa2ec2b5"
-    }
+    # List of critical API keys that should be in the environment
+    critical_keys = [
+        'ELEVENLABS_API_KEY',
+        'OPENAI_API_KEY',
+        'DEEPL_API_KEY'
+    ]
     
-    for key, default_value in critical_keys.items():
+    # Check if keys are set
+    missing_keys = []
+    for key in critical_keys:
         value = os.getenv(key)
         if not value:
-            logger.warning(f"{key} not found in environment, setting explicitly")
-            os.environ[key] = default_value
+            missing_keys.append(key)
+            logger.warning(f"{key} not found in environment")
         else:
             logger.info(f"{key} found in environment: {value[:5]}...{value[-5:]}")
+    
+    # If keys are missing, warn about it
+    if missing_keys:
+        logger.error(f"Missing required API keys: {', '.join(missing_keys)}")
+        logger.error("Please ensure these are set in your .env file")
+        return False
     
     return True
 
@@ -128,7 +136,7 @@ if __name__ == "__main__":
     sys.exit(main())
     """.format(
         file_id=file_id,
-        api_key=os.environ.get('ELEVENLABS_API_KEY', "sk_e067dc46fad47e2ef355ba909b7ad5ff938c0b1d6cf63e43")
+        api_key=os.environ.get('ELEVENLABS_API_KEY', '')
     )
     
     # Write the temporary script

@@ -19,12 +19,12 @@ def test_direct_transcription():
     # Load environment variables (if available)
     os.system("python load_env.py > /dev/null 2>&1")
     
-    # Get API key from environment or use hardcoded value
+    # Get API key from environment
     api_key = os.getenv('ELEVENLABS_API_KEY')
     if not api_key:
-        print("Warning: ELEVENLABS_API_KEY environment variable not found")
-        print("Using hardcoded key for testing...")
-        api_key = "sk_e067dc46fad47e2ef355ba909b7ad5ff938c0b1d6cf63e43"
+        print("ERROR: ELEVENLABS_API_KEY environment variable not found")
+        print("Please ensure it is set in your .env file or environment variables")
+        return False
     
     print(f"Using API key: {api_key[:5]}...{api_key[-5:]}")
     

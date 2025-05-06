@@ -1,117 +1,107 @@
 #!/usr/bin/env python3
 """
-Fix Missing Transcripts
+Fix files with missing transcripts.
 
-This script identifies files that have a 'completed' transcription status 
-but missing transcript files. It:
-1. Identifies files with "transcript not found" errors
-2. Checks if transcription is marked completed but file is missing
-3. Resets transcription status so they can be processed again
-
-Usage:
-    python fix_missing_transcripts.py [--reset]
-
-Options:
-    --reset    Reset transcription status for files with missing transcripts
+This script identifies files marked as having transcripts but actually missing them,
+resets their transcription status, and prepares them for reprocessing.
 """
 
 import os
 import sys
-import logging
 import argparse
+import concurrent.futures
+from typing import List, Dict, Any
+
 from db_manager import DatabaseManager
 from file_manager import FileManager
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-)
-
-logger = logging.getLogger(__name__)
-
-def main():
-    parser = argparse.ArgumentParser(description="Fix missing transcript files")
-    parser.add_argument("--reset", action="store_true", help="Reset transcription status for files with missing transcripts")
-    args = parser.parse_args()
+def get_files_with_missing_transcripts(db: DatabaseManager) -> List[Dict[str, Any]]:
+    """Get files marked as completed but with missing transcript files."""
+    # Get all files marked as having completed transcription
+    files = db.execute_query(
+        '''SELECT media_files.file_id, safe_filename, transcription_status, translation_en_status, 
+                  translation_de_status, translation_he_status 
+           FROM media_files 
+           JOIN processing_status ON media_files.file_id = processing_status.file_id
+        '''
+    )
     
-    # Basic configuration
-    config = {'output_directory': './output'}
-    db = DatabaseManager('media_tracking.db')
-    file_manager = FileManager(db, config)
+    # Filter files with missing transcripts
+    missing_transcripts = []
+    file_manager = FileManager(db, {'output_directory': './output'})
     
-    # Step 1: Find files with "transcript not found" errors
-    logger.info("Finding files with 'Transcript text not found' errors")
-    query = """
-    SELECT DISTINCT file_id
-    FROM errors
-    WHERE error_message = 'Transcript text not found'
-    """
-    problem_files = db.execute_query(query)
-    logger.info(f"Found {len(problem_files)} files with transcript not found errors")
-    
-    # Step 2: Check each file's transcription status and file existence
-    files_to_reset = []
-    for file_record in problem_files:
-        file_id = file_record['file_id']
-        
-        # Get file status from database
-        file_status = db.get_file_status(file_id)
-        if not file_status:
-            logger.warning(f"File {file_id} not found in database, skipping")
-            continue
-        
-        # Get transcript path
+    for file in files:
+        file_id = file['file_id']
         transcript_path = file_manager.get_transcript_path(file_id)
         
-        # Check if transcript status is completed but file is missing
-        if (file_status['transcription_status'] == 'completed' and
-            not os.path.exists(transcript_path)):
+        if not os.path.exists(transcript_path):
+            missing_transcripts.append(file)
             
-            files_to_reset.append({
-                'file_id': file_id,
-                'status': file_status['status'],
-                'transcription_status': file_status['transcription_status'],
-                'transcript_path': transcript_path,
-                'file_exists': os.path.exists(transcript_path)
-            })
-            
-            logger.info(f"File {file_id} has status 'completed' but transcript file is missing")
+    return missing_transcripts
     
-    logger.info(f"Found {len(files_to_reset)} files with completed status but missing transcript files")
+def main():
+    parser = argparse.ArgumentParser(description="Fix files with missing transcripts")
+    parser.add_argument("--fix", action="store_true", 
+                        help="Actually fix the database (otherwise just reports issues)")
+    args = parser.parse_args()
     
-    # Step 3: Reset transcription status if requested
-    if args.reset and files_to_reset:
-        logger.info("Resetting transcription status for files with missing transcripts")
-        reset_count = 0
+    # Connect to database
+    db = DatabaseManager('media_tracking.db')
+    
+    # Find files with missing transcripts
+    problem_files = get_files_with_missing_transcripts(db)
+    
+    if not problem_files:
+        print("No files with missing transcripts found")
+        return 0
+    
+    # Print summary
+    print(f"Found {len(problem_files)} files with missing transcripts:")
+    for idx, file in enumerate(problem_files, 1):
+        file_id = file['file_id']
+        transcription_status = file['transcription_status']
+        en_status = file['translation_en_status'] 
+        de_status = file['translation_de_status']
+        he_status = file['translation_he_status']
         
-        for file in files_to_reset:
+        print(f"{idx}. {file_id}")
+        print(f"   Transcription: {transcription_status}")
+        print(f"   Translation EN: {en_status}, DE: {de_status}, HE: {he_status}")
+        
+    # Fix database if requested
+    if args.fix:
+        print("\nFixing database records...")
+        for file in problem_files:
             file_id = file['file_id']
             
-            # Check if audio file exists
-            audio_path = file_manager.get_audio_path(file_id)
-            if not audio_path or not os.path.exists(audio_path):
-                logger.warning(f"Audio file not found for {file_id}, skipping reset")
-                continue
+            # Reset transcription status
+            db.update_transcription_status(file_id, 'failed')
             
-            # Reset to not_started status
-            db.update_status(
-                file_id=file_id,
-                status='pending',
-                transcription_status='not_started',
-                translation_en_status='not_started',
-                translation_de_status='not_started',
-                translation_he_status='not_started'
-            )
+            # If any translation is not_started, keep it that way
+            # Otherwise reset all translations to not_started
+            if (file['translation_en_status'] == 'not_started' or 
+                file['translation_de_status'] == 'not_started' or
+                file['translation_he_status'] == 'not_started'):
+                pass  # Keep current translation status
+            else:
+                # Reset all translations
+                db.update_translation_status(file_id, 'en', 'not_started')
+                db.update_translation_status(file_id, 'de', 'not_started')
+                db.update_translation_status(file_id, 'he', 'not_started')
             
-            logger.info(f"Reset transcription status for file {file_id}")
-            reset_count += 1
-        
-        logger.info(f"Reset {reset_count} files for retranscription")
-    elif not args.reset:
-        logger.info("Dry run completed. Use --reset to actually reset the file statuses.")
+            # Log error
+            db.log_error(file_id, 'transcription', 
+                         "Missing transcript file despite completed status",
+                         f"File marked as {file['transcription_status']} but no transcript file exists")
+            
+            print(f"Reset file {file_id} to failed transcription")
+            
+        print(f"\nReset {len(problem_files)} files. Run the following to process them:")
+        print("python parallel_transcription.py --workers 2 --batch-size 10")
     else:
-        logger.info("No files to reset")
+        print("\nRun with --fix flag to reset these files in the database")
+    
+    return 0
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

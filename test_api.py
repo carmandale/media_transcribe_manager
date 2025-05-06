@@ -16,11 +16,11 @@ def test_api_connection():
     # Try loading from environment first
     api_key = os.getenv("ELEVENLABS_API_KEY")
     
-    # Manually set key if not found in environment
+    # Check if key is available
     if not api_key:
-        print("Warning: ELEVENLABS_API_KEY environment variable not found")
-        print("Using hardcoded key for testing...")
-        api_key = "sk_e067dc46fad47e2ef355ba909b7ad5ff938c0b1d6cf63e43"
+        print("ERROR: ELEVENLABS_API_KEY environment variable not found")
+        print("Please ensure it is set in your .env file or environment variables")
+        return False
     
     print(f"API key found: {api_key[:5]}...{api_key[-5:]}")
     

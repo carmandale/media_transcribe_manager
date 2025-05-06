@@ -645,8 +645,8 @@ class TranslationManager:
             True if successful, False otherwise
         """
         # Check if managers are set
-        if not self.file_manager or not self.transcription_manager:
-            logger.error("File or Transcription manager not set in translation manager")
+        if not self.file_manager:
+            logger.error("File manager not set in translation manager")
             return False
         
         # Get file details from database
@@ -675,7 +675,22 @@ class TranslationManager:
             return True
         
         # Get transcript text
-        transcript_text = self.transcription_manager.get_transcript_text(file_id)
+        transcript_text = None
+        
+        # First try using transcription_manager if available
+        if self.transcription_manager:
+            transcript_text = self.transcription_manager.get_transcript_text(file_id)
+        
+        # If transcription_manager not available or didn't return text, try reading file directly
+        if not transcript_text and self.file_manager:
+            transcript_path = self.file_manager.get_transcript_path(file_id)
+            if os.path.exists(transcript_path):
+                try:
+                    with open(transcript_path, 'r', encoding='utf-8') as f:
+                        transcript_text = f.read()
+                except Exception as e:
+                    logger.error(f"Error reading transcript file {transcript_path}: {e}")
+        
         if not transcript_text:
             logger.error(f"Transcript text not found for {file_id}")
             self.db_manager.log_error(
@@ -814,8 +829,8 @@ class TranslationManager:
             True if successful, False otherwise
         """
         # Check if managers are set
-        if not self.file_manager or not self.transcription_manager:
-            logger.error("File or Transcription manager not set in translation manager")
+        if not self.file_manager:
+            logger.error("File manager not set in translation manager")
             return False
             
         # Get file details

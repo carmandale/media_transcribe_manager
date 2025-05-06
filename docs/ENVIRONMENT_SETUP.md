@@ -25,6 +25,13 @@ MS_TRANSLATOR_KEY=your_microsoft_key_here
 MS_TRANSLATOR_LOCATION=eastus
 ```
 
+⚠️ **IMPORTANT: Security Best Practices**
+
+- **NEVER commit API keys to Git** - make sure `.env` is in your `.gitignore` file
+- **NEVER hardcode API keys** in source code files
+- **ALWAYS use environment variables** to access sensitive credentials
+- **AVOID printing full API keys** in logs (use truncated versions like `key[:5]...key[-5:]`)
+
 ### Option 2: System Environment Variables
 
 Set environment variables at the system level:

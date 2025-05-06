@@ -40,10 +40,10 @@ def load_env_vars():
         else:
             print(f"✓ {var} set: {value[:5]}...{value[-5:]}")
     
-    # Explicitly set ElevenLabs API key if not set
-    if not os.getenv('ELEVENLABS_API_KEY'):
-        print("NOTICE: Setting ELEVENLABS_API_KEY directly")
-        os.environ['ELEVENLABS_API_KEY'] = "sk_e067dc46fad47e2ef355ba909b7ad5ff938c0b1d6cf63e43"
+    # If keys are missing, show a warning
+    if not all_set:
+        print("\nWARNING: Some API keys are missing from your environment.")
+        print("Please ensure all required keys are in your .env file.")
         
     return all_set
 

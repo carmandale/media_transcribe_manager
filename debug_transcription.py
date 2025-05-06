@@ -45,11 +45,11 @@ logger = logging.getLogger(__name__)
 
 def load_config():
     """Load configuration from file or use defaults."""
-    # Get API key from environment or use hardcoded value if not available
+    # Get API key from environment
     api_key = os.getenv('ELEVENLABS_API_KEY')
     if not api_key:
-        print("Warning: ELEVENLABS_API_KEY not found in environment, using hardcoded key")
-        api_key = "sk_e067dc46fad47e2ef355ba909b7ad5ff938c0b1d6cf63e43"
+        print("Warning: ELEVENLABS_API_KEY not found in environment")
+        print("Please ensure it is set in your .env file or environment variables")
     
     config = {
         'output_directory': './output',
@@ -127,11 +127,12 @@ def verify_file_integrity(file_path: str) -> Tuple[bool, str]:
 def test_api_access():
     """Test ElevenLabs API access."""
     try:
-        # Get API key from environment or use hardcoded value if not available
+        # Get API key from environment
         api_key = os.getenv('ELEVENLABS_API_KEY')
         if not api_key:
-            logger.warning("ELEVENLABS_API_KEY not found in environment, using hardcoded key")
-            api_key = "sk_e067dc46fad47e2ef355ba909b7ad5ff938c0b1d6cf63e43"
+            logger.warning("ELEVENLABS_API_KEY not found in environment")
+            logger.warning("Please ensure it is set in your .env file or environment variables")
+            return False, "API connection failed: API key not found"
             
         client = elevenlabs.ElevenLabs(api_key=api_key)
         
@@ -214,8 +215,12 @@ def test_transcription(file_id: str, audio_path: str, db: DatabaseManager, confi
                         # Make sure API key is explicitly set in the transcription manager
                         # This is an additional safeguard
                         if not transcription_manager.api_key:
-                            logger.warning("API key not set in transcription manager, setting it manually")
-                            transcription_manager.api_key = "sk_e067dc46fad47e2ef355ba909b7ad5ff938c0b1d6cf63e43"
+                            logger.warning("API key not set in transcription manager")
+                            api_key = os.getenv('ELEVENLABS_API_KEY')
+                            if not api_key:
+                                logger.error("ELEVENLABS_API_KEY not found in environment")
+                                return False
+                            transcription_manager.api_key = api_key
                             transcription_manager.client = elevenlabs.ElevenLabs(api_key=transcription_manager.api_key)
                         
                         # Use the original transcribe_audio method with our test parameters
