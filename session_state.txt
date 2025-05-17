@@ -1,0 +1,33 @@
+Project Summary — Scribe Transcription/Translation Pipeline (as of 2025-05-09)
+
+Objective:
+Manage and process 728 media files through transcription and multilingual translation (EN, DE, HE) with structured logging, retry logic, and database tracking.
+
+Status:
+- ✅ Transcriptions completed: 726
+- 🟡 Transcriptions in progress: 2 (file_ids: 0e39bce9-8fa7-451a-8a50-5a9f8fc4493f, 4a7415b3-31f8-40a8-b326-5092c0b05a81)
+- ✅ English translations: 726 completed, 2 QA failed
+- ✅ German translations: 722 completed, 6 QA failed
+- ✅ Hebrew translations: 722 completed, 6 QA failed
+- ✅ Cleanup complete:
+  • Root-level `.log` files moved to `logs/` (or deleted if duplicate)
+  • Old documents archived in `docs/_ARCHIVE/`
+  • README and STATUS.md updated with maintenance section
+
+Recent Work:
+- Fixed broken relative imports across `scribe_manager.py`, `pipeline_manager.py`, and other modules
+- Implemented `retry_in_progress.py` to re-run failed or pending transcriptions
+- Patched retry logic to reference `original_path` from `media_files` table instead of nonexistent `file_path`
+- Attempted retries showed 0 successes, likely due to underlying file issues
+
+Next Steps:
+1. Inspect `logs/` (e.g., `pipeline_manager.log`, `transcription.log`) for errors on file_ids above
+2. Manually fix corrupted or missing files if needed
+3. Re-run:
+   python3 scripts/retry_in_progress.py
+
+Optional:
+- Reset statuses via SQLite:
+   UPDATE processing_status
+   SET transcription_status='not_started', status='pending'
+   WHERE file_id IN ('...');

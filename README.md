@@ -108,6 +108,20 @@ The new media processor tool provides a comprehensive interface for processing a
 python media_processor.py -d /path/to/media/directory -o ./output
 ```
 
+---
+**Migration Guide**: For instructions on reorganizing outputs into per-`file_id` folders, see [`docs/MIGRATION_GUIDE.md`](docs/MIGRATION_GUIDE.md).
+ 
+---
+## 🧹 Maintenance Utilities
+- **Relocate root logs** into `logs/` directory:
+  ```bash
+  python scripts/cleanup_root_logs.py
+  ```
+- **Clean up docs/** by moving old files into `docs/_ARCHIVE/`:
+  ```bash
+  python scripts/cleanup_docs.py
+  ```
+---
 ### Command-line Options
 
 ```
@@ -199,6 +213,28 @@ python media_processor.py --file-status 3fd8a920-7c2e-4d0b-b8f5-8c9bce35e0a2
 # Retry failed files
 python media_processor.py -r
 ```
+
+## 🗂️ Migration to Per-ID Folder Layout
+After running the standard processing pipeline, you can reorganize all outputs into per-`file_id` folders:
+
+```bash
+# 1) Dry-run to preview changes:
+./scripts/migrate_output.py --db media_tracking.db --output output --dry-run
+
+# 2) Apply migration for real:
+./scripts/migrate_output.py --db media_tracking.db --output output
+
+# 3) (Optional) Cleanup legacy flat directories and symlinks:
+./scripts/migrate_output.py --db media_tracking.db --output output --cleanup
+```
+
+## ✅ Validate Per-ID Layout (CI / Ad-hoc)
+Use the validation script to ensure every `output/<file_id>/` folder contains the expected artifacts:
+
+```bash
+python scripts/validate_output.py
+```
+If no errors are printed, the layout is complete and correct.
 
 ## Legacy Tools
 
@@ -487,8 +523,59 @@ python process_untranscribed.py --dry-run
   - Hebrew: 360/728 completed (49%)
 - Fixed Hebrew translations with placeholder text
 - Implemented historical accuracy evaluation system
-- Running full pipeline to process remaining translations: `python run_full_pipeline.py --batch-size 20`
-- Implemented automatic monitoring to prevent stalled processes: `python monitor_and_restart.py`
+- Running full pipeline to process remaining translations
+- Implemented automatic monitoring to prevent stalled processes
+
+**Update (May 4, 2025)**
+- Current progress:
+  - Transcription: 686/728 files (94.2%) - 41 files still need transcription
+  - English translations: 625/728 completed (85.9%)
+  - German translations: 621/728 completed (85.3%)
+  - Hebrew translations: 568/728 completed (78.0%)
+- Fixed environment variable loading issues affecting API access
+- Added comprehensive security practices for handling API keys
+- Implemented parallel processing system for dramatically faster throughput:
+  - Parallel transcription: Process multiple files simultaneously
+  - Parallel translation: Process multiple languages simultaneously
+  - See `docs/PARALLEL_PROCESSING.md` for usage details
+
+**Update (May 6, 2025)**
+- Implemented comprehensive codebase refactoring for better maintainability
+- Completely reorganized project structure for a clean, modular codebase:
+  - `core_modules/`: Core functionality modules
+  - `scripts/`: Utility scripts
+  - `maintenance/`: Database and system maintenance scripts
+  - `legacy_scripts/`: Original versions of scripts being phased out
+  - `alias_scripts/`: Alias scripts that forward to new commands
+  - `logs/`: Centralized logging directory for all log files
+- Consolidated multiple small scripts into unified modules
+- Created a unified command-line interface with `core_modules/scribe_manager.py`
+- Implemented connection pooling to address resource management issues
+- Implemented centralized logging system with consistent formatting and organization
+- See `docs/MIGRATION_GUIDE.md` for migration details and `docs/LOGGING_GUIDE.md` for logging usage
+
+### Unified Scribe Manager
+
+The new Scribe Manager provides a single command-line interface for all operations:
+
+```bash
+# Check status
+python scribe_manager.py status [--detailed] [--format text|json|markdown]
+
+# Start monitoring
+python scribe_manager.py monitor [--check-interval 60] [--restart-interval 600]
+
+# Start processing
+python scribe_manager.py start --transcription --translation en,de,he [--transcription-workers 10] [--translation-workers 8]
+
+# Fix database issues
+python scribe_manager.py fix stalled|paths|transcripts|mark|hebrew [options]
+
+# Verify consistency
+python scribe_manager.py verify [--auto-fix]
+```
+
+For complete documentation, see `docs/MIGRATION_GUIDE.md`
 
 ### Retrying Failed Files
 
@@ -518,6 +605,16 @@ When a retry succeeds, the error records for that file are automatically cleared
 
 ## Common Workflow for Error Resolution
 
+### Using Scribe Manager (Recommended)
+
+1. **Check pipeline status**: `python scribe_manager.py status --detailed`
+2. **Verify database consistency**: `python scribe_manager.py verify`
+3. **Fix any inconsistencies**: `python scribe_manager.py verify --auto-fix`
+4. **Retry problematic files**: `python scribe_manager.py retry`
+5. **Start continuous monitoring**: `python scribe_manager.py monitor`
+
+### Using Legacy Tools
+
 1. **Identify issues**: `python generate_report.py --summary`
 2. **Preview failed files**: `python retry_extraction.py --dry-run`
 3. **Test fix on a single file**: `python retry_extraction.py --file-id UUID_OF_FAILED_FILE`
@@ -525,6 +622,18 @@ When a retry succeeds, the error records for that file are automatically cleared
 5. **Check results**: `python generate_report.py --summary`
 
 ## Troubleshooting
+
+### Using Scribe Manager (Recommended)
+
+- **Check Status**: `python scribe_manager.py status --detailed`
+- **Verify Consistency**: `python scribe_manager.py verify` to check database/filesystem consistency
+- **Reset Stalled Processes**: `python scribe_manager.py fix stalled --reset-all`
+- **Fix Missing Transcripts**: `python scribe_manager.py fix transcripts`
+- **Retry Problem Files**: `python scribe_manager.py retry`
+- **Monitor Pipeline**: `python scribe_manager.py monitor --check-interval 10`
+- **Special Processing**: `python scribe_manager.py special` for difficult files
+
+### Using Legacy Tools
 
 - **API Key Issues**: Make sure your API keys are correctly set in the `.env` file
 - **Database Errors**: If you encounter database corruption, try resetting it with `--reset-db`
