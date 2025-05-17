@@ -44,9 +44,9 @@ try:
 except ImportError:
     detect = None
 
-from db_manager import DatabaseManager
-from file_manager import FileManager
-from transcription import TranscriptionManager
+from core_modules.db_manager import DatabaseManager
+from core_modules.file_manager import FileManager
+from core_modules.transcription import TranscriptionManager
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -137,7 +137,7 @@ class TranslationManager:
             or os.getenv("MS_TRANSLATOR_LOCATION")
             or 'global'
         )
-        if ms_api_key:
+        if ms_api_key and requests:
             # Clean up location (remove trailing comments or whitespace)
             if ms_location:
                 ms_location = ms_location.split()[0].strip()
@@ -147,6 +147,11 @@ class TranslationManager:
                 'location': ms_location
             }
             logger.info("Microsoft Translator provider initialized")
+        else:
+            if not ms_api_key:
+                logger.error("MS_TRANSLATOR_KEY not found in config or environment")
+            if not requests:
+                logger.error("Requests library not available; Microsoft Translator disabled")
         
         # Initialize OpenAI Translator if API key is available
         openai_api_key = self.config.get('openai', {}).get('api_key') or os.getenv("OPENAI_API_KEY")

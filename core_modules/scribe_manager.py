@@ -34,17 +34,16 @@ from pathlib import Path
 from typing import Dict, List, Optional, Union, Any
 
 # Use centralized logging configuration
-from log_config import setup_logger
+from core_modules.log_config import setup_logger
 
 # Configure logging
 logger = setup_logger('scribe_manager', 'scribe_manager.log')
 
-# Import local modules
 try:
-    from db_manager import DatabaseManager
-    from file_manager import FileManager
-    from db_maintenance import DatabaseMaintenance
-    from pipeline_manager import PipelineMonitor, ProblemFileHandler, CommandLineInterface
+    from core_modules.db_manager import DatabaseManager
+    from core_modules.file_manager import FileManager
+    from core_modules.db_maintenance import DatabaseMaintenance
+    from core_modules.pipeline_manager import PipelineMonitor, ProblemFileHandler, CommandLineInterface
 except ImportError as e:
     logger.error(f"Failed to import required modules: {e}")
     logger.error("Make sure all required modules are in the same directory or in PYTHONPATH")

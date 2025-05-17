@@ -18,8 +18,14 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
 import traceback
 
-from db_manager import DatabaseManager
-from file_manager import FileManager
+import pathlib
+import sys
+# Ensure project root is on Python path for core_modules
+script_dir = pathlib.Path(__file__).parent
+project_root = script_dir.parent.resolve()
+sys.path.insert(0, str(project_root))
+from core_modules.db_manager import DatabaseManager
+from core_modules.file_manager import FileManager
 
 # Set up logging
 logging.basicConfig(
@@ -28,6 +34,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger("quality-evaluator")
 
+# Load environment variables from .env (do not override existing OS environment)
+try:
+    from dotenv import load_dotenv, find_dotenv
+    load_dotenv(find_dotenv())
+except ImportError:
+    logger.warning("python-dotenv not installed; relying on existing environment variables")
 # Import OpenAI API
 try:
     import openai  # type: ignore
@@ -92,7 +104,9 @@ def evaluate_text(text: str, language: str, model: str) -> Dict:
     if language not in PROMPT_TEMPLATES:
         raise ValueError(f"Unsupported language: {language}")
     
-    prompt = PROMPT_TEMPLATES[language].format(text=text)
+    # Safely substitute the text into the prompt template (avoid Python format braces conflicts)
+    template = PROMPT_TEMPLATES[language]
+    prompt = template.replace('{text}', text)
     
     # Make the API call
     if hasattr(openai, "OpenAI"):

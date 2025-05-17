@@ -40,8 +40,11 @@ def main():
         print(__doc__)
         return 0
     
-    # Forward all arguments to scribe_manager.py
-    cmd = [sys.executable, str(manager_path)] + sys.argv[1:]
+    # Forward all arguments to the scribe_manager module
+    # Ensure project root is first in PYTHONPATH
+    project_root = str(script_dir)
+    os.environ['PYTHONPATH'] = project_root + os.pathsep + os.environ.get('PYTHONPATH', '')
+    cmd = [sys.executable, '-m', 'core_modules.scribe_manager'] + sys.argv[1:]
     
     # Use os.execv to replace the current process
     # This ensures that signals (like Ctrl+C) are properly forwarded

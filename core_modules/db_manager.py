@@ -1023,10 +1023,13 @@ class DatabaseManager:
                 if not filename_results:
                     continue
                 
-                # Construct transcript path
+                # Construct transcript path in per-ID folder
+                # safe_filename is now '<file_id>.<ext>', so base_name == file_id
                 safe_filename = filename_results[0]['safe_filename']
-                base_name = os.path.splitext(safe_filename)[0]
-                transcript_path = os.path.join('./output/transcripts', f"{base_name}.txt")
+                file_id = os.path.splitext(safe_filename)[0]
+                transcript_path = os.path.join(
+                    './output', file_id, f"{file_id}.txt"
+                )
                 
                 # Read and count words if file exists
                 if os.path.exists(transcript_path):

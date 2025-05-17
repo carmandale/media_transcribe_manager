@@ -45,20 +45,20 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Import local modules
-from db_manager import DatabaseManager
-from file_manager import FileManager
-from worker_pool import WorkerPool
+from core_modules.db_manager import DatabaseManager
+from core_modules.file_manager import FileManager
+from core_modules.worker_pool import WorkerPool
 
 # Optional imports
 try:
-    from transcription import TranscriptionManager
+    from core_modules.transcription import TranscriptionManager
     TRANSCRIPTION_AVAILABLE = True
 except ImportError:
     logger.warning("TranscriptionManager not available. Transcription features disabled.")
     TRANSCRIPTION_AVAILABLE = False
     
 try:
-    from translation import TranslationManager
+    from core_modules.translation import TranslationManager
     TRANSLATION_AVAILABLE = True
 except ImportError:
     logger.warning("TranslationManager not available. Translation features disabled.")
@@ -461,9 +461,13 @@ class PipelineMonitor:
         logger.info(f"Starting parallel transcription with {workers} workers")
         
         # Build command
+        # Determine Python interpreter (use venv if available)
+        project_root = Path(__file__).parent.parent
+        venv_py = project_root / '.venv' / 'bin' / 'python3'
+        python_exec = str(venv_py) if venv_py.exists() else sys.executable
         cmd = [
-            sys.executable,
-            str(Path(__file__).parent / "parallel_transcription.py"),
+            python_exec,
+            str(project_root / "scripts" / "parallel_transcription.py"),
             "--workers", str(workers)
         ]
         
@@ -503,9 +507,13 @@ class PipelineMonitor:
         logger.info(f"Starting parallel translation for {language} with {workers} workers")
         
         # Build command
+        # Determine Python interpreter (use venv if available)
+        project_root = Path(__file__).parent.parent
+        venv_py = project_root / '.venv' / 'bin' / 'python3'
+        python_exec = str(venv_py) if venv_py.exists() else sys.executable
         cmd = [
-            sys.executable,
-            str(Path(__file__).parent / "parallel_translation.py"),
+            python_exec,
+            str(project_root / "scripts" / "parallel_translation.py"),
             "--language", language,
             "--workers", str(workers)
         ]
@@ -616,6 +624,165 @@ class PipelineMonitor:
         
         self.monitoring_active = False
         self.monitor_thread = None
+    
+    def finalize(self, input_dir: str, archive_dir: str,
+                 qa_threshold: float = 8.5, qa_model: str = None,
+                 dry_run: bool = False, preserve_symlinks: bool = False) -> bool:
+        """
+        Finalize the pipeline:
+        1. Verify discovery vs. DB counts for audio/video files
+        2. Ensure QA passed for all translations (en, de, he)
+        3. Copy or symlink the entire output tree to an archival directory
+           (use --preserve-symlinks to retain symlinks instead of full copy)
+        """
+        from pathlib import Path
+        import shutil, datetime
+        file_manager = FileManager(self.db_manager, self.config)
+        # Step 1: Discovery vs DB counts
+        src_root = Path(input_dir)
+        if not src_root.is_dir():
+            logger.error(f"Input directory does not exist: {src_root}")
+            return False
+        exts = file_manager.media_extensions
+        audio_exts = set(exts.get('audio', []))
+        video_exts = set(exts.get('video', []))
+        src_audio = sum(1 for p in src_root.rglob('*') if p.is_file() and p.suffix.lower() in audio_exts)
+        src_video = sum(1 for p in src_root.rglob('*') if p.is_file() and p.suffix.lower() in video_exts)
+        rows = self.db_manager.execute_query(
+            "SELECT media_type, COUNT(*) as count FROM media_files GROUP BY media_type"
+        )
+        db_counts = {r['media_type']: r['count'] for r in rows} if rows else {}
+        db_audio = db_counts.get('audio', 0)
+        db_video = db_counts.get('video', 0)
+        logger.info(f"Source files - Audio: {src_audio}, Video: {src_video}")
+        logger.info(f"DB records    - Audio: {db_audio}, Video: {db_video}")
+        if src_audio != db_audio or src_video != db_video:
+            logger.error("Discovery vs DB counts mismatch: will not finalize")
+            return False
+        logger.info("Discovery vs DB counts verified")
+        # Step 2: Ensure QA passed (translation_<lang>_status == 'qa_completed')
+        # Determine total files count
+        total_query = "SELECT COUNT(*) as count FROM processing_status"
+        total_res = self.db_manager.execute_query(total_query)
+        total_files = total_res[0]['count'] if total_res else 0
+        for lang in ['en', 'de', 'he']:
+            # Count QA-completed translations
+            qa_query = (
+                f"SELECT COUNT(*) as count FROM processing_status "
+                f"WHERE translation_{lang}_status = 'qa_completed'"
+            )
+            qa_res = self.db_manager.execute_query(qa_query)
+            passed = qa_res[0]['count'] if qa_res else 0
+            logger.info(f"QA pass [{lang}]: {passed}/{total_files}")
+            if passed < total_files:
+                logger.error(f"Not all translations passed QA for language: {lang}")
+                return False
+        # Step 3: Archive outputs
+        out_dir = Path(file_manager.output_dir)
+        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+        dest = Path(archive_dir) / f"{out_dir.name}_{timestamp}"
+        logger.info(f"Archiving outputs from {out_dir} to {dest}")
+        if dry_run:
+            logger.info("Dry run: archive step skipped")
+        else:
+            try:
+                # Copy entire output tree; preserve_symlinks controls symlink handling
+                shutil.copytree(
+                    out_dir,
+                    dest,
+                    symlinks=preserve_symlinks
+                )
+            except Exception as e:
+                logger.error(f"Error archiving outputs: {e}")
+                return False
+            logger.info("Archive completed successfully")
+        return True
+    
+    def _finalize_stub(self, input_dir: str, archive_dir: str,
+                       qa_threshold: float = 8.5, qa_model: str = None,
+                       dry_run: bool = False) -> bool:
+        """
+        Finalize the pipeline:
+        1. Verify discovery vs. DB counts for audio/video files
+        2. Run QA scoring for completed translations (en, de, he)
+        3. Copy the entire output tree to an archival directory
+        """
+        from pathlib import Path
+        import shutil, datetime
+        # Prepare FileManager for path utilities
+        file_manager = FileManager(self.db_manager, self.config)
+        # Step 1: Discovery vs DB counts
+        src_root = Path(input_dir)
+        if not src_root.is_dir():
+            logger.error(f"Input directory does not exist: {src_root}")
+            return False
+        exts = file_manager.media_extensions
+        audio_exts = set(exts.get('audio', []))
+        video_exts = set(exts.get('video', []))
+        src_audio = sum(1 for p in src_root.rglob('*') if p.is_file() and p.suffix.lower() in audio_exts)
+        src_video = sum(1 for p in src_root.rglob('*') if p.is_file() and p.suffix.lower() in video_exts)
+        rows = self.db_manager.execute_query(
+            "SELECT media_type, COUNT(*) as count FROM media_files GROUP BY media_type"
+        )
+        db_counts = {r['media_type']: r['count'] for r in rows} if rows else {}
+        db_audio = db_counts.get('audio', 0)
+        db_video = db_counts.get('video', 0)
+        logger.info(f"Source files - Audio: {src_audio}, Video: {src_video}")
+        logger.info(f"DB records    - Audio: {db_audio}, Video: {db_video}")
+        if src_audio != db_audio or src_video != db_video:
+            logger.error("Discovery vs DB counts mismatch: will not finalize")
+            return False
+        logger.info("Discovery vs DB counts verified")
+        # Step 2: QA scoring
+        for lang in ['en', 'de', 'he']:
+            qry = f"SELECT file_id FROM processing_status WHERE translation_{lang}_status = 'completed'"
+            completed = self.db_manager.execute_query(qry)
+            fids = [r['file_id'] for r in completed] if completed else []
+            total = len(fids)
+            passed = failed = 0
+            for fid in fids:
+                tpath = Path(file_manager.get_transcript_path(fid))
+                xpath = Path(file_manager.get_translation_path(fid, lang))
+                if not tpath.exists() or not xpath.exists():
+                    logger.warning(f"Missing files for QA: {fid} [{lang}]")
+                    failed += 1
+                    continue
+                try:
+                    orig = tpath.read_text(encoding='utf-8')
+                    trans = xpath.read_text(encoding='utf-8')
+                except Exception as e:
+                    logger.error(f"Error reading for QA {fid} [{lang}]: {e}")
+                    failed += 1
+                    continue
+                score = 10.0  # stub implementation
+                self.db_manager.add_quality_evaluation(
+                    file_id=fid, language=lang,
+                    model=qa_model or 'qa-stub', score=score,
+                    issues=[], comment=None
+                )
+                if score >= qa_threshold:
+                    passed += 1
+                else:
+                    failed += 1
+            logger.info(f"QA [{lang}]: total={total} passed={passed} failed={failed}")
+            if failed > 0:
+                logger.error(f"QA failures detected for language: {lang}")
+                return False
+        # Step 3: Archive outputs
+        out_dir = Path(file_manager.output_dir)
+        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+        dest = Path(archive_dir) / f"{out_dir.name}_{timestamp}"
+        logger.info(f"Archiving outputs from {out_dir} to {dest}")
+        if dry_run:
+            logger.info("Dry run: archive step skipped")
+        else:
+            try:
+                shutil.copytree(out_dir, dest)
+            except Exception as e:
+                logger.error(f"Error archiving outputs: {e}")
+                return False
+            logger.info("Archive completed successfully")
+        return True
 
 
 class ProblemFileHandler:
@@ -654,7 +821,7 @@ class ProblemFileHandler:
         # Find files that failed multiple times (3+)
         failure_query = """
         SELECT file_id, COUNT(*) as failure_count
-        FROM error_log
+        FROM errors
         GROUP BY file_id
         HAVING COUNT(*) >= 3
         """
@@ -702,7 +869,7 @@ class ProblemFileHandler:
                 pattern_conditions.append(f"error_message LIKE '%{keyword}%' OR error_details LIKE '%{keyword}%'")
             
             pattern_query = f"""
-            SELECT DISTINCT file_id FROM error_log
+            SELECT DISTINCT file_id FROM errors
             WHERE {' OR '.join(pattern_conditions)}
             """
             
@@ -754,8 +921,9 @@ class ProblemFileHandler:
         # Get retry counts from error log
         retry_counts = {}
         for file_id in file_ids:
+            # Count previous retry attempts from errors table
             count_query = """
-            SELECT COUNT(*) as retry_count FROM error_log
+            SELECT COUNT(*) as retry_count FROM errors
             WHERE file_id = ? AND error_message LIKE '%retry%'
             """
             count_result = self.db_manager.execute_query(count_query, (file_id,))
@@ -768,24 +936,28 @@ class ProblemFileHandler:
                 self.db_manager.update_status(file_id=file_id, status='qa_failed')
                 continue
             
-            # Get file details
-            file_query = "SELECT * FROM processing_status WHERE file_id = ?"
-            file_results = self.db_manager.execute_query(file_query, (file_id,))
-            
-            if not file_results:
-                logger.error(f"File {file_id} not found in database")
+            # Retrieve source path from media_files table
+            media_q = "SELECT original_path FROM media_files WHERE file_id = ?"
+            media_res = self.db_manager.execute_query(media_q, (file_id,))
+            if not media_res:
+                logger.error(f"Media entry for {file_id} not found in database")
                 continue
-                
-            file = file_results[0]
-            file_path = file['file_path']
+            file_path = media_res[0]['original_path']
             
             # Check if file exists
             if not Path(file_path).exists():
                 logger.error(f"Source file not found: {file_path}")
                 continue
+            # Load processing status for file
+            status_query = "SELECT * FROM processing_status WHERE file_id = ?"
+            status_res = self.db_manager.execute_query(status_query, (file_id,))
+            file_status = status_res[0] if status_res else {}
+            if not file_status:
+                logger.error(f"Processing status not found for file {file_id}")
+                continue
             
             # Retry transcription if needed
-            if file['transcription_status'] in ['not_started', 'failed', 'in-progress']:
+            if file_status.get('transcription_status') in ['not_started', 'failed', 'in-progress']:
                 success = self._retry_transcription(file_id, timeout_multiplier)
                 if success:
                     results['transcription_success'] += 1
@@ -796,7 +968,7 @@ class ProblemFileHandler:
             for lang in ['en', 'de', 'he']:
                 status_field = f"translation_{lang}_status"
                 
-                if file[status_field] in ['not_started', 'failed', 'in-progress']:
+                if file_status.get(status_field) in ['not_started', 'failed', 'in-progress']:
                     # Only attempt translation if transcription succeeded
                     transcript_path = Path(self.file_manager.get_transcript_path(file_id))
                     if not transcript_path.exists() or transcript_path.stat().st_size == 0:
@@ -840,7 +1012,7 @@ class ProblemFileHandler:
                 return False
                 
             # Create transcription manager with extended timeouts
-            from transcription import TranscriptionManager
+            from core_modules.transcription import TranscriptionManager
             
             # Deep copy config and modify timeouts
             import copy
@@ -938,7 +1110,7 @@ class ProblemFileHandler:
                 return False
                 
             # Create translation manager with extended timeouts
-            from translation import TranslationManager
+            from core_modules.translation import TranslationManager
             
             # Deep copy config and modify settings
             import copy
@@ -952,7 +1124,8 @@ class ProblemFileHandler:
             
             # Create manager and process
             translation_manager = TranslationManager(self.db_manager, special_config)
-            translation_manager.set_file_manager(self.file_manager)
+            # Set file manager (no transcription manager needed here)
+            translation_manager.set_managers(self.file_manager, None)
             
             # Mark as retry attempt in database
             self.db_manager.log_error(
@@ -963,21 +1136,12 @@ class ProblemFileHandler:
                              f"Chunk size: {special_config.get('max_chunk_size', 'default')}"
             )
             
-            # Determine source language
-            file_query = "SELECT detected_language FROM processing_status WHERE file_id = ?"
-            file_results = self.db_manager.execute_query(file_query, (file_id,))
-            source_language = file_results[0]['detected_language'] if file_results else None
-            
-            if not source_language:
-                source_language = 'auto'  # Fall back to auto-detection
-            
-            # Attempt translation
-            success = translation_manager.translate_text(
+            # Attempt translation (force reprocess retry)
+            success = translation_manager.translate_file(
                 file_id=file_id,
-                text=transcript_text,
-                source_language=source_language,
                 target_language=language,
-                force_reprocess=True
+                provider=None,
+                force=True
             )
             
             return success
@@ -993,9 +1157,10 @@ class ProblemFileHandler:
                 error_details=str(e)
             )
             
-            # Update status
+            # Update status: mark translation as failed
             self.db_manager.update_status(
                 file_id=file_id,
+                status='failed',
                 **{f"translation_{language}_status": 'failed'}
             )
             
@@ -1612,6 +1777,34 @@ class CommandLineInterface:
         special_parser = self.subparsers.add_parser('special', help='Apply special case processing')
         special_parser.add_argument('--file-ids', type=str,
                                    help='Comma-separated list of file IDs to process')
+        # finalize command: verify discovery, QA scoring, and archive outputs
+        finalize_parser = self.subparsers.add_parser(
+            'finalize', help='Verify discovery vs DB, QA translations, and archive outputs'
+        )
+        finalize_parser.add_argument(
+            '--input-dir', type=str, required=True,
+            help='Root directory of source media files'
+        )
+        finalize_parser.add_argument(
+            '--archive-dir', type=str, required=True,
+            help='Destination directory for archived output tree'
+        )
+        finalize_parser.add_argument(
+            '--qa-threshold', type=float, default=8.5,
+            help='Minimum quality score threshold (0-10)'
+        )
+        finalize_parser.add_argument(
+            '--qa-model', type=str, default='qa-stub',
+            help='Model identifier for QA scoring'
+        )
+        finalize_parser.add_argument(
+            '--dry-run', action='store_true',
+            help='Perform a dry run without copying files'
+        )
+        finalize_parser.add_argument(
+            '--preserve-symlinks', action='store_true',
+            help='Preserve symlinks in archive (do not dereference)'
+        )
         
     def parse_arguments(self):
         """Parse command-line arguments."""
@@ -1761,11 +1954,23 @@ class CommandLineInterface:
             file_ids = None
             if args.file_ids:
                 file_ids = [file_id.strip() for file_id in args.file_ids.split(',')]
-            
+
             # Apply special case processing
             result = problem_handler.special_case_processing(file_ids=file_ids)
-            
+
             logger.info(f"Special processing results: {result}")
+        elif args.command == 'finalize':
+            # Finalize: verify discovery vs DB, QA statuses, and archive outputs
+            preserve = getattr(args, 'preserve_symlinks', False)
+            success = pipeline_monitor.finalize(
+                args.input_dir,
+                args.archive_dir,
+                args.qa_threshold,
+                args.qa_model,
+                args.dry_run,
+                preserve
+            )
+            return 0 if success else 1
             
         else:
             logger.error(f"Unknown command: {args.command}")

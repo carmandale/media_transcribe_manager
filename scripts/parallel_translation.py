@@ -21,10 +21,16 @@ import logging
 import argparse
 import concurrent.futures
 from typing import List, Dict, Any, Optional, Tuple
+import pathlib
+from pathlib import Path
 
-from db_manager import DatabaseManager
-from file_manager import FileManager
-from translation import TranslationManager
+# Ensure project root is on the Python path so core_modules can be imported
+script_dir = pathlib.Path(__file__).parent
+project_root = script_dir.parent.resolve()
+sys.path.insert(0, str(project_root))
+from core_modules.db_manager import DatabaseManager
+from core_modules.file_manager import FileManager
+from core_modules.translation import TranslationManager
 
 # Configure logging
 logging.basicConfig(
@@ -40,13 +46,17 @@ logger = logging.getLogger(__name__)
 
 def load_environment():
     """Load environment variables and verify API keys are set."""
-    # Try to load from .env file if available
-    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env')
+    # Try to load from .env (script directory or project root)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    env_path = os.path.join(script_dir, '.env')
+    # Fallback to project root .env
+    if not os.path.exists(env_path):
+        env_path = os.path.join(script_dir, '..', '.env')
     if os.path.exists(env_path):
         try:
             import dotenv
             dotenv.load_dotenv(env_path)
-            logger.info("Loaded environment from .env file")
+            logger.info(f"Loaded environment from {env_path}")
         except ImportError:
             logger.warning("dotenv not available, using defaults")
     
@@ -74,12 +84,13 @@ def get_files_for_translation(db: DatabaseManager, language: str, limit: Optiona
     status_field = f"translation_{language}_status"
     
     # Start by finding files that need translation
+    # Include QA-failed files so they can be retried
     query = f"""
-    SELECT p.*, m.* 
+    SELECT p.*, m.*
     FROM processing_status p
     JOIN media_files m ON p.file_id = m.file_id
-    WHERE p.{status_field} IN ('not_started', 'failed') 
-    AND p.transcription_status = 'completed'
+    WHERE p.{status_field} IN ('not_started', 'failed', 'qa_failed')
+      AND p.transcription_status = 'completed'
     ORDER BY p.file_id
     """
     

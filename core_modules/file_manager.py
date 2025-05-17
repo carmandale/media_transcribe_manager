@@ -67,8 +67,9 @@ class FileManager:
         self.config = config
         
         # Create output directory if it doesn't exist
-        self.output_dir = config.get('output_directory', './output')
-        os.makedirs(self.output_dir, exist_ok=True)
+        # Base output directory
+        self.output_dir = Path(config.get('output_directory', './output'))
+        self.output_dir.mkdir(parents=True, exist_ok=True)
         
         # Set up media extensions from config or use defaults
         self.media_extensions = config.get('media_extensions', {
@@ -80,91 +81,89 @@ class FileManager:
         self.audio_format = config.get('extract_audio_format', 'mp3')
         self.audio_bitrate = config.get('extract_audio_quality', '192k')
         
-        # Create subdirectories for different file types
-        self.audio_dir = os.path.join(self.output_dir, 'audio')
-        self.transcript_dir = os.path.join(self.output_dir, 'transcripts')
-        self.translation_dir = os.path.join(self.output_dir, 'translations')
-        self.subtitles_dir = os.path.join(self.output_dir, 'subtitles')
-        self.videos_dir = os.path.join(self.output_dir, 'videos')
-        
-        for directory in [self.audio_dir, self.transcript_dir, 
-                         self.translation_dir, self.subtitles_dir,
-                         self.videos_dir]:
-            os.makedirs(directory, exist_ok=True)
+        # No global type directories; outputs go into per-media folders under output_dir
+        # Old attributes (if used) point to output_dir
+        self.audio_dir = self.output_dir
+        self.transcript_dir = self.output_dir
+        self.translation_dir = self.output_dir
+        self.subtitles_dir = self.output_dir
+        self.videos_dir = self.output_dir
+
+    def _get_media_dir(self, safe_filename: str) -> Path:
+        """
+        Return and ensure the output directory for a media file based on its safe filename.
+        """
+        # Directory named after the slug stem
+        stem = Path(safe_filename).stem
+        media_dir = self.output_dir / stem
+        media_dir.mkdir(parents=True, exist_ok=True)
+        return media_dir
         
     def discover_files(self, directory: str, limit: Optional[int] = None) -> List[str]:
         """
-        Recursively discover audio and video files in a directory.
-        
+        Discover audio and video files in a directory using pathlib, robust to spaces and special characters.
+
         Args:
-            directory: Directory to scan for media files
-            limit: Maximum number of files to return (optional)
-            
+            directory: Path to scan (str or Path)
+            limit: Maximum number of files to process (optional)
+
         Returns:
-            List of file IDs that were discovered and added to the database
+            List of file IDs added to the database
         """
-        if not os.path.isdir(directory):
-            logger.error(f"Directory does not exist: {directory}")
+        base_dir = Path(directory)
+        if not base_dir.is_dir():
+            logger.error(f"Directory does not exist: {base_dir}")
             return []
-        
-        # Get all supported extensions as a flattened list
-        all_extensions = set()
-        for ext_list in self.media_extensions.values():
-            all_extensions.update(ext_list)
-        
-        logger.info(f"Scanning directory: {directory}")
-        logger.info(f"Supported file extensions: {', '.join(all_extensions)}")
-        
-        # Track discovered files
+
+        # Supported extensions
+        audio_exts = set(self.media_extensions.get('audio', []))
+        video_exts = set(self.media_extensions.get('video', []))
+        all_exts = audio_exts | video_exts
+
+        logger.info(f"Scanning directory: {base_dir}")
+        logger.info(f"Supported file extensions: {', '.join(sorted(all_exts))}")
+
         discovered_files = []
         processed_count = 0
         skipped_count = 0
-        
-        # Use tqdm for progress indication during discovery
-        for root, _, files in tqdm(os.walk(directory), desc="Scanning directories"):
-            for file in files:
-                file_path = os.path.join(root, file)
-                
-                # Skip already discovered files
-                if self.db_manager.get_file_by_path(file_path):
-                    skipped_count += 1
-                    continue
-                
-                # Check file extension
-                file_ext = os.path.splitext(file)[1].lower()
-                if file_ext in all_extensions:
-                    # Determine media type
-                    media_type = 'audio' if file_ext in self.media_extensions['audio'] else 'video'
-                    
-                    # Generate safe filename
-                    safe_filename = self.sanitize_filename(file)
-                    
-                    # Add to database
-                    file_id = self.db_manager.add_media_file(
-                        file_path=file_path,
-                        safe_filename=safe_filename,
-                        media_type=media_type,
-                        file_size=os.path.getsize(file_path)
-                    )
-                    
-                    discovered_files.append(file_id)
-                    processed_count += 1
-                    
-                    # Update with additional metadata in the background
-                    try:
-                        self._update_media_metadata(file_id, file_path, media_type)
-                    except Exception as e:
-                        logger.warning(f"Could not update metadata for {file_path}: {e}")
-                    
-                    # Check if we've reached the limit
-                    if limit and processed_count >= limit:
-                        logger.info(f"Reached limit of {limit} files")
-                        break
-            
-            # Check if we've reached the limit after processing a directory
+
+        for file_path in tqdm(base_dir.rglob('*'), desc="Scanning directories"):
+            if not file_path.is_file():
+                continue
+            path_str = str(file_path)
+
+            # Skip if already in database
+            if self.db_manager.get_file_by_path(path_str):
+                skipped_count += 1
+                continue
+
+            ext = file_path.suffix.lower()
+            if ext not in all_exts:
+                continue
+
+            media_type = 'audio' if ext in audio_exts else 'video'
+            safe_filename = self.sanitize_filename(file_path.name)
+
+            # Add to database
+            file_id = self.db_manager.add_media_file(
+                file_path=path_str,
+                safe_filename=safe_filename,
+                media_type=media_type,
+                file_size=file_path.stat().st_size
+            )
+            discovered_files.append(file_id)
+            processed_count += 1
+
+            # Update metadata
+            try:
+                self._update_media_metadata(file_id, path_str, media_type)
+            except Exception as e:
+                logger.warning(f"Could not update metadata for {path_str}: {e}")
+
             if limit and processed_count >= limit:
+                logger.info(f"Reached limit of {limit} files")
                 break
-        
+
         logger.info(f"Discovery completed. Found {processed_count} new files. Skipped {skipped_count} existing files.")
         return discovered_files
     
@@ -273,10 +272,9 @@ class FileManager:
         if not base_name:
             base_name = "file"
         
-        # Add timestamp and random suffix to ensure uniqueness
-        timestamp = int(time.time() * 1000)
-        suffix = uuid.uuid4().hex[:6]
-        safe_filename = f"{base_name}_{timestamp}_{suffix}{extension}"
+        # Construct safe filename without unpredictable suffix
+        # (original base_name is already normalized and slugified)
+        safe_filename = f"{base_name}{extension}"
         
         return safe_filename
     
@@ -379,9 +377,30 @@ class FileManager:
             )
             return False
         
-        # Generate output audio path
-        audio_filename = f"{file_id}_{os.path.splitext(os.path.basename(original_path))[0]}.{self.audio_format}"
-        audio_path = os.path.join(self.audio_dir, audio_filename)
+        # Determine safe filename and media directory
+        safe_filename = file_details['safe_filename']
+        media_dir = self._get_media_dir(safe_filename)
+        # Ensure original video is present in media directory for clients (symlink preferred)
+        video_dest = media_dir / safe_filename
+        if not video_dest.exists():
+            try:
+                os.symlink(original_path, video_dest)
+            except Exception:
+                try:
+                    shutil.copy2(original_path, video_dest)
+                except Exception as e:
+                    logger.error(f"Error linking video to output folder: {e}")
+                    self.db_manager.log_error(
+                        file_id=file_id,
+                        process_stage='extraction',
+                        error_message="Video link failed",
+                        error_details=str(e)
+                    )
+                    self.db_manager.update_status(file_id=file_id, status='failed')
+                    return False
+        # Generate output audio path in same folder
+        stem = Path(safe_filename).stem
+        audio_path = media_dir / f"{stem}.{self.audio_format}"
         
         # Update status to in-progress
         self.db_manager.update_status(
@@ -393,7 +412,7 @@ class FileManager:
             logger.info(f"Extracting audio from: {original_path}")
             
             # Use ffmpeg directly instead of moviepy
-            os.makedirs(os.path.dirname(audio_path), exist_ok=True)
+            # media_dir already exists
             
             # Prepare ffmpeg command
             audio_bitrate = self.audio_bitrate
@@ -437,7 +456,7 @@ class FileManager:
             
             logger.info(f"Successfully extracted audio to: {audio_path}")
             
-            # Update database with the audio path
+            # Update database: ready for transcription
             self.db_manager.update_status(
                 file_id=file_id,
                 status='pending',
@@ -515,20 +534,34 @@ class FileManager:
             logger.error(f"File not found in database: {file_id}")
             raise ValueError(f"File not found in database: {file_id}")
         
-        # For audio files, return the original path
+        # For audio files, ensure the original mp3 is linked into the media directory and return that path
         if file_details['media_type'] == 'audio':
-            return file_details['original_path']
+            original = Path(file_details['original_path'])
+            safe_filename = file_details['safe_filename']
+            media_dir = self._get_media_dir(safe_filename)
+            link_path = media_dir / safe_filename
+            # Create symlink to original audio (or copy if symlink not permitted)
+            if not link_path.exists():
+                try:
+                    os.symlink(str(original), str(link_path))
+                except Exception as e:
+                    logger.warning(f"Could not symlink audio file {original} to {link_path}: {e}")
+                    try:
+                        shutil.copy2(str(original), str(link_path))
+                    except Exception as e2:
+                        logger.error(f"Error copying audio file {original} to {link_path}: {e2}")
+            return str(link_path)
         
-        # For video files, construct the audio path
-        audio_filename = f"{file_id}_{os.path.splitext(os.path.basename(file_details['original_path']))[0]}.{self.audio_format}"
-        audio_path = os.path.join(self.audio_dir, audio_filename)
-        
-        # Check if the audio file exists
-        if not os.path.exists(audio_path):
-            logger.warning(f"Audio file not found for {file_id}: {audio_path}")
+        # For video files, get the extracted audio path in the media folder
+        safe_filename = file_details['safe_filename']
+        media_dir = self._get_media_dir(safe_filename)
+        stem = Path(safe_filename).stem
+        audio_path = media_dir / f"{stem}.{self.audio_format}"
+        audio_path_str = str(audio_path)
+        if not audio_path.exists():
+            logger.warning(f"Audio file not found for {file_id}: {audio_path_str}")
             return None
-        
-        return audio_path
+        return audio_path_str
     
     def get_transcript_path(self, file_id: str, language: str = None) -> str:
         """
@@ -548,15 +581,12 @@ class FileManager:
             raise ValueError(f"File not found in database: {file_id}")
         
         safe_filename = file_details['safe_filename']
-        base_name = os.path.splitext(safe_filename)[0]
-        
-        # Include file_id in the filename for traceability
-        if language:
-            transcript_filename = f"{file_id}_{base_name}_{language}.txt"
-        else:
-            transcript_filename = f"{file_id}_{base_name}.txt"
-        
-        return os.path.join(self.transcript_dir, transcript_filename)
+        safe_stem = Path(safe_filename).stem
+        # Transcript: simple text file with same base name
+        transcript_filename = f"{safe_stem}.txt"
+        media_dir = self._get_media_dir(safe_filename)
+        transcript_path = media_dir / transcript_filename
+        return str(transcript_path)
     
     def get_translation_path(self, file_id: str, language: str) -> str:
         """
@@ -576,16 +606,12 @@ class FileManager:
             raise ValueError(f"File not found in database: {file_id}")
         
         safe_filename = file_details['safe_filename']
-        base_name = os.path.splitext(safe_filename)[0]
-        
-        # Include file_id in the filename for traceability
-        translation_filename = f"{file_id}_{base_name}_{language}.txt"
-        
-        # Create language-specific subdirectory
-        lang_dir = os.path.join(self.translation_dir, language)
-        os.makedirs(lang_dir, exist_ok=True)
-        
-        return os.path.join(lang_dir, translation_filename)
+        safe_stem = Path(safe_filename).stem
+        # Translation: use language code in extension, output in media folder
+        translation_filename = f"{safe_stem}.{language}.txt"
+        media_dir = self._get_media_dir(safe_filename)
+        translation_path = media_dir / translation_filename
+        return str(translation_path)
     
     def get_subtitle_path(self, file_id: str, language: str) -> str:
         """
@@ -605,16 +631,12 @@ class FileManager:
             raise ValueError(f"File not found in database: {file_id}")
         
         safe_filename = file_details['safe_filename']
-        base_name = os.path.splitext(safe_filename)[0]
-        
-        # Include file_id in the filename for traceability
-        subtitle_filename = f"{file_id}_{base_name}_{language}.srt"
-        
-        # Create language-specific subdirectory
-        lang_dir = os.path.join(self.subtitles_dir, language)
-        os.makedirs(lang_dir, exist_ok=True)
-        
-        return os.path.join(lang_dir, subtitle_filename)
+        safe_stem = Path(safe_filename).stem
+        # Subtitle: include language code in extension, output in media folder
+        subtitle_filename = f"{safe_stem}.{language}.srt"
+        media_dir = self._get_media_dir(safe_filename)
+        subtitle_path = media_dir / subtitle_filename
+        return str(subtitle_path)
     
     def get_video_path(self, file_id: str) -> Optional[str]:
         """
@@ -637,14 +659,8 @@ class FileManager:
             logger.warning(f"File is not a video: {file_id}")
             return None
             
+        # Video: output original video under media folder
         safe_filename = file_details['safe_filename']
-        base_name = os.path.splitext(safe_filename)[0]
-        
-        # Get the original file extension
-        original_path = file_details['original_path']
-        file_ext = os.path.splitext(original_path)[1].lower()
-        
-        # Include file_id in the filename for traceability (matching subtitle pattern)
-        video_filename = f"{file_id}_{base_name}_orig{file_ext}"
-        
-        return os.path.join(self.videos_dir, video_filename)
+        media_dir = self._get_media_dir(safe_filename)
+        video_path = media_dir / safe_filename
+        return str(video_path)

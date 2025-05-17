@@ -108,6 +108,20 @@ The new media processor tool provides a comprehensive interface for processing a
 python media_processor.py -d /path/to/media/directory -o ./output
 ```
 
+---
+**Migration Guide**: For instructions on reorganizing outputs into per-`file_id` folders, see [`docs/MIGRATION_GUIDE.md`](docs/MIGRATION_GUIDE.md).
+ 
+---
+## 🧹 Maintenance Utilities
+- **Relocate root logs** into `logs/` directory:
+  ```bash
+  python scripts/cleanup_root_logs.py
+  ```
+- **Clean up docs/** by moving old files into `docs/_ARCHIVE/`:
+  ```bash
+  python scripts/cleanup_docs.py
+  ```
+---
 ### Command-line Options
 
 ```
@@ -199,6 +213,28 @@ python media_processor.py --file-status 3fd8a920-7c2e-4d0b-b8f5-8c9bce35e0a2
 # Retry failed files
 python media_processor.py -r
 ```
+
+## 🗂️ Migration to Per-ID Folder Layout
+After running the standard processing pipeline, you can reorganize all outputs into per-`file_id` folders:
+
+```bash
+# 1) Dry-run to preview changes:
+./scripts/migrate_output.py --db media_tracking.db --output output --dry-run
+
+# 2) Apply migration for real:
+./scripts/migrate_output.py --db media_tracking.db --output output
+
+# 3) (Optional) Cleanup legacy flat directories and symlinks:
+./scripts/migrate_output.py --db media_tracking.db --output output --cleanup
+```
+
+## ✅ Validate Per-ID Layout (CI / Ad-hoc)
+Use the validation script to ensure every `output/<file_id>/` folder contains the expected artifacts:
+
+```bash
+python scripts/validate_output.py
+```
+If no errors are printed, the layout is complete and correct.
 
 ## Legacy Tools
 

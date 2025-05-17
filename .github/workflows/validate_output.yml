@@ -1,0 +1,30 @@
+name: Validate Per-ID Output Layout
+
+on:
+  push:
+    paths:
+      - 'output/**'
+      - 'scripts/validate_output.py'
+      - '.github/workflows/**'
+  pull_request:
+    paths:
+      - 'output/**'
+      - 'scripts/validate_output.py'
+      - '.github/workflows/**'
+
+jobs:
+  validate_output_layout:
+    name: Validate Per-ID Output Layout
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+      - name: Validate per-ID folders
+        run: |
+          python scripts/validate_output.py

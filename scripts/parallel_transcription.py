@@ -16,14 +16,16 @@ import argparse
 import concurrent.futures
 from typing import List, Dict, Any, Optional
 import pathlib
+from pathlib import Path
 
-# Add core_modules to the Python path
-sys.path.append(str(pathlib.Path(__file__).parent.parent / 'core_modules'))
-
-from db_manager import DatabaseManager
-from file_manager import FileManager
-from transcription import TranscriptionManager
-from log_config import setup_logger
+# Ensure project root is on the Python path so core_modules can be imported
+script_dir = pathlib.Path(__file__).parent
+project_root = script_dir.parent.resolve()
+sys.path.insert(0, str(project_root))
+from core_modules.db_manager import DatabaseManager
+from core_modules.file_manager import FileManager
+from core_modules.transcription import TranscriptionManager
+from core_modules.log_config import setup_logger
 
 # Configure logging
 logger = setup_logger('parallel_transcription', 'parallel_transcription.log')
@@ -31,12 +33,17 @@ logger = setup_logger('parallel_transcription', 'parallel_transcription.log')
 def load_environment():
     """Load environment variables and verify API keys are set."""
     # Try to load from .env file if available
-    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env')
+    # Look for .env in script directory or project root
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    env_path = os.path.join(script_dir, '.env')
+    # Fallback to project root .env
+    if not os.path.exists(env_path):
+        env_path = os.path.join(script_dir, '..', '.env')
     if os.path.exists(env_path):
         try:
             import dotenv
             dotenv.load_dotenv(env_path)
-            logger.info("Loaded environment from .env file")
+            logger.info(f"Loaded environment from {env_path}")
         except ImportError:
             logger.warning("dotenv not available, using defaults")
     

@@ -70,7 +70,7 @@ When working with paths in this codebase, follow these guidelines:
 ### Documentation
 
 For complete details on the migration and new command structure, see:
-- `docs/MIGRATION_GUIDE.md`: Mapping between old and new commands
+- `docs/MIGRATION_GUIDE.md`: Mapping between old and new commands, and migration to per-`file_id` folders
 - `README.md`: Updated documentation on the unified interface
 - `CLAUDE.md`: Both legacy and new consolidated commands
 
