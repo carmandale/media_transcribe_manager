@@ -16,8 +16,12 @@ import sys
 import json
 import argparse
 from pathlib import Path
-sys.path.append(str(Path(__file__).parent.parent / 'core_modules'))
-from db_manager import DatabaseManager
+
+# Add project root to Python path
+script_dir = Path(__file__).parent
+project_root = script_dir.parent.resolve()
+sys.path.insert(0, str(project_root))
+from core_modules.db_manager import DatabaseManager
 
 def execute_query(query, params=None, format_output="json", db_path=None):
     """Execute an SQL query and return the results."""
