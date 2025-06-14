@@ -575,10 +575,18 @@ class TranslationManager:
         }
         target_lang_name = language_names.get(target_language.lower(), target_language)
 
-        # Single consolidated system instruction
+        # Single consolidated system instruction for historical interview transcripts
         system_msg = (
-            f"You are a professional translator. "
+            f"You are a professional translator specializing in historical interview transcripts. "
             f"Translate any incoming text to {target_lang_name} only. "
+            "CRITICAL: This is a verbatim transcript of spoken language. You MUST preserve: "
+            "- All hesitations and filler words (um, uh, ah, hmm, etc.) "
+            "- Repeated words and self-corrections "
+            "- Incomplete sentences and trailing thoughts "
+            "- Natural pauses indicated by ellipses or dashes "
+            "- The speaker's authentic manner of speaking "
+            "- All grammatical 'errors' that reflect natural speech "
+            "Do NOT 'improve' or 'polish' the language. "
             "No words from any other language may appear except immutable proper nouns "
             "(people, place, organisation names). "
             "Retain paragraph and line breaks and speaker labels. "
@@ -1171,8 +1179,8 @@ class TranslationManager:
         try:
             glossary_lines = "\n".join([f"{k} -> {v}" for k, v in list(self.glossary.items())[:200]])
             prompt = (
-                "You are a professional Hebrew translator and editor. "
-                "Your task: improve fluency, idiom, grammar, punctuation and RTL formatting while preserving 100% meaning. "
+                "You are a specialist in Hebrew historical interview transcripts. "
+                "Your task: Fix ONLY technical Hebrew issues while preserving the verbatim nature of the transcript. "
                 "Ensure the following glossary mappings are respected exactly. If term appears in the English source, use the given Hebrew equivalent.\n\n"
                 "Glossary (source -> Hebrew):\n" + glossary_lines + "\n\n"
                 "English (or German) source:\n" + source_text + "\n\n"
@@ -1184,7 +1192,7 @@ class TranslationManager:
                 client = openai.OpenAI()
                 completion = client.chat.completions.create(
                     model="gpt-4.1",
-                    messages=[{"role": "system", "content": f"You are a professional translator. Translate from the source language to Hebrew accurately and entirely in Hebrew. Do not include any source-language words, except proper nouns."},
+                    messages=[{"role": "system", "content": f"You are a specialist in Hebrew historical interview transcripts. Fix ONLY RTL formatting and technical Hebrew errors. PRESERVE all hesitations, filler words, repetitions, and speech patterns. Do NOT improve fluency or polish the language. Do not include any source-language words, except proper nouns."},
                     {"role": "user", "content": prompt}],
                     temperature=0.2,
                 )
@@ -1192,7 +1200,7 @@ class TranslationManager:
             else:
                 completion = openai.ChatCompletion.create(
                     model="gpt-4.1",
-                    messages=[{"role": "system", "content": f"You are a professional translator. Translate from the source language to Hebrew accurately and entirely in Hebrew. Do not include any source-language words, except proper nouns."},
+                    messages=[{"role": "system", "content": f"You are a specialist in Hebrew historical interview transcripts. Fix ONLY RTL formatting and technical Hebrew errors. PRESERVE all hesitations, filler words, repetitions, and speech patterns. Do NOT improve fluency or polish the language. Do not include any source-language words, except proper nouns."},
                     {"role": "user", "content": prompt}],
                     temperature=0.2,
                 )

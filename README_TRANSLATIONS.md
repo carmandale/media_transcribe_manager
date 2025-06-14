@@ -2,6 +2,16 @@
 
 This document outlines the translation process for the Rigg historical interviews project, focusing on generating historically accurate translations while preserving speech patterns and maintaining subtitle synchronization.
 
+## IMPORTANT UPDATE (2025-06-14)
+
+The translation system has been updated to properly preserve authentic speech patterns. All translations now:
+- Preserve hesitations (um, uh, ah, hmm)
+- Maintain repeated words and self-corrections
+- Keep incomplete sentences and trailing thoughts
+- Retain the speaker's natural manner of speaking
+
+**For best results, always use `--formality less` when translating oral history interviews.**
+
 ## Overview
 
 The translation pipeline processes interview transcripts and produces:
@@ -14,17 +24,17 @@ The translation pipeline processes interview transcripts and produces:
 Use the `process_missing_translations.py` script to efficiently process files with completed transcriptions but missing translations:
 
 ```bash
-# Process English translations
-python process_missing_translations.py --languages en --batch-size 10
+# Process English translations (with informal style for oral histories)
+python process_missing_translations.py --languages en --batch-size 10 --formality less
 
 # Process German translations 
-python process_missing_translations.py --languages de --batch-size 10
+python process_missing_translations.py --languages de --batch-size 10 --formality less
 
 # Process Hebrew translations
-python process_missing_translations.py --languages he --batch-size 10
+python process_missing_translations.py --languages he --batch-size 10 --formality less
 
 # Process all languages at once
-python process_missing_translations.py --languages en,de,he --batch-size 10
+python process_missing_translations.py --languages en,de,he --batch-size 10 --formality less
 ```
 
 ### Options
