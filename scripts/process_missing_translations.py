@@ -16,11 +16,17 @@ import os
 import sys
 import time
 from typing import List, Dict, Any
+from pathlib import Path
 
-from db_manager import DatabaseManager
-from file_manager import FileManager
-from translation import TranslationManager
-from transcription import TranscriptionManager
+# Add project root to Python path
+script_dir = Path(__file__).parent
+project_root = script_dir.parent.resolve()
+sys.path.insert(0, str(project_root))
+
+from core_modules.db_manager import DatabaseManager
+from core_modules.file_manager import FileManager
+from core_modules.translation import TranslationManager
+from core_modules.transcription import TranscriptionManager
 
 # Configure logging
 logging.basicConfig(

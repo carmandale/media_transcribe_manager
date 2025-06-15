@@ -44,15 +44,16 @@ class TranslationValidator:
         """Get files with low quality scores for a language."""
         query = """
             SELECT 
-                ps.file_id,
-                ps.original_filename,
+                qe.file_id,
+                mf.original_path as original_filename,
                 qe.score,
                 qe.issues,
                 qe.evaluated_at
-            FROM processing_status ps
-            JOIN quality_evaluations qe ON ps.file_id = qe.file_id
+            FROM quality_evaluations qe
+            JOIN media_files mf ON qe.file_id = mf.file_id
             WHERE qe.language = ?
             AND qe.score < 8.0
+            AND qe.score > 1.0  -- Exclude placeholder scores
             ORDER BY qe.score ASC
             LIMIT ?
         """
@@ -222,11 +223,19 @@ class TranslationValidator:
                 file_result['backup_path'] = str(backup_path)
             
             if not skip_retranslation:
+                # Get the original file path for this file_id
+                file_info = self.db.get_file_status(file_id)
+                if not file_info or 'original_path' not in file_info:
+                    print(f"  ✗ Could not find original path for file_id: {file_id}")
+                    continue
+                    
+                original_path = file_info['original_path']
+                
                 # Re-translate with new system
                 print(f"  Re-translating with speech preservation...")
                 cmd = [
                     "uv", "run", "python", "scripts/media_processor.py",
-                    "--file-id", file_id,
+                    "-f", original_path,
                     "--translate-only", language,
                     "--formality", "less",
                     "--force"
@@ -310,7 +319,10 @@ class TranslationValidator:
             
             results['files_processed'].append(file_result)
             results['summary']['avg_score_before'] += original_score
-            results['summary']['avg_score_after'] += file_result.get('new_score', original_score)
+            if file_result.get('new_score') is not None:
+                results['summary']['avg_score_after'] += file_result['new_score']
+            else:
+                results['summary']['avg_score_after'] += original_score
         
         # Calculate averages
         if results['files_processed']:

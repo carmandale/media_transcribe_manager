@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Important: Start Here
+- **Troubleshooting Guide**: See `docs/CLAUDE_TROUBLESHOOTING_GUIDE.md` for common issues and solutions
+- **Hebrew Translations**: See `docs/HEBREW_TRANSLATION_FIX.md` for Hebrew-specific configuration
+
 ## Quick Setup
 1. **Always use UV to run Python scripts**: All commands should be prefixed with `uv run python`
 2. **Work from project root**: `cd /path/to/scribe`
@@ -81,6 +85,7 @@ See docs/DB_QUERIES.md for a comprehensive list of useful queries
 - Prioritize content accuracy and speech pattern preservation
 - Quality thresholds: Excellent (8.5-10), Acceptable (8.0-8.4), Needs Improvement (<8.0)
 - See docs/QUALITY_EVALUATION_GUIDE.md for detailed guidelines
+- Compare Hebrew providers: `uv run python scripts/compare_hebrew_providers.py --file-id FILE_ID`
 
 ## Code Style
 - Use Python 3.6+ features
