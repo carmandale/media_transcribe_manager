@@ -1,662 +1,164 @@
-# Media Transcription and Translation Tool
+# Scribe - Historical Interview Preservation System
 
-This advanced tool processes audio and video files by automatically transcribing content using ElevenLabs, translating transcripts (currently from German to English and Hebrew), and producing organized outputs including SRT subtitle files.
+A clean, modern system for preserving historical interviews through accurate transcription and translation.
 
-## Features
+## Overview
 
-- **Core Functionality**:
-  - Recursively scan directories for audio/video files
-  - Handle complex filenames (Unicode, special characters)
-  - Extract audio from video files
-  - Transcribe audio using ElevenLabs Scribe v1
-  - Translate transcripts to multiple languages
-  - Generate SRT subtitle files for all languages
-  - Track processing states in a database
-  - Produce detailed reports
-  - Support resumption of interrupted processes
+Scribe processes audio and video recordings to create:
+- Verbatim transcriptions with speaker identification
+- Translations to English, German, and Hebrew
+- Quality-evaluated output suitable for historical research
 
-- **Enhanced Features**:
-  - Parallel processing via worker pool
-  - Progress tracking and detailed reporting
-  - Robust error handling and recovery
-  - Multiple translation providers support (DeepL, Google, Microsoft)
+The system emphasizes preserving authentic speech patterns, including hesitations, repetitions, and emotional context.
 
-## Installation
-
-### Using `uv` (Recommended)
-
-[`uv`](https://github.com/astral-sh/uv) is a much faster alternative to pip/virtualenv for Python package management.
-
-1. Install `uv`:
+## Quick Start
 
 ```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
-
-2. Clone or download this repository and navigate to the project directory
-
-3. Create and activate a virtual environment:
-
-```bash
-uv venv
-source .venv/bin/activate  # On macOS/Linux
-# or
-.venv\Scripts\activate     # On Windows
-```
-
-4. Install dependencies:
-
-```bash
-uv pip install -r requirements.txt
-```
-
-### Using Traditional `venv`
-
-If you prefer using the standard Python virtual environment:
-
-```bash
-python -m venv .venv
-source .venv/bin/activate  # On macOS/Linux
-# or
-.venv\Scripts\activate     # On Windows
+# Install dependencies
 pip install -r requirements.txt
+
+# Add files to process (from any location)
+python scribe_cli.py add /path/to/media/files/
+
+# Run full pipeline
+python scribe_cli.py process
+
+# Check status
+python scribe_cli.py status
+```
+
+## Core Commands
+
+### Adding Files
+```bash
+# Add single file
+python scribe_cli.py add path/to/interview.mp4
+
+# Add directory recursively
+python scribe_cli.py add input/ --recursive
+```
+
+### Processing
+```bash
+# Transcribe audio to text
+python scribe_cli.py transcribe --workers 10
+
+# Translate to specific language
+python scribe_cli.py translate en --workers 8
+python scribe_cli.py translate de --workers 8
+python scribe_cli.py translate he --workers 8
+
+# Evaluate translation quality
+python scribe_cli.py evaluate he --sample 20
+```
+
+### Management
+```bash
+# View processing status
+python scribe_cli.py status --detailed
+
+# Fix stuck files
+python scribe_cli.py fix-stuck
+
+# Check specific translation
+python scribe_cli.py check-translation <file_id> he
 ```
 
 ## Configuration
 
-1. Create a `.env` file in the project directory with your API keys:
+Create a `.env` file with your API keys:
 
-```
-ELEVENLABS_API_KEY=your_elevenlabs_api_key_here
-DEEPL_API_KEY=your_deepl_api_key_here  # Optional for translations
-MS_TRANSLATOR_KEY=your_ms_key_here     # Optional for translations
-```
+```env
+# Required for transcription
+ELEVENLABS_API_KEY=your_key_here
 
-You can get an ElevenLabs API key by signing up at [ElevenLabs](https://elevenlabs.io/).
+# Required for translation
+DEEPL_API_KEY=your_key_here
+MS_TRANSLATOR_KEY=your_key_here
+OPENAI_API_KEY=your_key_here
 
-2. Alternatively, you can create a configuration file (YAML or JSON) with all settings:
-
-```yaml
-output_directory: "./output"
-database_file: "./media_tracking.db"
-log_file: "./media_processor.log"
-log_level: "INFO"
-workers: 4
-extract_audio_format: "mp3"
-extract_audio_quality: "192k"
-elevenlabs:
-  api_key: "your_elevenlabs_api_key_here"
-  model: "scribe_v1"
-  speaker_detection: true
-  speaker_count: 32
-deepl:
-  api_key: "your_deepl_api_key_here"
-  formality: "default"
-  batch_size: 5000
-media_extensions:
-  audio: [".mp3", ".wav", ".m4a", ".aac", ".flac"]
-  video: [".mp4", ".avi", ".mov", ".mkv", ".webm"]
-```
-
-## Usage
-
-### Main Tool
-
-The new media processor tool provides a comprehensive interface for processing audio and video files:
-
-```bash
-python media_processor.py -d /path/to/media/directory -o ./output
-```
-
----
-**Migration Guide**: For instructions on reorganizing outputs into per-`file_id` folders, see [`docs/MIGRATION_GUIDE.md`](docs/MIGRATION_GUIDE.md).
- 
----
-## 🧹 Maintenance Utilities
-- **Relocate root logs** into `logs/` directory:
-  ```bash
-  python scripts/cleanup_root_logs.py
-  ```
-- **Clean up docs/** by moving old files into `docs/_ARCHIVE/`:
-  ```bash
-  python scripts/cleanup_docs.py
-  ```
----
-### Command-line Options
-
-```
-usage: media_processor.py [-h] [-d DIRECTORY | -f FILE | -r] [--status {pending,in-progress,failed,completed}]
-                         [--extract-only] [--transcribe-only] [--translate-only TRANSLATE_ONLY]
-                         [--workers WORKERS] [--source-lang SOURCE_LANG]
-                         [--formality {default,more,less}] [--limit LIMIT] [--test]
-                         [--dry-run] [--force] [-o OUTPUT] [--report REPORT] [--log LOG]
-                         [--log-level {DEBUG,INFO,WARNING,ERROR}] [--config CONFIG]
-                         [--save-config SAVE_CONFIG] [--db DB] [--reset-db]
-                         [--list-files] [--file-status FILE_STATUS]
-
-Process media files by transcribing and translating content
-```
-
-#### Input Options:
-- `-d DIRECTORY` - Process all media in this directory (recursively)
-- `-f FILE` - Process a single file
-- `-r` - Retry previously failed files
-- `--status STATUS` - Filter by status (pending, in-progress, failed, completed)
-
-#### Processing Options:
-- `--extract-only` - Only extract audio, don't transcribe
-- `--transcribe-only` - Only transcribe, don't translate
-- `--translate-only LANGS` - Only translate to specified language(s), comma-separated
-- `--workers N` - Number of parallel workers
-- `--source-lang LANG` - Source language code (default: auto-detect)
-- `--formality {default,more,less}` - Translation formality level
-
-#### Control Options:
-- `--limit N` - Process only first N files found
-- `--test` - Quick test with only 3 files
-- `--dry-run` - Show what would be processed without processing
-- `--force` - Force reprocessing of already completed items
-
-#### Output Options:
-- `-o, --output DIR` - Base output directory (default: ./output)
-- `--report FILE` - Save processing report to file
-- `--log FILE` - Log file location
-- `--log-level {DEBUG,INFO,WARNING,ERROR}` - Logging level
-
-#### Configuration:
-- `--config FILE` - Load configuration from YAML/JSON file
-- `--save-config FILE` - Save current settings to config file
-
-#### Database Options:
-- `--db FILE` - SQLite database file (default: ./media_tracking.db)
-- `--reset-db` - Reset the database (caution!)
-- `--list-files` - List all tracked files and status
-- `--file-status ID` - Show detailed status for a specific file ID
-
-### Example Workflows
-
-#### Complete Processing Pipeline:
-```bash
-# Process all videos in a directory with default settings
-python media_processor.py -d /path/to/videos -o ./output
-
-# Quick test with 3 files only
-python media_processor.py -d /path/to/videos --test
-
-# Process a directory and save a detailed report
-python media_processor.py -d /path/to/videos -o ./output --report ./report.json
-```
-
-#### Phased Processing:
-```bash
-# Step 1: Extract audio only
-python media_processor.py -d /path/to/videos --extract-only
-
-# Step 2: Transcribe the extracted audio
-python media_processor.py --transcribe-only
-
-# Step 3: Translate to specific languages
-python media_processor.py --translate-only en,he
-```
-
-#### Status Management:
-```bash
-# List all tracked files
-python media_processor.py --list-files
-
-# Show files with failed status
-python media_processor.py --list-files --status failed
-
-# View detailed status for a specific file
-python media_processor.py --file-status 3fd8a920-7c2e-4d0b-b8f5-8c9bce35e0a2
-
-# Retry failed files
-python media_processor.py -r
-```
-
-## 🗂️ Migration to Per-ID Folder Layout
-After running the standard processing pipeline, you can reorganize all outputs into per-`file_id` folders:
-
-```bash
-# 1) Dry-run to preview changes:
-./scripts/migrate_output.py --db media_tracking.db --output output --dry-run
-
-# 2) Apply migration for real:
-./scripts/migrate_output.py --db media_tracking.db --output output
-
-# 3) (Optional) Cleanup legacy flat directories and symlinks:
-./scripts/migrate_output.py --db media_tracking.db --output output --cleanup
-```
-
-## ✅ Validate Per-ID Layout (CI / Ad-hoc)
-Use the validation script to ensure every `output/<file_id>/` folder contains the expected artifacts:
-
-```bash
-python scripts/validate_output.py
-```
-If no errors are printed, the layout is complete and correct.
-
-## Legacy Tools
-
-For simpler use cases, the original video-to-text tool is still available:
-
-```bash
-python video_to_text.py -f path/to/video.mp4 -o output_folder
-```
-
-See the legacy options with:
-```bash
-python video_to_text.py -h
+# Optional settings
+DATABASE_PATH=media_tracking.db
+INPUT_PATH=input/
+OUTPUT_PATH=output/
 ```
 
 ## Project Structure
 
-The project is organized into modular components:
-
-- `media_processor.py` - Main controller script
-- `db_manager.py` - Database operations and state tracking
-- `file_manager.py` - File operations and metadata handling
-- `transcription.py` - Audio transcription using ElevenLabs
-- `translation.py` - Text translation between languages
-- `worker_pool.py` - Parallel processing management
-- `reporter.py` - Report generation
-- `retry_extraction.py` - Tool for retrying failed extractions
-- `generate_report.py` - Standalone reporting tool
-
-## Database Schema
-
-The system uses an SQLite database (`media_tracking.db` by default) with the following tables:
-
-### Main Tables
-
-- **media_files**: Tracks all discovered media files
-  - `file_id`: Primary key (UUID)
-  - `original_path`: Original file path
-  - `file_name`: Extracted file name
-  - `file_size`: Size in bytes
-  - `media_type`: "audio" or "video"
-  - `duration`: Duration in seconds
-  - `timestamp`: When the file was added
-
-- **processing_status**: Tracks the processing status of each file
-  - `file_id`: Foreign key to media_files
-  - `status`: Overall status (pending, in-progress, failed, completed)
-  - `extraction_status`: Audio extraction status
-  - `transcription_status`: Transcription status
-  - `translation_status_en`: English translation status
-  - `translation_status_he`: Hebrew translation status
-  - `language`: Detected language code
-  - `language_confidence`: Confidence score for language detection
-  - `last_updated`: Timestamp of last status update
-
-- **errors**: Records detailed error information
-  - `error_id`: Primary key (UUID)
-  - `file_id`: Foreign key to media_files
-  - `process_stage`: Which stage failed (extraction, transcription, translation)
-  - `error_message`: Short error description
-  - `error_details`: Detailed error information
-  - `timestamp`: When the error occurred
-
-- **output_files**: Tracks generated output files
-  - `output_id`: Primary key (UUID)
-  - `file_id`: Foreign key to media_files
-  - `output_type`: Type of output (audio, transcript, translation, subtitle)
-  - `language`: Language code if applicable
-  - `file_path`: Path to the output file
-  - `timestamp`: When the output was generated
-
-### Database Utility Commands
-
-Reset or create a new database:
-```bash
-python db_manager.py --reset
+```
+scribe/
+├── scribe/              # Core modules
+│   ├── database.py      # SQLite with thread-safe pooling
+│   ├── transcribe.py    # ElevenLabs Scribe integration
+│   ├── translate.py     # Multi-provider translation
+│   ├── evaluate.py      # Quality scoring
+│   ├── pipeline.py      # Workflow orchestration
+│   └── utils.py         # Helper functions
+│
+├── scribe_cli.py        # Command-line interface
+├── requirements.txt     # Python dependencies
+├── .env                 # API keys and settings
+│
+├── output/              # Processed results
+└── logs/                # Application logs
 ```
 
-Export database schema:
-```bash
-sqlite3 media_tracking.db .schema > schema.sql
+## Output Structure
+
+```
+output/
+└── {file_id}/
+    ├── {file_id}_transcript.txt    # Original transcription
+    ├── {file_id}_transcript.srt    # Subtitles
+    ├── {file_id}_en.txt           # English translation
+    ├── {file_id}_de.txt           # German translation
+    └── {file_id}_he.txt           # Hebrew translation
 ```
 
-## Error Management and Reporting
+## Hebrew Translation Note
 
-### Generating Reports
+Hebrew translations automatically use Microsoft Translator or OpenAI instead of DeepL (which doesn't support Hebrew). This routing happens automatically - just ensure you have either `MS_TRANSLATOR_KEY` or `OPENAI_API_KEY` configured.
 
-The system includes a dedicated reporting tool that provides detailed insights:
+## Quality Standards
 
-```bash
-# Display a summary of processing status and recent errors
-python generate_report.py --summary
+Translations are evaluated on:
+- **Content Accuracy** (40%) - Factual correctness
+- **Speech Pattern Fidelity** (30%) - Preserving authentic voice
+- **Cultural Context** (15%) - Historical nuance
+- **Overall Reliability** (15%) - Research suitability
 
-# Generate a JSON report file
-python generate_report.py --output report.json
+Target scores:
+- 8.5+ Excellent
+- 7.0-8.4 Good
+- <7.0 Needs improvement
 
-# Generate a YAML report file
-python generate_report.py --output report.yaml
+## Processing Tips
 
-# Generate a text report file
-python generate_report.py --output report.txt
-```
-
-The `--summary` flag shows:
-- File count by status
-- Media type distribution
-- Language distribution
-- Content statistics (duration, size)
-- Stage completion statistics
-- Recent errors (last 24 hours by default)
-
-### Database Query Utility
-
-The `db_query.py` utility simplifies database interaction and makes SQL queries much easier:
-
-```bash
-# Basic usage
-python db_query.py "SELECT * FROM processing_status LIMIT 5"
-
-# Output as a formatted table
-python db_query.py --format table "SELECT * FROM processing_status LIMIT 5"
-
-# Check translation progress
-python db_query.py --format table "
-SELECT 
-    SUM(CASE WHEN translation_en_status = 'completed' THEN 1 ELSE 0 END) as en_completed,
-    SUM(CASE WHEN translation_de_status = 'completed' THEN 1 ELSE 0 END) as de_completed,
-    SUM(CASE WHEN translation_he_status = 'completed' THEN 1 ELSE 0 END) as he_completed,
-    COUNT(*) as total
-FROM processing_status
-"
-```
-
-For a comprehensive list of useful database queries, see `docs/DB_QUERIES.md`.
-
-### Error Handling and Debugging
-
-#### View Error Details
-
-To see recent errors (last 24 hours):
-
-```bash
-python db_query.py --format table "
-SELECT process_stage, error_message, COUNT(*) as count 
-FROM errors 
-WHERE timestamp > datetime('now', '-24 hours') 
-GROUP BY process_stage, error_message
-ORDER BY count DESC
-"
-```
-
-To see specific error details:
-
-```bash
-python db_query.py --format table "
-SELECT file_id, process_stage, error_message, timestamp  
-FROM errors 
-WHERE process_stage = 'translation_he'
-ORDER BY timestamp DESC
-LIMIT 10
-"
-```
-
-#### Clear Error Records
-
-Clear all error records (useful after resolving known issues):
-
-```bash
-python db_query.py "DELETE FROM errors; SELECT 'Cleared all errors' as message"
-```
-
-#### Clear Errors for Specific Files
-
-Clear errors for a specific file:
-
-```bash
-python db_query.py "DELETE FROM errors WHERE file_id = 'YOUR_FILE_ID_HERE'; SELECT 'Errors cleared' as message"
-```
-
-### Retry Failed Extractions
-
-The system includes a dedicated tool for retrying failed extractions and transcriptions:
-
-```bash
-# Preview which failed files would be processed (without actually processing them)
-python retry_extraction.py --dry-run
-
-# Retry a specific failed file by UUID
-python retry_extraction.py --file-id UUID_OF_FAILED_FILE
-
-# Retry all failed files
-python retry_extraction.py
-
-# Retry a limited number of failed files
-python retry_extraction.py --limit 10
-
-# Process in batches (good for API rate limits)
-python retry_extraction.py --batch-size 5
-
-# Use a specific source language
-python retry_extraction.py --source-language deu
-```
-
-When a retry succeeds, the error records for that file are automatically cleared to prevent confusion in error reporting.
-
-### Handling Large Files and Timeouts
-
-For large audio/video files (over 1GB), the ElevenLabs API may require extended processing time. The system now automatically configures a 5-minute (300 second) timeout for API requests to handle these large files.
-
-If you experience timeout issues with extremely large files, you can adjust the timeout in the `TranscriptionManager` class in `transcription.py`:
-
-```python
-# In transcription.py
-request_options = {
-    "timeout_in_seconds": 300  # Increase this value for larger files if needed
-}
-```
-
-## Special Processing Scripts
-
-### Hebrew Translation Fix
-
-The `fix_hebrew_translations.py` script fixes Hebrew translations with placeholder text and improves RTL formatting:
-
-```bash
-# Fix Hebrew translations in batches of 10
-python fix_hebrew_translations.py --batch-size 10
-
-# Preview which files would be fixed without making changes
-python fix_hebrew_translations.py --dry-run
-```
-
-Features:
-- Identifies Hebrew translations with placeholder text "[HEBREW TRANSLATION]"
-- Translates properly using OpenAI with Hebrew glossary support
-- Applies RTL (right-to-left) formatting fixes
-- Updates subtitles with correct Hebrew formatting
-
-See `docs/HEBREW_TRANSLATION_FIX.md` for more details.
-
-### Full Translation Pipeline
-
-The `run_full_pipeline.py` script automates the entire process:
-
-```bash
-# Run the full pipeline with default settings
-python run_full_pipeline.py
-
-# Process specific languages only
-python run_full_pipeline.py --languages en,he
-```
-
-Features:
-- Processes missing translations for all languages
-- Fixes Hebrew translations with placeholder text
-- Evaluates translation quality using historical criteria
-- Generates comprehensive reports
-
-### Processing Untranscribed Files
-
-The `process_untranscribed.py` script is designed to specifically target files that have never been transcribed (those with a transcription status of 'not_started').
-
-```bash
-# Process untranscribed files (default up to 183 files)
-python process_untranscribed.py --batch-size 10
-
-# Process with a specific limit
-python process_untranscribed.py --limit 50 --batch-size 10
-
-# Dry run to see which files would be processed
-python process_untranscribed.py --dry-run
-```
-
-**Current Processing Run (Started: April 8, 2025)**
-- Target: Files with transcription_status = 'not_started'
-- Total untranscribed files identified: 276
-- Current batch processing: 183 files
-- Batch size: 10 files
-- Estimated completion time: ~4.5 hours
-- Command used: `python process_untranscribed.py --batch-size 10`
-
-**Update (May 3, 2025)**
-- Transcription phase completed: 728/728 files (100%)
-- Translation progress:
-  - English: 640/728 completed (88%)
-  - German: 494/728 completed (68%)
-  - Hebrew: 360/728 completed (49%)
-- Fixed Hebrew translations with placeholder text
-- Implemented historical accuracy evaluation system
-- Running full pipeline to process remaining translations
-- Implemented automatic monitoring to prevent stalled processes
-
-**Update (May 4, 2025)**
-- Current progress:
-  - Transcription: 686/728 files (94.2%) - 41 files still need transcription
-  - English translations: 625/728 completed (85.9%)
-  - German translations: 621/728 completed (85.3%)
-  - Hebrew translations: 568/728 completed (78.0%)
-- Fixed environment variable loading issues affecting API access
-- Added comprehensive security practices for handling API keys
-- Implemented parallel processing system for dramatically faster throughput:
-  - Parallel transcription: Process multiple files simultaneously
-  - Parallel translation: Process multiple languages simultaneously
-  - See `docs/PARALLEL_PROCESSING.md` for usage details
-
-**Update (May 6, 2025)**
-- Implemented comprehensive codebase refactoring for better maintainability
-- Completely reorganized project structure for a clean, modular codebase:
-  - `core_modules/`: Core functionality modules
-  - `scripts/`: Utility scripts
-  - `maintenance/`: Database and system maintenance scripts
-  - `legacy_scripts/`: Original versions of scripts being phased out
-  - `alias_scripts/`: Alias scripts that forward to new commands
-  - `logs/`: Centralized logging directory for all log files
-- Consolidated multiple small scripts into unified modules
-- Created a unified command-line interface with `core_modules/scribe_manager.py`
-- Implemented connection pooling to address resource management issues
-- Implemented centralized logging system with consistent formatting and organization
-- See `docs/MIGRATION_GUIDE.md` for migration details and `docs/LOGGING_GUIDE.md` for logging usage
-
-### Unified Scribe Manager
-
-The new Scribe Manager provides a single command-line interface for all operations:
-
-```bash
-# Check status
-python scribe_manager.py status [--detailed] [--format text|json|markdown]
-
-# Start monitoring
-python scribe_manager.py monitor [--check-interval 60] [--restart-interval 600]
-
-# Start processing
-python scribe_manager.py start --transcription --translation en,de,he [--transcription-workers 10] [--translation-workers 8]
-
-# Fix database issues
-python scribe_manager.py fix stalled|paths|transcripts|mark|hebrew [options]
-
-# Verify consistency
-python scribe_manager.py verify [--auto-fix]
-```
-
-For complete documentation, see `docs/MIGRATION_GUIDE.md`
-
-### Retrying Failed Files
-
-The system includes a dedicated tool for retrying failed extractions and transcriptions:
-
-```bash
-# Preview which failed files would be processed (without actually processing them)
-python retry_extraction.py --dry-run
-
-# Retry a specific failed file by UUID
-python retry_extraction.py --file-id UUID_OF_FAILED_FILE
-
-# Retry all failed files
-python retry_extraction.py
-
-# Retry a limited number of failed files
-python retry_extraction.py --limit 10
-
-# Process in batches (good for API rate limits)
-python retry_extraction.py --batch-size 5
-
-# Use a specific source language
-python retry_extraction.py --source-language deu
-```
-
-When a retry succeeds, the error records for that file are automatically cleared to prevent confusion in error reporting.
-
-## Common Workflow for Error Resolution
-
-### Using Scribe Manager (Recommended)
-
-1. **Check pipeline status**: `python scribe_manager.py status --detailed`
-2. **Verify database consistency**: `python scribe_manager.py verify`
-3. **Fix any inconsistencies**: `python scribe_manager.py verify --auto-fix`
-4. **Retry problematic files**: `python scribe_manager.py retry`
-5. **Start continuous monitoring**: `python scribe_manager.py monitor`
-
-### Using Legacy Tools
-
-1. **Identify issues**: `python generate_report.py --summary`
-2. **Preview failed files**: `python retry_extraction.py --dry-run`
-3. **Test fix on a single file**: `python retry_extraction.py --file-id UUID_OF_FAILED_FILE`
-4. **Retry all failed files**: `python retry_extraction.py`
-5. **Check results**: `python generate_report.py --summary`
+1. **Start with a small batch** to verify quality settings
+2. **Use parallel workers** for faster processing (10 for transcription, 8 for translation)
+3. **Monitor the first few outputs** to ensure quality meets standards
+4. **Run evaluation** on samples to track quality
 
 ## Troubleshooting
 
-### Using Scribe Manager (Recommended)
+### Stuck Files
+```bash
+# Reset stuck files to pending
+python scribe_cli.py fix-stuck --reset-all
+```
 
-- **Check Status**: `python scribe_manager.py status --detailed`
-- **Verify Consistency**: `python scribe_manager.py verify` to check database/filesystem consistency
-- **Reset Stalled Processes**: `python scribe_manager.py fix stalled --reset-all`
-- **Fix Missing Transcripts**: `python scribe_manager.py fix transcripts`
-- **Retry Problem Files**: `python scribe_manager.py retry`
-- **Monitor Pipeline**: `python scribe_manager.py monitor --check-interval 10`
-- **Special Processing**: `python scribe_manager.py special` for difficult files
+### Check API Keys
+```bash
+# Show configuration status
+python scribe_cli.py version
+```
 
-### Using Legacy Tools
+### Test Hebrew Translation
+```bash
+# Verify Hebrew routing is working
+python test_hebrew_fix.py
+```
 
-- **API Key Issues**: Make sure your API keys are correctly set in the `.env` file
-- **Database Errors**: If you encounter database corruption, try resetting it with `--reset-db`
-- **Processing Failures**: Use `--list-files --status failed` to identify failed files, then retry with `retry_extraction.py`
-- **Memory Errors**: For large video files, the system uses FFmpeg for extraction to prevent memory issues
-- **API Rate Limiting**: Use batch processing with delays between batches to avoid hitting API limits
-- **Timeout Errors**: Large files may cause API timeouts. The system now uses a 5-minute timeout by default, which should handle most files
-- **Stale Error Records**: If reports show errors but files process correctly, the errors might be historical - they are now automatically cleared on successful retries
-- **Stalled Translations**: If translations appear stalled, use `python check_stuck_files.py --reset` to reset stuck files and restart the pipeline
-- **Missing Transcript Issues**: When encountering "Transcript text not found" errors, run `python fix_missing_transcripts.py --reset` to reset files with missing transcript files
-- **Monitoring**: The `monitor_and_restart.py` script provides automated pipeline monitoring and recovery - run with `python monitor_and_restart.py --check-interval 10` for 10-minute checking intervals
-- **Debug Transcription**: For files with repeated transcription issues, use `python debug_transcription.py --file-id <file_id>` to diagnose specific file problems
+## Support
 
-For comprehensive monitoring and troubleshooting documentation, see [docs/MONITORING_GUIDE.md](docs/MONITORING_GUIDE.md).
-
-## Notes on ElevenLabs Scribe
-
-- The service uses the "scribe_v1" model for transcription
-- Transcriptions include speaker diarization when enabled
-- Audio events like laughter and applause are automatically tagged
-- Pricing is based on the duration of audio processed
-- Check the [ElevenLabs documentation](https://elevenlabs.io/docs/speech-to-text/overview) for more details
-
-## License
-
-This project is for internal use only.
+This system is designed for preserving historical interviews with maximum fidelity. The focus is on authentic preservation over polished output.
