@@ -14,6 +14,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict, Any, Tuple, Union
 import uuid
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -136,6 +137,45 @@ class Database:
     
     # File tracking methods
     
+    def add_file_simple(self, file_path: Union[str, Path]) -> Optional[str]:
+        """
+        Simple interface to add a file - handles path sanitization automatically.
+        
+        Args:
+            file_path: Path to the media file
+            
+        Returns:
+            file_id if added successfully, None if already exists
+        """
+        file_path = Path(file_path)
+        
+        # Check if already exists
+        existing = self.get_file_by_path(str(file_path))
+        if existing:
+            return None
+            
+        # Generate safe filename and file_id
+        from .utils import sanitize_filename, generate_file_id
+        safe_filename = sanitize_filename(file_path.name)
+        file_id = generate_file_id(file_path)
+        
+        # Determine media type from extension
+        video_extensions = {'.mp4', '.avi', '.mov', '.mkv', '.flv', '.wmv'}
+        media_type = 'video' if file_path.suffix.lower() in video_extensions else 'audio'
+        
+        # Get file metadata
+        metadata = {}
+        if file_path.exists():
+            metadata['file_size'] = file_path.stat().st_size
+            
+        # Add to database
+        return self.add_file(
+            file_path=str(file_path),
+            safe_filename=safe_filename,
+            media_type=media_type,
+            **metadata
+        )
+    
     def add_file(self, 
                  file_path: Union[str, Path],
                  safe_filename: str,
@@ -176,6 +216,49 @@ class Database:
         
         logger.debug(f"Added file {file_id}: {file_path}")
         return file_id
+    
+    def add_file_simple(self, file_path: Union[str, Path]) -> Optional[str]:
+        """
+        Simple wrapper to add a file with just a path.
+        Extracts necessary information from the file path.
+        
+        Args:
+            file_path: Path to the media file
+            
+        Returns:
+            file_id if added successfully, None if already exists
+        """
+        file_path = Path(file_path).resolve()
+        
+        # Check if file already exists
+        existing = self.get_file_by_path(file_path)
+        if existing:
+            return None
+            
+        # Extract safe filename
+        filename = file_path.name
+        # Simple sanitization - replace spaces and special chars with underscores
+        safe_filename = filename.lower()
+        safe_filename = ''.join(c if c.isalnum() or c in '._-' else '_' for c in safe_filename)
+        
+        # Determine media type from extension
+        extension = file_path.suffix.lower()
+        video_extensions = {'.mp4', '.avi', '.mov', '.mkv', '.webm'}
+        media_type = 'video' if extension in video_extensions else 'audio'
+        
+        # Get file size
+        try:
+            file_size = file_path.stat().st_size
+        except OSError:
+            file_size = None
+            
+        # Add the file
+        return self.add_file(
+            file_path=str(file_path),
+            safe_filename=safe_filename,
+            media_type=media_type,
+            file_size=file_size
+        )
     
     def get_file_by_path(self, file_path: Union[str, Path]) -> Optional[Dict[str, Any]]:
         """Get file record by original path."""

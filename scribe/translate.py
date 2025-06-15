@@ -78,9 +78,11 @@ class HistoricalTranslator:
         # OpenAI
         openai_key = self.config.get('openai_api_key') or os.getenv('OPENAI_API_KEY')
         if openai_key and openai:
-            openai.api_key = openai_key
+            self.openai_client = openai.OpenAI(api_key=openai_key)
             self.providers['openai'] = True
             logger.info("OpenAI provider initialized")
+        else:
+            self.openai_client = None
     
     def translate(self, 
                   text: str, 
@@ -243,7 +245,10 @@ class HistoricalTranslator:
     
     def _call_openai_api(self, system_prompt: str, text: str) -> Optional[str]:
         """Make API call to OpenAI."""
-        response = openai.chat.completions.create(
+        if not self.openai_client:
+            raise ValueError("OpenAI client not initialized")
+            
+        response = self.openai_client.chat.completions.create(
             model="gpt-4-turbo-preview",  # or "gpt-3.5-turbo" for lower cost
             messages=[
                 {"role": "system", "content": system_prompt},

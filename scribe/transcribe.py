@@ -546,6 +546,34 @@ def transcribe(file_path: str, api_key: str, output_dir: Optional[str] = None,
     return result
 
 
+def transcribe_file(file_path: str, output_dir: str = None) -> Dict[str, Any]:
+    """
+    Convenience function to transcribe a single file.
+    
+    Args:
+        file_path: Path to the media file
+        output_dir: Directory for output files
+        
+    Returns:
+        Dictionary with transcription results
+    """
+    api_key = os.getenv('ELEVENLABS_API_KEY')
+    if not api_key:
+        raise ValueError("ELEVENLABS_API_KEY environment variable not set")
+        
+    result = transcribe(file_path, api_key, output_dir)
+    
+    return {
+        'file_path': file_path,
+        'output_path': result.output_path,
+        'language': result.language,
+        'duration': getattr(result, 'duration', None),
+        'words': len(result.words),
+        'text': result.text,
+        'success': True
+    }
+
+
 if __name__ == "__main__":
     # Example usage
     import sys

@@ -67,8 +67,8 @@ class Pipeline:
         added = 0
         
         for file_path in files:
-            file_info = self.db.add_file(str(file_path))
-            if file_info:
+            file_id = self.db.add_file_simple(str(file_path))
+            if file_id:
                 added += 1
                 
         logger.info(f"Added {added} new files to database")
