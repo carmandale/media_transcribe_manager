@@ -44,6 +44,11 @@ try:
 except ImportError:
     detect = None
 
+try:
+    from tqdm import tqdm
+except ImportError:
+    tqdm = lambda x, **kwargs: x
+
 from core_modules.db_manager import DatabaseManager
 from core_modules.file_manager import FileManager
 from core_modules.transcription import TranscriptionManager
@@ -396,23 +401,31 @@ class TranslationManager:
             return out_text
         
         # DeepL doesn't support Hebrew as a target language
-        # We'll handle Hebrew translations as a special case
+        # Automatically switch to a Hebrew-capable provider
         if target_language.lower() in ['he', 'heb', 'hebrew'] and provider == 'deepl':
-            logger.info(f"DeepL doesn't support Hebrew as a target language. Using DeepL to translate to English first.")
+            logger.info(f"DeepL doesn't support Hebrew. Switching to Hebrew-capable provider.")
             
-            # Translate to English first
-            english_text = self.translate_text(
-                text=text,
-                target_language='en',
-                source_language=source_language,
-                provider='deepl',
-                formality=formality
-            )
-            
-            # Mark the English text as Hebrew
-            if english_text:
-                return f"[HEBREW TRANSLATION] {english_text}"
+            # Try Microsoft first, then OpenAI
+            if 'microsoft' in self.providers:
+                logger.info(f"Using Microsoft Translator for Hebrew translation")
+                return self.translate_text(
+                    text=text,
+                    target_language=target_language,
+                    source_language=source_language,
+                    provider='microsoft',
+                    formality=formality
+                )
+            elif 'openai' in self.providers:
+                logger.info(f"Using OpenAI for Hebrew translation")
+                return self.translate_text(
+                    text=text,
+                    target_language=target_language,
+                    source_language=source_language,
+                    provider='openai',
+                    formality=formality
+                )
             else:
+                logger.error("No Hebrew-capable translation provider available")
                 return None
         
         # Normalize language codes
@@ -743,12 +756,27 @@ class TranslationManager:
                     source_language=source_language,
                 )
             else:
+                # For Hebrew, use Microsoft or OpenAI provider instead of DeepL
+                if target_language.lower() in ['he', 'heb', 'hebrew']:
+                    # Try Microsoft first, then OpenAI
+                    if 'microsoft' in self.providers:
+                        hebrew_provider = 'microsoft'
+                        logger.info(f"Using Microsoft Translator for Hebrew translation")
+                    elif 'openai' in self.providers:
+                        hebrew_provider = 'openai'
+                        logger.info(f"Using OpenAI for Hebrew translation")
+                    else:
+                        hebrew_provider = provider  # Fallback to default
+                        logger.warning(f"No Hebrew-capable provider available, using {hebrew_provider}")
+                else:
+                    hebrew_provider = provider
+                    
                 # Translate the text as a single block
                 translated_text = self.translate_text(
                     text=transcript_text,
                     target_language=target_language,
                     source_language=source_language,
-                    provider=provider,
+                    provider=hebrew_provider,
                     formality=self.config.get('deepl', {}).get('formality', 'default')
                 )
             

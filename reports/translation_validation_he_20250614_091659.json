@@ -1,0 +1,271 @@
+{
+  "language": "he",
+  "timestamp": "2025-06-14T09:16:50.435642",
+  "files_processed": [
+    {
+      "file_id": "29dc0eca-6f9b-4cfb-acdf-edb3318ae400",
+      "original_filename": "/Users/dalecarman/Groove Jones Dropbox/Dale Carman/Projects/Bryan Rigg/_ORIGINAL_SOURCE/Bryan Rigg - D/Audio Tapes Hitler's Jewish Soliers/67 Egon Bahr (50% Jew),  13 Feb. 1995, Bonn, Ger. (Herr)/side B.mp3",
+      "original_score": 5.0,
+      "original_issues": [
+        "Numerous mistranslations and literal renderings that obscure meaning (e.g., 'עגיל' for 'ear thing' instead of 'דלקת אוזניים' or 'בעיה באוזן')",
+        "Confusion between 'alarm' (אזעקה) and 'alarm clock' (שעון מעורר), which is incorrect in context",
+        "Improper translation of idioms and military terms (e.g., 'מלא כוכבים' for 'full to the brim' instead of 'שיכור לגמרי')",
+        "Names and military ranks are inconsistently transliterated or translated (e.g., 'Zahankranaken' left untranslated, 'וויבל שדה' for 'Feldwebel')",
+        "Some sentences are garbled or nonsensical in Hebrew (e.g., 'הם היו אמורים ללכת לתעלה הרוסית ולקחת אותך בשבי' - 'take you prisoner' instead of 'take someone prisoner')",
+        "Frequent word-for-word translation leads to awkward, unnatural Hebrew syntax",
+        "Some German words are left in the text (e.g., 'ה-Schma'), which is not appropriate for a Hebrew translation",
+        "Punctuation and RTL issues, such as inconsistent use of periods and commas, and some sentences run on without clear separation",
+        "Some sections are omitted or truncated, and some details are lost or confused (e.g., 'fritsche' as 'הקרון השטוח שלי', which is not accurate)",
+        "Register and tone are inconsistent, sometimes too formal or too literal for the context"
+      ],
+      "new_score": null,
+      "new_issues": [],
+      "pattern_comparison": {
+        "old_patterns": {
+          "hesitations": 64,
+          "repetitions": 24,
+          "ellipses": 38,
+          "dashes": 28,
+          "questions": 118,
+          "total_words": 5086
+        },
+        "new_patterns": {
+          "hesitations": 64,
+          "repetitions": 24,
+          "ellipses": 38,
+          "dashes": 28,
+          "questions": 118,
+          "total_words": 5086
+        },
+        "improvements": {
+          "hesitations": {
+            "old_rate": 1.2583562721195438,
+            "new_rate": 1.2583562721195438,
+            "change": 0.0
+          },
+          "repetitions": {
+            "old_rate": 0.47188360204482893,
+            "new_rate": 0.47188360204482893,
+            "change": 0.0
+          },
+          "ellipses": {
+            "old_rate": 0.7471490365709791,
+            "new_rate": 0.7471490365709791,
+            "change": 0.0
+          },
+          "dashes": {
+            "old_rate": 0.5505308690523004,
+            "new_rate": 0.5505308690523004,
+            "change": 0.0
+          },
+          "questions": {
+            "old_rate": 2.320094376720409,
+            "new_rate": 2.320094376720409,
+            "change": 0.0
+          }
+        }
+      },
+      "verification": {
+        "file_id": "29dc0eca-6f9b-4cfb-acdf-edb3318ae400",
+        "language": "he",
+        "checks": [
+          {
+            "question": "Does the translation preserve hesitation words (um, uh, ah)?",
+            "what_to_look_for": "Check if \"um\", \"uh\" in source appear as \"äh\", \"ähm\" (German) or \"אה\", \"אמ\" (Hebrew)"
+          },
+          {
+            "question": "Are repeated words maintained?",
+            "what_to_look_for": "If source has \"I... I think\", translation should have similar repetition"
+          },
+          {
+            "question": "Are incomplete sentences preserved?",
+            "what_to_look_for": "Sentences ending with \"...\" or trailing off should remain incomplete"
+          },
+          {
+            "question": "Is the speech natural or overly polished?",
+            "what_to_look_for": "Translation should sound like spoken language, not written text"
+          }
+        ],
+        "transcript_excerpt": "1943. Wo waren Sie da? Und nehmen Sie das Jahr Also 42 war 43 war das, was jetzt vor Leningrad war. Und ja, das war 43 im Februar, Anfang März. Und da hatte ich dieses Ohrendings gehabt. Ohrenentzündung. War beim Arzt und da hat er gesagt, sie sollen sich waschen. Sie sah aus wie ein dreckiger Ort. Da war ich so erbost und habe dann in der Kantine, also vom Tross, mir eine Dreistern Cognac und habe sie halb ausgesoffen. Bis abends war sie leer. Da habe ich mich auf dem Bunker, auf meine Fritsche",
+        "translation_excerpt": "1943. איפה היית שם? וקחו את השנה: אז 42 זה 43 זה מה שהיה עכשיו לפני לנינגרד. וכן, זה היה 43 בפברואר, תחילת מרץ. והנה היה לי את העגיל הזה. דלקת אוזניים. הלכתי לרופא והוא אמר להם להתרחץ בעצמם. זה נראה כמו מקום מלוכלך. כל כך כעסתי ואז בקנטינה, כלומר מהפמליה, קניתי קוניאק שלושה כוכבים ושתיתי אותו למחצה. הוא היה ריק עד הערב. אז נשכבתי על הבונקר, על הקרון השטוח שלי. והשעה 22:00 הייתה השעון המעורר. אזעקה? ואז הם הלבישו אותי. הייתי מלא כוכבים. אז אם אי פעם תרצו לקנות בקבוק... אז, מזרח. הם הלבישו אותי כמ"
+      },
+      "backup_path": "validation_backups/20250614_091650/29dc0eca-6f9b-4cfb-acdf-edb3318ae400.he.original.txt"
+    },
+    {
+      "file_id": "5762dd89-0a48-4b22-af4e-b0603dff34a1",
+      "original_filename": "/Users/dalecarman/Groove Jones Dropbox/Dale Carman/Projects/Bryan Rigg/_ORIGINAL_SOURCE/Bryan Rigg - new jon 10-9-2023/52a Martin Bier (50% Jew) 25 September 1994, Freiburg i. Br., Germany, Wilhelm Happe (50% Jew) 25 September 1994, Schwalbach, Germany/side b.MP3",
+      "original_score": 5.0,
+      "original_issues": [
+        "Inaccurate translation of certain historical terms and cultural references",
+        "Some loss of original meaning and context",
+        "Inconsistencies in maintaining the speaker's natural voice"
+      ],
+      "new_score": null,
+      "new_issues": [],
+      "pattern_comparison": {
+        "old_patterns": {
+          "hesitations": 7,
+          "repetitions": 40,
+          "ellipses": 24,
+          "dashes": 1,
+          "questions": 59,
+          "total_words": 4794
+        },
+        "new_patterns": {
+          "hesitations": 7,
+          "repetitions": 40,
+          "ellipses": 24,
+          "dashes": 1,
+          "questions": 59,
+          "total_words": 4794
+        },
+        "improvements": {
+          "hesitations": {
+            "old_rate": 0.14601585314977056,
+            "new_rate": 0.14601585314977056,
+            "change": 0.0
+          },
+          "repetitions": {
+            "old_rate": 0.8343763037129746,
+            "new_rate": 0.8343763037129746,
+            "change": 0.0
+          },
+          "ellipses": {
+            "old_rate": 0.5006257822277848,
+            "new_rate": 0.5006257822277848,
+            "change": 0.0
+          },
+          "dashes": {
+            "old_rate": 0.020859407592824362,
+            "new_rate": 0.020859407592824362,
+            "change": 0.0
+          },
+          "questions": {
+            "old_rate": 1.2307050479766375,
+            "new_rate": 1.2307050479766375,
+            "change": 0.0
+          }
+        }
+      },
+      "verification": {
+        "file_id": "5762dd89-0a48-4b22-af4e-b0603dff34a1",
+        "language": "he",
+        "checks": [
+          {
+            "question": "Does the translation preserve hesitation words (um, uh, ah)?",
+            "what_to_look_for": "Check if \"um\", \"uh\" in source appear as \"äh\", \"ähm\" (German) or \"אה\", \"אמ\" (Hebrew)"
+          },
+          {
+            "question": "Are repeated words maintained?",
+            "what_to_look_for": "If source has \"I... I think\", translation should have similar repetition"
+          },
+          {
+            "question": "Are incomplete sentences preserved?",
+            "what_to_look_for": "Sentences ending with \"...\" or trailing off should remain incomplete"
+          },
+          {
+            "question": "Is the speech natural or overly polished?",
+            "what_to_look_for": "Translation should sound like spoken language, not written text"
+          }
+        ],
+        "transcript_excerpt": "Hier war ich auch, in der Welt zu arbeiten, weil die Wasserleitung und die Straße nicht mehr aufwarten können. Und das hat man deshalb vor allem dann, wenn man sowieso nicht warten kann, dass sie nicht verkriechen, die nie ein bisschen mehr hinwerfen. Auch später hat er kein Problem bei uns zu bleiben, für eine Zeit, wo wir sagen, du bist nicht mehr gut fürs Kellergespräch. Das wäre auch noch schlecht. So. Wie lange waren Sie in Kiel? In Kiel war ich bis 1981. Da fing dann das Studium an. Aber i",
+        "translation_excerpt": "[HEBREW TRANSLATION] Here I was also to work in the world, because the water pipe and the road can no longer come up. And that's why you have that especially when you can't wait anyway, that they don't crawl away, that never throw down a bit more. Even later, he has no problem staying with us for a time when we say you're no longer good for cellar talk. That would be bad too. So. How long were you in Kiel? I was in Kiel until 1981, when I started my studies. But I kept going back to Kiel during "
+      },
+      "backup_path": "validation_backups/20250614_091650/5762dd89-0a48-4b22-af4e-b0603dff34a1.he.original.txt"
+    },
+    {
+      "file_id": "ae79d898-a8b5-45c7-92b3-cf910fe7539c",
+      "original_filename": "/Users/dalecarman/Groove Jones Dropbox/Dale Carman/Projects/Bryan Rigg/_ORIGINAL_SOURCE/Bryan Rigg - new jon 10-9-2023/5a Peter Millies (25% Jew) 23 June 1994, San Diego, CA (USA) & Niels Stroemer, 23 June 1994, San Diego, CA (USA)/side B.MP3",
+      "original_score": 6.0,
+      "original_issues": [
+        "Several literal, awkward, or non-idiomatic phrasings (e.g., 'הורחק ביתרון' for 'discharged with prejudice', 'חצי גזע' for 'half-breed', 'לא שכבתי על ימין או שמאל' for 'I wasn't on the right or the left')",
+        "Some German words left untranslated (e.g., 'von der Nobel בפוסטר', 'Höchst')",
+        "Occasional mistranslations or omissions (e.g., 'במכרה' for 'at a pub', which is incorrect; 'מוטות' for 'rods' instead of 'bars' or 'coal bars')",
+        "Improper handling of proper names and place names (e.g., 'ליסינגנגראד' for 'Lissingengrad', which may be a mishearing or misspelling)",
+        "Some sentences are fragmented or lose coherence in Hebrew",
+        "Punctuation and RTL issues: inconsistent use of punctuation, some sentences run on or are not clearly separated",
+        "Register and tone sometimes inconsistent with the original (e.g., 'הייתי תקיף' is a bit strong for 'I was firm')"
+      ],
+      "new_score": null,
+      "new_issues": [],
+      "pattern_comparison": {
+        "old_patterns": {
+          "hesitations": 35,
+          "repetitions": 12,
+          "ellipses": 20,
+          "dashes": 32,
+          "questions": 114,
+          "total_words": 4188
+        },
+        "new_patterns": {
+          "hesitations": 35,
+          "repetitions": 12,
+          "ellipses": 20,
+          "dashes": 32,
+          "questions": 114,
+          "total_words": 4188
+        },
+        "improvements": {
+          "hesitations": {
+            "old_rate": 0.8357211079274116,
+            "new_rate": 0.8357211079274116,
+            "change": 0.0
+          },
+          "repetitions": {
+            "old_rate": 0.28653295128939826,
+            "new_rate": 0.28653295128939826,
+            "change": 0.0
+          },
+          "ellipses": {
+            "old_rate": 0.4775549188156638,
+            "new_rate": 0.4775549188156638,
+            "change": 0.0
+          },
+          "dashes": {
+            "old_rate": 0.7640878701050621,
+            "new_rate": 0.7640878701050621,
+            "change": 0.0
+          },
+          "questions": {
+            "old_rate": 2.722063037249284,
+            "new_rate": 2.722063037249284,
+            "change": 0.0
+          }
+        }
+      },
+      "verification": {
+        "file_id": "ae79d898-a8b5-45c7-92b3-cf910fe7539c",
+        "language": "he",
+        "checks": [
+          {
+            "question": "Does the translation preserve hesitation words (um, uh, ah)?",
+            "what_to_look_for": "Check if \"um\", \"uh\" in source appear as \"äh\", \"ähm\" (German) or \"אה\", \"אמ\" (Hebrew)"
+          },
+          {
+            "question": "Are repeated words maintained?",
+            "what_to_look_for": "If source has \"I... I think\", translation should have similar repetition"
+          },
+          {
+            "question": "Are incomplete sentences preserved?",
+            "what_to_look_for": "Sentences ending with \"...\" or trailing off should remain incomplete"
+          },
+          {
+            "question": "Is the speech natural or overly polished?",
+            "what_to_look_for": "Translation should sound like spoken language, not written text"
+          }
+        ],
+        "transcript_excerpt": "-muss man in die Wehrmacht. Ihr Bruder? Er ist auch vorteilig entlassen worden. Dem ist nichts passiert. Und sonst kann ich nicht mehr. (rattern) Ich hatte alle Hände voll zu tun, zu studieren und zu spielen und schaffen, arbeiten, durchzubringen. Ich habe sonst nicht rechts und nicht links gelegen. Mhm. Kannst du das verstehen? Mhm. Nicht? Direktlich. Mhm. To get my own. Mhm. Und hatten Sie gewusst, dass Gerhard Bier war in die Wehrmacht und auch ein.............................. damals? Wie bi",
+        "translation_excerpt": "-אתה צריך להצטרף לוורמאכט. אחיה? הוא גם הורחק ביתרון. לא קרה לו כלום. וחוץ מזה אני לא יכול לעשות את זה יותר. (רעשן) היו לי ידיים מלאות, למדתי וניגנתי ויצרתי, עבדתי, הסתדרתי. אחרת, לא שכבתי על ימין או שמאל. ממממ. אתה יכול להבין את זה? הממ. לא? ישירות. ממממ. להשיג משלי. ממממ. והאם ידעתם שגרהרד בייר היה בוורמאכט וגם א.............................. באותו זמן? סליחה? האם ידעת שמר בייר היה גם - לא. -בוורמאכט? ושהוא היה חצי גזע בליסינגנגראד? בטח. ממממ. היה לנו קשר בפרייבורג. ממממ. ונפגשנו, פגשנו אחד את"
+      },
+      "backup_path": "validation_backups/20250614_091650/ae79d898-a8b5-45c7-92b3-cf910fe7539c.he.original.txt"
+    }
+  ],
+  "summary": {
+    "total_files": 3,
+    "improved": 0,
+    "degraded": 0,
+    "unchanged": 0,
+    "avg_score_before": 5.333333333333333,
+    "avg_score_after": 5.333333333333333
+  }
+}
