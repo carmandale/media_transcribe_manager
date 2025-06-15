@@ -45,8 +45,8 @@ def add(path: str, recursive: bool):
     
     if path_obj.is_file():
         # Single file
-        file_info = db.add_file(str(path_obj))
-        if file_info:
+        file_id = db.add_file_simple(str(path_obj))
+        if file_id:
             click.echo(f"✓ Added: {path_obj.name}")
         else:
             click.echo(f"• Already exists: {path_obj.name}")
@@ -61,8 +61,8 @@ def add(path: str, recursive: bool):
         for ext in extensions:
             for file_path in path_obj.glob(f"{pattern}{ext}"):
                 if file_path.is_file():
-                    file_info = db.add_file(str(file_path))
-                    if file_info:
+                    file_id = db.add_file_simple(str(file_path))
+                    if file_id:
                         added += 1
                     else:
                         skipped += 1
