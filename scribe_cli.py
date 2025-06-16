@@ -222,7 +222,7 @@ def status(detailed: bool):
                 SUM(CASE WHEN translation_en_status = 'failed' THEN 1 ELSE 0 END) as en_failed,
                 SUM(CASE WHEN translation_de_status = 'failed' THEN 1 ELSE 0 END) as de_failed,
                 SUM(CASE WHEN translation_he_status = 'failed' THEN 1 ELSE 0 END) as he_failed
-            FROM files
+            FROM processing_status
         """
         failed = db.execute_query(failed_query)[0]
         
@@ -235,22 +235,20 @@ def status(detailed: bool):
         click.echo("\nAverage Quality Scores:")
         quality_query = """
             SELECT 
-                AVG(quality_score_en) as avg_en,
-                AVG(quality_score_de) as avg_de,
-                AVG(quality_score_he) as avg_he
-            FROM files
-            WHERE quality_score_en IS NOT NULL
-               OR quality_score_de IS NOT NULL
-               OR quality_score_he IS NOT NULL
+                language,
+                AVG(score) as avg_score,
+                COUNT(*) as count
+            FROM quality_evaluations
+            GROUP BY language
         """
-        quality = db.execute_query(quality_query)[0]
+        quality_results = db.execute_query(quality_query)
         
-        if quality['avg_en']:
-            click.echo(f"  English: {quality['avg_en']:.1f}/10")
-        if quality['avg_de']:
-            click.echo(f"  German: {quality['avg_de']:.1f}/10")
-        if quality['avg_he']:
-            click.echo(f"  Hebrew: {quality['avg_he']:.1f}/10")
+        for result in quality_results:
+            lang = result['language']
+            avg = result['avg_score']
+            count = result['count']
+            if avg:
+                click.echo(f"  {lang.upper()}: {avg:.1f}/10 ({count} evaluated)")
 
 
 @cli.command()
@@ -271,7 +269,7 @@ def fix_stuck(reset_all: bool):
                    WHEN translation_de_status = 'in-progress' THEN 'translation_de'
                    WHEN translation_he_status = 'in-progress' THEN 'translation_he'
                END as stuck_stage
-        FROM files
+        FROM processing_status
         WHERE transcription_status = 'in-progress'
            OR translation_en_status = 'in-progress'
            OR translation_de_status = 'in-progress'

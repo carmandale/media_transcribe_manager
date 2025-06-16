@@ -41,18 +41,18 @@ EVALUATION CRITERIA:
 4. Overall Historical Reliability: 1-10 (10 = completely reliable for historical research purposes)
 
 IMPORTANT: Return your evaluation as a JSON object with this exact structure:
-{
-  "scores": {
+{{
+  "scores": {{
     "content_accuracy": <number 1-10>,
     "speech_pattern_fidelity": <number 1-10>,
     "cultural_context": <number 1-10>,
     "overall_historical_reliability": <number 1-10>
-  },
+  }},
   "composite_score": <number 1-10>,
   "strengths": [<list of strengths>],
   "issues": [<list of issues, if any>],
   "suitability": "<statement on suitability for historical research>"
-}
+}}
 
 Original text:
 {original}
@@ -98,6 +98,13 @@ Be sure to format your response as a strict JSON object with the exact structure
         if not self.client:
             logger.error("OpenAI client not initialized")
             return None
+        
+        # Truncate texts to avoid token limits
+        max_chars = 3000
+        if len(original) > max_chars:
+            original = original[:max_chars] + "\n[...truncated for evaluation...]"
+        if len(translation) > max_chars:
+            translation = translation[:max_chars] + "\n[...truncated for evaluation...]"
         
         # Format the prompt
         prompt = self.EVALUATION_PROMPT.format(

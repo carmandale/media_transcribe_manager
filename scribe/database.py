@@ -500,12 +500,50 @@ class Database:
         # Error count
         error_count = conn.execute("SELECT COUNT(*) FROM errors").fetchone()[0]
         
+        # Calculate summary stats for CLI compatibility
+        transcribed = stage_counts.get('transcription', {}).get('completed', 0)
+        en_translated = stage_counts.get('translation_en', {}).get('completed', 0)
+        de_translated = stage_counts.get('translation_de', {}).get('completed', 0)
+        he_translated = stage_counts.get('translation_he', {}).get('completed', 0)
+        
         return {
             'total_files': total,
             'status_counts': status_counts,
             'stage_counts': stage_counts,
-            'error_count': error_count
+            'error_count': error_count,
+            # Added for CLI compatibility
+            'transcribed': transcribed,
+            'en_translated': en_translated,
+            'de_translated': de_translated,
+            'he_translated': he_translated
         }
+    
+    def execute_query(self, query: str, params: tuple = None) -> List[Dict[str, Any]]:
+        """
+        Execute a SELECT query and return results as list of dicts.
+        
+        This method is provided for compatibility with code expecting
+        the old database interface.
+        
+        Args:
+            query: SQL SELECT query
+            params: Query parameters (optional)
+            
+        Returns:
+            List of dictionaries representing rows
+        """
+        conn = self._get_connection()
+        cursor = conn.execute(query, params or ())
+        
+        # Get column names
+        columns = [col[0] for col in cursor.description] if cursor.description else []
+        
+        # Fetch all rows and convert to dicts
+        rows = []
+        for row in cursor.fetchall():
+            rows.append(dict(zip(columns, row)))
+        
+        return rows
     
     def close(self):
         """Close database connection for current thread."""

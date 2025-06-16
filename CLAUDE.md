@@ -2,12 +2,27 @@
 
 This file provides guidance to Claude Code when working with the Scribe historical interview preservation system.
 
+## Documentation
+Comprehensive documentation is available in the `docs/` directory:
+- [Documentation Overview](docs/README.md)
+- [Architecture Guide](docs/architecture/)
+- [Setup & Usage Guides](docs/guides/)
+- [PRDs & Decisions](docs/PRDs/)
+- [Current Issue: Hebrew Evaluation Fix](docs/PRDs/hebrew-evaluation-fix.md)
+
 ## Project Overview
 Scribe processes historical interview recordings (Bryan Rigg Archive) to create accurate transcriptions and translations while preserving authentic speech patterns for historical research.
 
 ## Actual Current Structure
 ```
 scribe/
+├── docs/                # Documentation
+│   ├── architecture/    # System design docs
+│   ├── guides/         # How-to guides
+│   ├── PRDs/           # Product requirements
+│   ├── api/            # API reference
+│   └── decisions/      # ADRs
+│
 ├── scribe/              # Core modules
 │   ├── __init__.py      # Package initialization
 │   ├── database.py      # Thread-safe SQLite operations
@@ -50,42 +65,45 @@ This fix ensures Hebrew translations use Microsoft/OpenAI instead of DeepL.
 ### File Management
 ```bash
 # Add files to process
-python scribe_cli.py add path/to/file.mp4
-python scribe_cli.py add output/ --recursive  # Add directory
+uv run python scribe_cli.py add path/to/file.mp4
+uv run python scribe_cli.py add output/ --recursive  # Add directory
 ```
 
 ### Processing
 ```bash
 # Transcribe audio to text
-python scribe_cli.py transcribe --workers 10
+uv run python scribe_cli.py transcribe --workers 10
 
 # Translate to specific language
-python scribe_cli.py translate en --workers 8
-python scribe_cli.py translate de --workers 8
-python scribe_cli.py translate he --workers 8
+uv run python scribe_cli.py translate en --workers 8
+uv run python scribe_cli.py translate de --workers 8
+uv run python scribe_cli.py translate he --workers 8
 
 # Evaluate translation quality
-python scribe_cli.py evaluate he --sample 20
+uv run python scribe_cli.py evaluate he --sample 20
+
+# Alternative Hebrew evaluation script
+uv run python evaluate_hebrew.py --limit 50
 
 # Run full pipeline
-python scribe_cli.py process
+uv run python scribe_cli.py process
 ```
 
 ### Monitoring
 ```bash
 # Check status
-python scribe_cli.py status
-python scribe_cli.py status --detailed
+uv run python scribe_cli.py status
+uv run python scribe_cli.py status --detailed
 
 # Fix stuck files
-python scribe_cli.py fix-stuck
-python scribe_cli.py fix-stuck --reset-all
+uv run python scribe_cli.py fix-stuck
+uv run python scribe_cli.py fix-stuck --reset-all
 
 # Check specific translation
-python scribe_cli.py check-translation <file_id> he
+uv run python scribe_cli.py check-translation <file_id> he
 
 # Show version and config
-python scribe_cli.py version
+uv run python scribe_cli.py version
 ```
 
 ## Development Guidelines
@@ -93,8 +111,10 @@ python scribe_cli.py version
 1. **Clean Structure**: This is the cleaned up version - no legacy code
 2. **Single Entry Point**: All operations go through scribe_cli.py
 3. **Import Pattern**: Use `from scribe import module_name`
-4. **Testing**: Run `python test_hebrew_fix.py` to verify Hebrew routing
+4. **Testing**: Run `uv run python test_hebrew_fix.py` to verify Hebrew routing
 5. **Focus**: Historical preservation - accuracy over polish
+6. **Package Manager**: Use `uv` not `pip` or `venv` (e.g., `uv run python scribe_cli.py`)
+7. **Documentation**: Update docs/ when making changes
 
 ## Environment Setup
 Required in .env:
@@ -108,6 +128,7 @@ Required in .env:
 2. **Output structure**: Files are processed to `output/{file_id}/`
 3. **Database**: All state tracked in `media_tracking.db`
 4. **Logs**: Check `logs/` for debugging
+5. **Known Issues**: See [Hebrew Evaluation Fix PRD](docs/PRDs/hebrew-evaluation-fix.md)
 
 ## Historical Context
 This system preserves Holocaust survivor testimonies and WWII accounts. Every hesitation, pause, and emotional inflection matters for historical accuracy.

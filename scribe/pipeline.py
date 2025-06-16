@@ -217,14 +217,16 @@ class Pipeline:
         """Evaluate translation quality for a language"""
         # Get completed translations without scores
         query = """
-            SELECT file_id, file_path 
-            FROM files 
-            WHERE translation_{}_status = 'completed'
-            AND quality_score_{} IS NULL
+            SELECT DISTINCT p.file_id
+            FROM processing_status p
+            LEFT JOIN quality_evaluations q 
+                ON p.file_id = q.file_id AND q.language = ?
+            WHERE p.translation_{}_status = 'completed'
+            AND q.eval_id IS NULL
             LIMIT ?
-        """.format(language, language)
+        """.format(language)
         
-        to_evaluate = self.db.execute_query(query, (sample_size or self.config.evaluation_sample_size,))
+        to_evaluate = self.db.execute_query(query, (language, sample_size or self.config.evaluation_sample_size))
         
         if not to_evaluate:
             logger.info(f"No {language} translations to evaluate")
@@ -236,18 +238,38 @@ class Pipeline:
         for file_info in to_evaluate:
             try:
                 # Get file paths
-                transcript_path = self.config.output_dir / file_info['file_id'] / f"{file_info['file_id']}_transcript.txt"
-                translation_path = self.config.output_dir / file_info['file_id'] / f"{file_info['file_id']}_{language}.txt"
+                transcript_path = self.config.output_dir / file_info['file_id'] / f"{file_info['file_id']}.txt"
+                translation_path = self.config.output_dir / file_info['file_id'] / f"{file_info['file_id']}.{language}.txt"
                 
                 # Evaluate
-                score, _ = evaluate_translation(
+                score, evaluation_results = evaluate_translation(
                     transcript_path.read_text(encoding='utf-8'),
                     translation_path.read_text(encoding='utf-8')
                 )
                 
-                # Update database
-                update_query = f"UPDATE files SET quality_score_{language} = ? WHERE file_id = ?"
-                self.db.execute_query(update_query, (score, file_info['file_id']))
+                # Save evaluation to database
+                insert_query = """
+                    INSERT INTO quality_evaluations 
+                    (file_id, language, model, score, issues, comment, evaluated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """
+                
+                issues = evaluation_results.get('issues', []) if evaluation_results else []
+                comment = evaluation_results.get('feedback', '') if evaluation_results else ''
+                
+                # Note: execute_query is for SELECT only, we need a different approach for INSERT
+                # For now, we'll use the connection directly
+                conn = self.db._get_connection()
+                conn.execute(insert_query, (
+                    file_info['file_id'],
+                    language,
+                    'gpt-4',  # Default model
+                    score,
+                    str(issues),  # Convert list to string
+                    comment,
+                    datetime.now()
+                ))
+                conn.commit()
                 
                 scores.append((file_info['file_id'], score))
                 logger.info(f"Evaluated {file_info['file_id']}: {score:.1f}/10")
