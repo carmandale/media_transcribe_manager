@@ -2,6 +2,14 @@
 
 A clean, modern system for preserving historical interviews through accurate transcription and translation.
 
+## Documentation
+
+For comprehensive documentation, see the [`docs/`](docs/) directory:
+- [Setup Guide](docs/guides/setup.md)
+- [Usage Guide](docs/guides/usage.md) 
+- [Architecture Overview](docs/architecture/)
+- [Current Issues](docs/PRDs/hebrew-evaluation-fix.md)
+
 ## Overview
 
 Scribe processes audio and video recordings to create:
@@ -14,17 +22,17 @@ The system emphasizes preserving authentic speech patterns, including hesitation
 ## Quick Start
 
 ```bash
-# Install dependencies
-pip install -r requirements.txt
+# Install dependencies (requires uv)
+uv pip install -r requirements.txt
 
 # Add files to process (from any location)
-python scribe_cli.py add /path/to/media/files/
+uv run python scribe_cli.py add /path/to/media/files/
 
 # Run full pipeline
-python scribe_cli.py process
+uv run python scribe_cli.py process
 
 # Check status
-python scribe_cli.py status
+uv run python scribe_cli.py status
 ```
 
 ## Core Commands
@@ -32,36 +40,39 @@ python scribe_cli.py status
 ### Adding Files
 ```bash
 # Add single file
-python scribe_cli.py add path/to/interview.mp4
+uv run python scribe_cli.py add path/to/interview.mp4
 
 # Add directory recursively
-python scribe_cli.py add input/ --recursive
+uv run python scribe_cli.py add input/ --recursive
 ```
 
 ### Processing
 ```bash
 # Transcribe audio to text
-python scribe_cli.py transcribe --workers 10
+uv run python scribe_cli.py transcribe --workers 10
 
 # Translate to specific language
-python scribe_cli.py translate en --workers 8
-python scribe_cli.py translate de --workers 8
-python scribe_cli.py translate he --workers 8
+uv run python scribe_cli.py translate en --workers 8
+uv run python scribe_cli.py translate de --workers 8
+uv run python scribe_cli.py translate he --workers 8
 
 # Evaluate translation quality
-python scribe_cli.py evaluate he --sample 20
+uv run python scribe_cli.py evaluate he --sample 20
+
+# Alternative: Use dedicated Hebrew evaluation script
+uv run python evaluate_hebrew.py --limit 50
 ```
 
 ### Management
 ```bash
 # View processing status
-python scribe_cli.py status --detailed
+uv run python scribe_cli.py status --detailed
 
 # Fix stuck files
-python scribe_cli.py fix-stuck
+uv run python scribe_cli.py fix-stuck
 
 # Check specific translation
-python scribe_cli.py check-translation <file_id> he
+uv run python scribe_cli.py check-translation <file_id> he
 ```
 
 ## Configuration
@@ -87,6 +98,11 @@ OUTPUT_PATH=output/
 
 ```
 scribe/
+├── docs/                # Documentation
+│   ├── architecture/    # System design
+│   ├── guides/         # User guides
+│   └── PRDs/           # Product requirements
+│
 ├── scribe/              # Core modules
 │   ├── database.py      # SQLite with thread-safe pooling
 │   ├── transcribe.py    # ElevenLabs Scribe integration
@@ -96,6 +112,7 @@ scribe/
 │   └── utils.py         # Helper functions
 │
 ├── scribe_cli.py        # Command-line interface
+├── evaluate_hebrew.py   # Dedicated Hebrew evaluation script
 ├── requirements.txt     # Python dependencies
 ├── .env                 # API keys and settings
 │
@@ -144,19 +161,19 @@ Target scores:
 ### Stuck Files
 ```bash
 # Reset stuck files to pending
-python scribe_cli.py fix-stuck --reset-all
+uv run python scribe_cli.py fix-stuck --reset-all
 ```
 
 ### Check API Keys
 ```bash
 # Show configuration status
-python scribe_cli.py version
+uv run python scribe_cli.py version
 ```
 
 ### Test Hebrew Translation
 ```bash
 # Verify Hebrew routing is working
-python test_hebrew_fix.py
+uv run python test_hebrew_fix.py
 ```
 
 ## Support
