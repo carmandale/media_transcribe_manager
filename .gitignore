@@ -76,3 +76,4 @@ node_modules/
 *.sln
 *.sw?
 # OS specific.cursor/mcp.json
+mcp.json
