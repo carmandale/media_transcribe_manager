@@ -1,0 +1,93 @@
+{
+	"meta": {
+		"generatedAt": "2025-06-17T19:26:16.376Z",
+		"tasksAnalyzed": 10,
+		"totalTasks": 10,
+		"analysisCount": 10,
+		"thresholdScore": 5,
+		"projectName": "Taskmaster",
+		"usedResearch": false
+	},
+	"complexityAnalysis": [
+		{
+			"taskId": 1,
+			"taskTitle": "Setup Database Schema and Initial Environment",
+			"complexityScore": 4,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Break down the database setup and environment configuration into subtasks for: 1) Creating the SQLite database with the quality_evaluations table schema, 2) Setting up the directory structure (output/, chunks/, scripts/), 3) Installing and configuring dependencies (sqlite3, uv), and 4) Creating initial test data and validation scripts",
+			"reasoning": "This is a foundational setup task with clear requirements. The complexity is moderate due to multiple components (database, directories, dependencies) but each component is straightforward to implement."
+		},
+		{
+			"taskId": 2,
+			"taskTitle": "Implement Low Score Query Module",
+			"complexityScore": 3,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Divide the query module implementation into: 1) Core query function to fetch Hebrew translations below 8.5 threshold, 2) TSV export functionality with proper formatting, and 3) CLI wrapper for command-line execution with argument parsing",
+			"reasoning": "This is a relatively simple database query and export task. The logic is straightforward with minimal complexity in the SQL query and file output."
+		},
+		{
+			"taskId": 3,
+			"taskTitle": "Build Text Chunking Utility",
+			"complexityScore": 5,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Split the text chunking utility into: 1) Core chunking algorithm with configurable size limits, 2) Sentence boundary detection logic to avoid mid-sentence breaks, 3) UTF-8 encoding handling for Hebrew text support, and 4) File I/O operations with proper error handling",
+			"reasoning": "Moderate complexity due to the need to handle sentence boundaries intelligently and support both English and Hebrew text with proper encoding. The chunking logic requires careful implementation to avoid data loss."
+		},
+		{
+			"taskId": 4,
+			"taskTitle": "Create Claude API Integration Module",
+			"complexityScore": 6,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Break down the Claude API integration into: 1) Basic API client setup and authentication, 2) Translation improvement prompt engineering with system/user prompts, 3) Error handling and retry logic implementation, 4) Rate limiting to avoid API throttling, and 5) Response parsing and Hebrew text extraction",
+			"reasoning": "Higher complexity due to external API integration, sophisticated prompt engineering for translation improvement, and the need for robust error handling and rate limiting mechanisms."
+		},
+		{
+			"taskId": 5,
+			"taskTitle": "Implement Translation File Manager",
+			"complexityScore": 4,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Organize the file manager into: 1) Path resolution and directory structure navigation, 2) Reading translation pairs (English and Hebrew files), 3) Backup creation with timestamp-based naming, and 4) Saving improved translations with proper encoding",
+			"reasoning": "Moderate complexity involving file system operations, backup management, and proper handling of Hebrew text encoding. The logic is straightforward but requires careful implementation for data safety."
+		},
+		{
+			"taskId": 6,
+			"taskTitle": "Develop Hebrew Evaluation Script",
+			"complexityScore": 7,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Divide the evaluation script into: 1) OpenAI API integration for GPT-4 evaluation calls, 2) Evaluation prompt construction with the 4-part rubric criteria, 3) Score extraction and validation from API responses, 4) Database storage of evaluation results, and 5) Command-line interface with argument parsing",
+			"reasoning": "High complexity due to integration with evaluation API, sophisticated prompt design for accurate scoring, and the need to parse and validate scores while maintaining database consistency."
+		},
+		{
+			"taskId": 7,
+			"taskTitle": "Build Batch Processing Pipeline",
+			"complexityScore": 8,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Break down the batch processor into: 1) TSV file reading and job queue creation, 2) Concurrent processing setup with ThreadPoolExecutor, 3) Chunking logic integration for large files, 4) Progress tracking and logging system, 5) Error recovery and failed job handling, and 6) Results aggregation and reporting",
+			"reasoning": "High complexity due to concurrent processing, integration of multiple modules (chunking, translation, evaluation), error handling across threads, and the need for robust progress tracking and recovery mechanisms."
+		},
+		{
+			"taskId": 8,
+			"taskTitle": "Create Targeted Patch System",
+			"complexityScore": 6,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Organize the patch system into: 1) Issue identification algorithms (number mismatches, proper nouns), 2) Issue categorization and prioritization logic, 3) Targeted prompt generation for specific fixes, and 4) Patch application with minimal text disruption",
+			"reasoning": "Moderate to high complexity due to the need for pattern matching algorithms, intelligent issue detection, and careful prompt engineering to fix only specific issues without affecting the rest of the translation."
+		},
+		{
+			"taskId": 9,
+			"taskTitle": "Implement Progress Monitoring Dashboard",
+			"complexityScore": 5,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Split the monitoring system into: 1) Database queries for statistics collection, 2) Progress calculation and trend analysis, 3) Report generation in JSON format, and 4) Time estimation algorithms for completion",
+			"reasoning": "Moderate complexity involving multiple database queries with window functions, statistical calculations, and report generation. The logic is clear but requires careful SQL query design."
+		},
+		{
+			"taskId": 10,
+			"taskTitle": "Create Final Validation and Archive System",
+			"complexityScore": 6,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Divide the validation and archive system into: 1) Threshold validation checks across all files, 2) Manifest generation with file checksums, 3) Archive creation using tar.gz compression, 4) Final statistics calculation and reporting, and 5) Archive integrity verification",
+			"reasoning": "Moderate to high complexity due to the need for comprehensive validation, checksum calculation, archive creation with proper structure, and detailed reporting. Requires careful handling of file operations and data integrity."
+		}
+	]
+}
