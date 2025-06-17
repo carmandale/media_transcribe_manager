@@ -1,0 +1,151 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": 1,
+        "title": "Setup Database Schema and Initial Environment",
+        "description": "Create SQLite database schema for media_tracking.db with quality_evaluations table and configure project structure",
+        "details": "Create SQLite database with schema:\n```sql\nCREATE TABLE quality_evaluations (\n    id INTEGER PRIMARY KEY AUTOINCREMENT,\n    file_id TEXT NOT NULL,\n    language TEXT NOT NULL,\n    model TEXT NOT NULL,\n    score REAL NOT NULL,\n    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,\n    content_accuracy REAL,\n    speech_patterns REAL,\n    cultural_context REAL,\n    reliability REAL\n);\nCREATE INDEX idx_hebrew_scores ON quality_evaluations(language, model, score);\n```\nCreate directory structure:\n- output/{file_id}/\n- chunks/\n- scripts/\nInstall dependencies: sqlite3, uv (Python package manager)",
+        "testStrategy": "Verify database creation with: sqlite3 media_tracking.db '.schema'\nCheck directory structure exists\nInsert test record and query to validate indexes work correctly",
+        "priority": "high",
+        "dependencies": [],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 2,
+        "title": "Implement Low Score Query Module",
+        "description": "Create module to identify Hebrew translations scoring below 8.5 threshold",
+        "details": "Create Python module `query_low_scores.py`:\n```python\nimport sqlite3\nimport csv\n\ndef export_low_hebrew_scores(db_path='media_tracking.db', output_file='low_hebrew.tsv'):\n    conn = sqlite3.connect(db_path)\n    cursor = conn.cursor()\n    \n    query = '''\n    SELECT file_id, score \n    FROM quality_evaluations\n    WHERE language='he' \n      AND model!='sanity-check' \n      AND score < 8.5\n    ORDER BY score ASC\n    '''\n    \n    cursor.execute(query)\n    results = cursor.fetchall()\n    \n    with open(output_file, 'w', newline='') as f:\n        writer = csv.writer(f, delimiter='\\t')\n        writer.writerows(results)\n    \n    conn.close()\n    return len(results)\n```\nAdd CLI wrapper for easy execution",
+        "testStrategy": "Insert test records with various scores (7.0, 8.0, 8.5, 9.0)\nRun query and verify only scores < 8.5 are returned\nValidate TSV format with tab separation",
+        "priority": "high",
+        "dependencies": [
+          1
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 3,
+        "title": "Build Text Chunking Utility",
+        "description": "Implement utility to split large text files into manageable 2-3k character chunks for processing",
+        "details": "Create `text_chunker.py`:\n```python\nimport os\nimport math\n\ndef chunk_text_file(input_path, output_dir, prefix, chunk_size=2000):\n    os.makedirs(output_dir, exist_ok=True)\n    \n    with open(input_path, 'r', encoding='utf-8') as f:\n        content = f.read()\n    \n    chunks = []\n    for i in range(0, len(content), chunk_size):\n        chunk = content[i:i+chunk_size]\n        # Try to break at sentence boundary\n        if i + chunk_size < len(content):\n            last_period = chunk.rfind('.')\n            if last_period > chunk_size * 0.8:\n                chunk = content[i:i+last_period+1]\n        chunks.append(chunk)\n    \n    for idx, chunk in enumerate(chunks):\n        output_path = os.path.join(output_dir, f'{prefix}{idx:03d}.txt')\n        with open(output_path, 'w', encoding='utf-8') as f:\n            f.write(chunk)\n    \n    return len(chunks)\n```\nHandle both English and Hebrew text with proper encoding",
+        "testStrategy": "Test with sample 10k character text file\nVerify chunks are ~2000 chars each\nEnsure no data loss when reassembling chunks\nTest with Hebrew UTF-8 text",
+        "priority": "medium",
+        "dependencies": [
+          1
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 4,
+        "title": "Create Claude API Integration Module",
+        "description": "Implement module to interact with Claude API for translation improvements",
+        "details": "Create `claude_translator.py`:\n```python\nimport anthropic\nimport json\nfrom typing import Dict, Optional\n\nclass ClaudeTranslator:\n    def __init__(self, api_key: str):\n        self.client = anthropic.Anthropic(api_key=api_key)\n    \n    def improve_translation(self, english_text: str, hebrew_text: str, \n                          score: float, mode: str = 'full') -> str:\n        if mode == 'full':\n            system_prompt = \"You are a professional Hebrew linguist who preserves historical speech patterns faithfully.\"\n            user_prompt = f'''Below is an English transcript followed by its current Hebrew translation. \nThe translation scored {score}/10 on a 4-part rubric:\n1⃣ Content accuracy 40%\n2⃣ Speech patterns 30%\n3⃣ Cultural context 15%\n4⃣ Reliability 15%\n\nPlease rewrite the Hebrew so that it would earn at least 9/10 on all criteria.\nKeep speaker quirks and era-appropriate expressions.\nReturn ONLY the improved Hebrew text, no explanations.\n\n--- ENGLISH TRANSCRIPT ---\n{english_text}\n\n--- CURRENT HEBREW TRANSLATION ---\n{hebrew_text}'''\n        \n        response = self.client.messages.create(\n            model=\"claude-3-opus-20240229\",\n            max_tokens=4000,\n            system=system_prompt,\n            messages=[{\"role\": \"user\", \"content\": user_prompt}]\n        )\n        \n        return response.content[0].text\n```\nAdd error handling, retry logic, and rate limiting",
+        "testStrategy": "Mock Claude API responses for unit tests\nTest with small sample translations\nVerify proper error handling for API failures\nValidate Hebrew text encoding is preserved",
+        "priority": "high",
+        "dependencies": [
+          1
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 5,
+        "title": "Implement Translation File Manager",
+        "description": "Create module to read, write, and manage translation files in the output directory structure",
+        "details": "Create `file_manager.py`:\n```python\nimport os\nimport shutil\nfrom datetime import datetime\n\nclass TranslationFileManager:\n    def __init__(self, base_dir='output'):\n        self.base_dir = base_dir\n    \n    def get_file_paths(self, file_id: str) -> Dict[str, str]:\n        file_dir = os.path.join(self.base_dir, file_id)\n        return {\n            'english': os.path.join(file_dir, f'{file_id}.txt'),\n            'hebrew': os.path.join(file_dir, f'{file_id}.he.txt'),\n            'backup': os.path.join(file_dir, f'{file_id}.he.txt.bak')\n        }\n    \n    def read_translation_pair(self, file_id: str) -> tuple[str, str]:\n        paths = self.get_file_paths(file_id)\n        \n        with open(paths['english'], 'r', encoding='utf-8') as f:\n            english = f.read()\n        \n        with open(paths['hebrew'], 'r', encoding='utf-8') as f:\n            hebrew = f.read()\n        \n        return english, hebrew\n    \n    def save_improved_translation(self, file_id: str, improved_hebrew: str, \n                                backup: bool = True) -> None:\n        paths = self.get_file_paths(file_id)\n        \n        if backup and os.path.exists(paths['hebrew']):\n            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')\n            backup_path = f\"{paths['hebrew']}.bak.{timestamp}\"\n            shutil.copy2(paths['hebrew'], backup_path)\n        \n        with open(paths['hebrew'], 'w', encoding='utf-8') as f:\n            f.write(improved_hebrew)\n```",
+        "testStrategy": "Create test file structure with sample translations\nTest read/write operations with Hebrew text\nVerify backup creation with timestamps\nTest error handling for missing files",
+        "priority": "medium",
+        "dependencies": [
+          1
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 6,
+        "title": "Develop Hebrew Evaluation Script",
+        "description": "Create or enhance evaluate_hebrew_improved.py script to re-evaluate translations",
+        "details": "Create `evaluate_hebrew_improved.py`:\n```python\nimport argparse\nimport sqlite3\nimport openai\nfrom datetime import datetime\n\ndef evaluate_hebrew_translation(file_id: str, model: str = 'gpt-4-turbo-preview', \n                              db_path: str = 'media_tracking.db') -> float:\n    # Read translation files\n    file_mgr = TranslationFileManager()\n    english, hebrew = file_mgr.read_translation_pair(file_id)\n    \n    # Prepare evaluation prompt\n    prompt = f'''Evaluate this Hebrew translation on a scale of 0-10:\n    \n    English: {english[:1000]}...\n    Hebrew: {hebrew[:1000]}...\n    \n    Score based on:\n    1. Content accuracy (40%)\n    2. Speech patterns preservation (30%)\n    3. Cultural context (15%)\n    4. Overall reliability (15%)\n    \n    Return only a numeric score.'''\n    \n    # Call evaluation model\n    response = openai.ChatCompletion.create(\n        model=model,\n        messages=[{\"role\": \"user\", \"content\": prompt}]\n    )\n    \n    score = float(response.choices[0].message.content.strip())\n    \n    # Store in database\n    conn = sqlite3.connect(db_path)\n    cursor = conn.cursor()\n    cursor.execute('''\n        INSERT INTO quality_evaluations \n        (file_id, language, model, score, timestamp)\n        VALUES (?, ?, ?, ?, ?)\n    ''', (file_id, 'he', model, score, datetime.now()))\n    conn.commit()\n    conn.close()\n    \n    return score\n\nif __name__ == '__main__':\n    parser = argparse.ArgumentParser()\n    parser.add_argument('--file', required=True)\n    parser.add_argument('--model', default='gpt-4-turbo-preview')\n    parser.add_argument('--limit', type=int, default=1)\n    args = parser.parse_args()\n    \n    score = evaluate_hebrew_translation(args.file, args.model)\n    print(f\"Score: {score}\")\n```",
+        "testStrategy": "Test with known good/bad translations\nVerify scores are stored correctly in database\nTest different evaluation models\nValidate score ranges (0-10)",
+        "priority": "high",
+        "dependencies": [
+          1,
+          2
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 7,
+        "title": "Build Batch Processing Pipeline",
+        "description": "Create automated pipeline to process all low-scoring translations in batch",
+        "details": "Create `batch_processor.py`:\n```python\nimport csv\nimport time\nimport logging\nfrom concurrent.futures import ThreadPoolExecutor, as_completed\n\nclass BatchTranslationImprover:\n    def __init__(self, claude_api_key: str, max_workers: int = 3):\n        self.translator = ClaudeTranslator(claude_api_key)\n        self.file_mgr = TranslationFileManager()\n        self.max_workers = max_workers\n        logging.basicConfig(level=logging.INFO)\n    \n    def process_file(self, file_id: str, current_score: float) -> dict:\n        try:\n            # Read files\n            english, hebrew = self.file_mgr.read_translation_pair(file_id)\n            \n            # Check if chunking needed\n            if len(hebrew) > 3000:\n                # Process in chunks\n                improved_chunks = []\n                chunks = chunk_text(hebrew, 2000)\n                en_chunks = chunk_text(english, 2000)\n                \n                for en_chunk, he_chunk in zip(en_chunks, chunks):\n                    improved = self.translator.improve_translation(\n                        en_chunk, he_chunk, current_score\n                    )\n                    improved_chunks.append(improved)\n                    time.sleep(1)  # Rate limiting\n                \n                improved_hebrew = ''.join(improved_chunks)\n            else:\n                improved_hebrew = self.translator.improve_translation(\n                    english, hebrew, current_score\n                )\n            \n            # Save improved version\n            self.file_mgr.save_improved_translation(file_id, improved_hebrew)\n            \n            # Re-evaluate\n            new_score = evaluate_hebrew_translation(file_id)\n            \n            return {\n                'file_id': file_id,\n                'old_score': current_score,\n                'new_score': new_score,\n                'success': new_score >= 8.5\n            }\n            \n        except Exception as e:\n            logging.error(f\"Error processing {file_id}: {e}\")\n            return {\n                'file_id': file_id,\n                'old_score': current_score,\n                'error': str(e)\n            }\n    \n    def process_batch(self, tsv_file: str = 'low_hebrew.tsv') -> list:\n        results = []\n        \n        with open(tsv_file, 'r') as f:\n            reader = csv.reader(f, delimiter='\\t')\n            files = [(row[0], float(row[1])) for row in reader]\n        \n        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:\n            futures = {\n                executor.submit(self.process_file, file_id, score): (file_id, score)\n                for file_id, score in files\n            }\n            \n            for future in as_completed(futures):\n                result = future.result()\n                results.append(result)\n                logging.info(f\"Processed {result['file_id']}: \"\n                           f\"{result.get('old_score', 'N/A')} -> \"\n                           f\"{result.get('new_score', 'N/A')}\")\n        \n        return results\n```",
+        "testStrategy": "Test with small batch of 2-3 files\nVerify concurrent processing works correctly\nTest error recovery and logging\nValidate all files reach 8.5+ score",
+        "priority": "medium",
+        "dependencies": [
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 8,
+        "title": "Create Targeted Patch System",
+        "description": "Implement system for applying targeted fixes to specific translation issues",
+        "details": "Create `patch_system.py`:\n```python\nimport re\nfrom typing import List, Dict\n\nclass TranslationPatcher:\n    def __init__(self, claude_translator: ClaudeTranslator):\n        self.translator = claude_translator\n    \n    def identify_issues(self, english: str, hebrew: str) -> List[Dict]:\n        issues = []\n        \n        # Check for number mismatches\n        en_numbers = re.findall(r'\\b\\d+\\b', english)\n        he_numbers = re.findall(r'\\b\\d+\\b', hebrew)\n        if len(en_numbers) != len(he_numbers):\n            issues.append({\n                'type': 'number_mismatch',\n                'description': 'Number count mismatch between translations'\n            })\n        \n        # Check for missing proper nouns\n        en_caps = re.findall(r'\\b[A-Z][a-z]+\\b', english)\n        if len(en_caps) > 0:\n            # Simple heuristic - could be enhanced\n            issues.append({\n                'type': 'proper_noun_check',\n                'description': 'Verify all proper nouns are translated'\n            })\n        \n        return issues\n    \n    def apply_patch(self, hebrew_text: str, issues: List[Dict]) -> str:\n        system_prompt = \"Expert historical Hebrew translator.\"\n        \n        issues_text = '\\n'.join([\n            f\"{i+1}. {issue['description']}\" \n            for i, issue in enumerate(issues)\n        ])\n        \n        user_prompt = f'''The excerpt below contains specific issues (listed after \"ISSUES:\").\nFix ONLY those, leaving everything else unchanged.\nReturn the corrected Hebrew excerpt verbatim—no extra commentary.\n\n--- HEBREW EXCERPT ---\n{hebrew_text}\n\nISSUES:\n{issues_text}'''\n        \n        response = self.translator.client.messages.create(\n            model=\"claude-3-opus-20240229\",\n            max_tokens=4000,\n            system=system_prompt,\n            messages=[{\"role\": \"user\", \"content\": user_prompt}]\n        )\n        \n        return response.content[0].text\n```",
+        "testStrategy": "Test issue identification with known problematic translations\nVerify patches only change targeted issues\nTest with various issue types (numbers, names, idioms)\nValidate Hebrew text integrity after patching",
+        "priority": "low",
+        "dependencies": [
+          4,
+          5
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 9,
+        "title": "Implement Progress Monitoring Dashboard",
+        "description": "Create monitoring system to track improvement progress and generate reports",
+        "details": "Create `progress_monitor.py`:\n```python\nimport sqlite3\nimport json\nfrom datetime import datetime, timedelta\nimport matplotlib.pyplot as plt\n\nclass ProgressMonitor:\n    def __init__(self, db_path='media_tracking.db'):\n        self.db_path = db_path\n    \n    def get_current_status(self) -> dict:\n        conn = sqlite3.connect(self.db_path)\n        cursor = conn.cursor()\n        \n        # Count files below threshold\n        cursor.execute('''\n            SELECT COUNT(DISTINCT file_id)\n            FROM quality_evaluations\n            WHERE language='he' AND model!='sanity-check' AND score < 8.5\n        ''')\n        below_threshold = cursor.fetchone()[0]\n        \n        # Get score statistics\n        cursor.execute('''\n            SELECT AVG(score), MIN(score), MAX(score), COUNT(DISTINCT file_id)\n            FROM quality_evaluations\n            WHERE language='he' AND model!='sanity-check'\n        ''')\n        avg_score, min_score, max_score, total_files = cursor.fetchone()\n        \n        # Get improvement trends\n        cursor.execute('''\n            WITH RankedScores AS (\n                SELECT file_id, score, timestamp,\n                       ROW_NUMBER() OVER (PARTITION BY file_id ORDER BY timestamp DESC) as rn\n                FROM quality_evaluations\n                WHERE language='he' AND model!='sanity-check'\n            )\n            SELECT COUNT(*) \n            FROM RankedScores\n            WHERE rn = 1 AND score >= 8.5\n        ''')\n        above_threshold = cursor.fetchone()[0]\n        \n        conn.close()\n        \n        return {\n            'timestamp': datetime.now().isoformat(),\n            'total_files': total_files,\n            'below_threshold': below_threshold,\n            'above_threshold': above_threshold,\n            'average_score': round(avg_score, 2) if avg_score else 0,\n            'min_score': min_score,\n            'max_score': max_score,\n            'completion_percentage': round((above_threshold / total_files * 100), 1) if total_files > 0 else 0\n        }\n    \n    def generate_report(self, output_file='hebrew_improvement_report.json'):\n        status = self.get_current_status()\n        \n        conn = sqlite3.connect(self.db_path)\n        cursor = conn.cursor()\n        \n        # Get files still needing work\n        cursor.execute('''\n            WITH LatestScores AS (\n                SELECT file_id, score, \n                       ROW_NUMBER() OVER (PARTITION BY file_id ORDER BY timestamp DESC) as rn\n                FROM quality_evaluations\n                WHERE language='he' AND model!='sanity-check'\n            )\n            SELECT file_id, score\n            FROM LatestScores\n            WHERE rn = 1 AND score < 8.5\n            ORDER BY score ASC\n        ''')\n        \n        remaining_files = [\n            {'file_id': row[0], 'score': row[1]} \n            for row in cursor.fetchall()\n        ]\n        \n        conn.close()\n        \n        report = {\n            'status': status,\n            'remaining_files': remaining_files,\n            'estimated_completion_time': self._estimate_completion_time(len(remaining_files))\n        }\n        \n        with open(output_file, 'w') as f:\n            json.dump(report, f, indent=2)\n        \n        return report\n    \n    def _estimate_completion_time(self, remaining_count: int, \n                                 avg_processing_time_minutes: int = 5) -> str:\n        total_minutes = remaining_count * avg_processing_time_minutes\n        hours = total_minutes // 60\n        minutes = total_minutes % 60\n        return f\"{hours}h {minutes}m\"\n```",
+        "testStrategy": "Insert test data with various scores and timestamps\nVerify statistics calculations are accurate\nTest report generation with edge cases (no data, all passing)\nValidate JSON output format",
+        "priority": "low",
+        "dependencies": [
+          1,
+          2,
+          6
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 10,
+        "title": "Create Final Validation and Archive System",
+        "description": "Implement final validation checks and archival system for completed improvements",
+        "details": "Create `final_validation.py`:\n```python\nimport os\nimport shutil\nimport sqlite3\nimport hashlib\nfrom datetime import datetime\nimport tarfile\n\nclass FinalValidator:\n    def __init__(self, db_path='media_tracking.db', archive_dir='archives'):\n        self.db_path = db_path\n        self.archive_dir = archive_dir\n        os.makedirs(archive_dir, exist_ok=True)\n    \n    def validate_all_above_threshold(self) -> tuple[bool, list]:\n        conn = sqlite3.connect(self.db_path)\n        cursor = conn.cursor()\n        \n        cursor.execute('''\n            WITH LatestScores AS (\n                SELECT file_id, score,\n                       ROW_NUMBER() OVER (PARTITION BY file_id ORDER BY timestamp DESC) as rn\n                FROM quality_evaluations\n                WHERE language='he' AND model!='sanity-check'\n            )\n            SELECT file_id, score\n            FROM LatestScores\n            WHERE rn = 1 AND score < 8.5\n        ''')\n        \n        below_threshold = cursor.fetchall()\n        conn.close()\n        \n        return len(below_threshold) == 0, below_threshold\n    \n    def create_archive(self, tag: str = None) -> str:\n        if tag is None:\n            tag = datetime.now().strftime('%Y%m%d_%H%M%S')\n        \n        archive_name = f'hebrew_translations_{tag}.tar.gz'\n        archive_path = os.path.join(self.archive_dir, archive_name)\n        \n        # Create manifest\n        manifest = self._create_manifest()\n        \n        with tarfile.open(archive_path, 'w:gz') as tar:\n            # Add all Hebrew translation files\n            for file_info in manifest['files']:\n                file_path = file_info['path']\n                if os.path.exists(file_path):\n                    tar.add(file_path, arcname=os.path.basename(file_path))\n            \n            # Add manifest\n            manifest_path = os.path.join(self.archive_dir, f'manifest_{tag}.json')\n            with open(manifest_path, 'w') as f:\n                json.dump(manifest, f, indent=2)\n            tar.add(manifest_path, arcname='manifest.json')\n        \n        return archive_path\n    \n    def _create_manifest(self) -> dict:\n        conn = sqlite3.connect(self.db_path)\n        cursor = conn.cursor()\n        \n        cursor.execute('''\n            WITH LatestScores AS (\n                SELECT file_id, score, timestamp,\n                       ROW_NUMBER() OVER (PARTITION BY file_id ORDER BY timestamp DESC) as rn\n                FROM quality_evaluations\n                WHERE language='he' AND model!='sanity-check'\n            )\n            SELECT file_id, score, timestamp\n            FROM LatestScores\n            WHERE rn = 1\n        ''')\n        \n        files = []\n        for file_id, score, timestamp in cursor.fetchall():\n            he_path = f'output/{file_id}/{file_id}.he.txt'\n            if os.path.exists(he_path):\n                with open(he_path, 'rb') as f:\n                    checksum = hashlib.sha256(f.read()).hexdigest()\n                \n                files.append({\n                    'file_id': file_id,\n                    'path': he_path,\n                    'score': score,\n                    'last_evaluated': timestamp,\n                    'checksum': checksum\n                })\n        \n        conn.close()\n        \n        return {\n            'created_at': datetime.now().isoformat(),\n            'total_files': len(files),\n            'all_above_threshold': all(f['score'] >= 8.5 for f in files),\n            'average_score': sum(f['score'] for f in files) / len(files) if files else 0,\n            'files': files\n        }\n    \n    def generate_final_report(self) -> None:\n        is_valid, below = self.validate_all_above_threshold()\n        \n        print(\"\\n=== FINAL VALIDATION REPORT ===\")\n        print(f\"All files above 8.5 threshold: {'YES' if is_valid else 'NO'}\")\n        \n        if not is_valid:\n            print(f\"\\nFiles still below threshold: {len(below)}\")\n            for file_id, score in below:\n                print(f\"  - {file_id}: {score}\")\n        else:\n            conn = sqlite3.connect(self.db_path)\n            cursor = conn.cursor()\n            \n            cursor.execute('''\n                SELECT AVG(score), MIN(score), MAX(score), COUNT(DISTINCT file_id)\n                FROM (\n                    SELECT file_id, score,\n                           ROW_NUMBER() OVER (PARTITION BY file_id ORDER BY timestamp DESC) as rn\n                    FROM quality_evaluations\n                    WHERE language='he' AND model!='sanity-check'\n                ) t\n                WHERE rn = 1\n            ''')\n            \n            avg_score, min_score, max_score, total = cursor.fetchone()\n            conn.close()\n            \n            print(f\"\\nFinal Statistics:\")\n            print(f\"  Total files: {total}\")\n            print(f\"  Average score: {avg_score:.2f}\")\n            print(f\"  Min score: {min_score}\")\n            print(f\"  Max score: {max_score}\")\n            print(\"\\n✅ All Hebrew translations meet quality standards!\")\n\nif __name__ == '__main__':\n    validator = FinalValidator()\n    validator.generate_final_report()\n    \n    is_valid, _ = validator.validate_all_above_threshold()\n    if is_valid:\n        archive_path = validator.create_archive()\n        print(f\"\\nArchive created: {archive_path}\")\n```",
+        "testStrategy": "Test validation with mix of passing and failing scores\nVerify archive creation includes all files with checksums\nTest manifest generation accuracy\nValidate report output format and statistics",
+        "priority": "medium",
+        "dependencies": [
+          1,
+          2,
+          5,
+          6,
+          9
+        ],
+        "status": "pending",
+        "subtasks": []
+      }
+    ],
+    "metadata": {
+      "created": "2025-06-17T19:20:20.445Z",
+      "updated": "2025-06-17T19:20:20.445Z",
+      "description": "Tasks for master context"
+    }
+  }
+}
