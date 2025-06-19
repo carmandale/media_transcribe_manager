@@ -292,7 +292,7 @@ def fix_stuck(reset_all: bool):
     reset_count = 0
     for file_info in stuck_files:
         stage = file_info['stuck_stage']
-        db.update_status(file_info['file_id'], stage, 'pending')
+        db.update_status(file_info['file_id'], **{f'{stage}_status': 'pending'})
         reset_count += 1
     
     click.echo(f"✓ Reset {reset_count} files to pending")
