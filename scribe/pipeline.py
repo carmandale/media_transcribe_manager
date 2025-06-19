@@ -83,20 +83,19 @@ class Pipeline:
             return []
         
         logger.info(f"Processing {len(pending)} transcriptions")
-        tracker = ProgressTracker(total=len(pending), task="Transcription")
+        tracker = ProgressTracker(total=len(pending), description="Transcription")
         
         def process_one(file_info: Dict) -> PipelineResult:
             result = PipelineResult(
                 file_id=file_info['file_id'],
-                file_path=Path(file_info['file_path'])
+                file_path=Path(file_info.get('file_path') or self.config.output_dir / file_info['file_id'])
             )
             
             try:
                 # Update status to in-progress
                 self.db.update_status(
                     file_info['file_id'], 
-                    'transcription', 
-                    'in-progress'
+                    transcription_status='in-progress'
                 )
                 
                 # Transcribe
@@ -109,23 +108,20 @@ class Pipeline:
                 # Update database
                 self.db.update_status(
                     file_info['file_id'],
-                    'transcription',
-                    'completed'
+                    transcription_status='completed'
                 )
                 
                 result.transcribed = True
-                tracker.success()
+                tracker.update(success=True)
                 
             except Exception as e:
                 logger.error(f"Transcription failed for {file_info['file_id']}: {e}")
                 self.db.update_status(
                     file_info['file_id'],
-                    'transcription',
-                    'failed',
-                    error=str(e)
+                    transcription_status='failed'
                 )
                 result.errors.append(f"Transcription: {str(e)}")
-                tracker.failure()
+                tracker.update(success=False)
                 
             return result
         
@@ -133,7 +129,6 @@ class Pipeline:
         with SimpleWorkerPool(max_workers=self.config.transcription_workers) as pool:
             results = pool.map(process_one, pending)
             
-        tracker.finish()
         return results
     
     def process_translations(self, language: str, limit: Optional[int] = None) -> List[PipelineResult]:
@@ -145,24 +140,23 @@ class Pipeline:
             return []
             
         logger.info(f"Processing {len(pending)} {language} translations")
-        tracker = ProgressTracker(total=len(pending), task=f"{language.upper()} Translation")
+        tracker = ProgressTracker(total=len(pending), description=f"{language.upper()} Translation")
         
         def process_one(file_info: Dict) -> PipelineResult:
             result = PipelineResult(
                 file_id=file_info['file_id'],
-                file_path=Path(file_info['file_path'])
+                file_path=Path(file_info.get('file_path') or self.config.output_dir / file_info['file_id'])
             )
             
             try:
                 # Update status
                 self.db.update_status(
                     file_info['file_id'],
-                    f'translation_{language}',
-                    'in-progress'
+                    **{f'translation_{language}_status': 'in-progress'}
                 )
                 
                 # Read transcript
-                transcript_path = self.config.output_dir / file_info['file_id'] / f"{file_info['file_id']}_transcript.txt"
+                transcript_path = self.config.output_dir / file_info['file_id'] / f"{file_info['file_id']}.txt"
                 if not transcript_path.exists():
                     raise FileNotFoundError(f"Transcript not found: {transcript_path}")
                     
@@ -186,23 +180,20 @@ class Pipeline:
                 # Update database
                 self.db.update_status(
                     file_info['file_id'],
-                    f'translation_{language}',
-                    'completed'
+                    **{f'translation_{language}_status': 'completed'}
                 )
                 
                 result.translations[language] = True
-                tracker.success()
+                tracker.update(success=True)
                 
             except Exception as e:
                 logger.error(f"{language} translation failed for {file_info['file_id']}: {e}")
                 self.db.update_status(
                     file_info['file_id'],
-                    f'translation_{language}',
-                    'failed',
-                    error=str(e)
+                    **{f'translation_{language}_status': 'failed'}
                 )
                 result.errors.append(f"Translation {language}: {str(e)}")
-                tracker.failure()
+                tracker.update(success=False)
                 
             return result
         
@@ -210,7 +201,6 @@ class Pipeline:
         with SimpleWorkerPool(max_workers=self.config.translation_workers) as pool:
             results = pool.map(process_one, pending)
             
-        tracker.finish()
         return results
     
     def evaluate_translations(self, language: str, sample_size: Optional[int] = None) -> List[Tuple[str, float]]:

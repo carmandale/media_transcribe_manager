@@ -386,7 +386,7 @@ class Database:
             SELECT m.*, p.*
             FROM media_files m
             JOIN processing_status p ON m.file_id = p.file_id
-            WHERE p.{status_field} = 'not_started'
+            WHERE p.{status_field} IN ('not_started', 'pending')
               AND p.status != 'failed'
             ORDER BY p.last_updated ASC
         """

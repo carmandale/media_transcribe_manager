@@ -110,12 +110,13 @@ class HistoricalTranslator:
         if target_language.lower() in ['he', 'heb', 'hebrew']:
             if provider == 'deepl' or provider is None:
                 # DeepL doesn't support Hebrew - switch providers
-                if 'microsoft' in self.providers:
-                    logger.info("Routing Hebrew translation to Microsoft Translator")
-                    provider = 'microsoft'
-                elif 'openai' in self.providers:
+                # Prefer OpenAI for Hebrew to avoid Microsoft rate limiting
+                if 'openai' in self.providers:
                     logger.info("Routing Hebrew translation to OpenAI")
                     provider = 'openai'
+                elif 'microsoft' in self.providers:
+                    logger.info("Routing Hebrew translation to Microsoft Translator")
+                    provider = 'microsoft'
                 else:
                     logger.error("No Hebrew-capable provider available")
                     return None
@@ -211,19 +212,14 @@ class HistoricalTranslator:
         
         # System prompt optimized for historical testimony
         system_prompt = (
-            f"You are a professional translator specializing in historical interview transcripts. "
-            f"Translate the following to {target_name}. "
-            "CRITICAL REQUIREMENTS:\n"
-            "1. This is a VERBATIM transcript - preserve ALL:\n"
-            "   - Hesitations (um, uh, ah, hmm)\n"
-            "   - Repetitions and self-corrections\n"
-            "   - Incomplete sentences\n"
-            "   - Natural pauses (...)\n"
-            "   - Grammatical 'errors' that reflect natural speech\n"
-            "2. Do NOT polish or improve the language\n"
-            "3. Maintain the speaker's authentic voice\n"
-            "4. Only proper nouns may remain in original language\n"
-            "Return ONLY the translation in JSON format: {\"translation\": \"...\", \"has_foreign\": boolean}"
+            f"You are a professional translator specializing in historical documents. "
+            f"Translate the following text to {target_name}. "
+            "Requirements:\n"
+            "1. Preserve the original meaning, tone, and style\n"
+            "2. Maintain appropriate historical context and terminology\n"
+            "3. Return ONLY the translated text, no additional formatting, quotes, or explanation\n"
+            "4. For Hebrew translations, use proper Hebrew script and grammar\n"
+            "5. Do not include any JSON formatting or special characters"
         )
         
         try:
@@ -254,13 +250,11 @@ class HistoricalTranslator:
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": text}
             ],
-            temperature=0.3,  # Lower temperature for consistency
-            response_format={"type": "json_object"}
+            temperature=0.3  # Lower temperature for consistency
         )
         
         content = response.choices[0].message.content.strip()
-        data = json.loads(content)
-        return data.get("translation", "").strip()
+        return content
     
     def _normalize_language_code(self, language: str, provider: str) -> str:
         """Normalize language codes for specific providers."""
