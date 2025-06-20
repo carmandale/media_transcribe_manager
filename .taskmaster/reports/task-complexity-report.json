@@ -1,93 +1,173 @@
 {
 	"meta": {
-		"generatedAt": "2025-06-17T19:26:16.376Z",
-		"tasksAnalyzed": 10,
-		"totalTasks": 10,
-		"analysisCount": 10,
-		"thresholdScore": 5,
+		"generatedAt": "2025-06-20T17:40:37.617Z",
+		"tasksAnalyzed": 20,
+		"totalTasks": 20,
+		"analysisCount": 20,
+		"thresholdScore": 7,
 		"projectName": "Taskmaster",
-		"usedResearch": false
+		"usedResearch": true
 	},
 	"complexityAnalysis": [
 		{
 			"taskId": 1,
-			"taskTitle": "Setup Database Schema and Initial Environment",
+			"taskTitle": "Create Comprehensive System Backup",
 			"complexityScore": 4,
 			"recommendedSubtasks": 4,
-			"expansionPrompt": "Break down the database setup and environment configuration into subtasks for: 1) Creating the SQLite database with the quality_evaluations table schema, 2) Setting up the directory structure (output/, chunks/, scripts/), 3) Installing and configuring dependencies (sqlite3, uv), and 4) Creating initial test data and validation scripts",
-			"reasoning": "This is a foundational setup task with clear requirements. The complexity is moderate due to multiple components (database, directories, dependencies) but each component is straightforward to implement."
+			"expansionPrompt": "Break down the backup process into subtasks: (1) Prepare backup directory and timestamping, (2) Backup database file, (3) Backup translation directories for each language, (4) Generate and verify manifest file with state statistics.",
+			"reasoning": "This task involves file operations, directory management, and manifest generation, but uses standard Python libraries and straightforward logic. Complexity is moderate due to the need for atomicity and verification, but not high as there are no advanced algorithms or concurrency concerns."
 		},
 		{
 			"taskId": 2,
-			"taskTitle": "Implement Low Score Query Module",
-			"complexityScore": 3,
-			"recommendedSubtasks": 3,
-			"expansionPrompt": "Divide the query module implementation into: 1) Core query function to fetch Hebrew translations below 8.5 threshold, 2) TSV export functionality with proper formatting, and 3) CLI wrapper for command-line execution with argument parsing",
-			"reasoning": "This is a relatively simple database query and export task. The logic is straightforward with minimal complexity in the SQL query and file output."
+			"taskTitle": "Implement Comprehensive Audit Script",
+			"complexityScore": 6,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Expand into: (1) Design audit data structures, (2) Implement async file reading and analysis, (3) Compare database and filesystem for discrepancies, (4) Generate JSON report with statistics, (5) Validate audit results against known issues.",
+			"reasoning": "The audit script requires asynchronous processing, file/database comparison, and detailed reporting. It introduces concurrency and data integrity checks, increasing complexity over simple scripts."
 		},
 		{
 			"taskId": 3,
-			"taskTitle": "Build Text Chunking Utility",
+			"taskTitle": "Fix Database Status Accuracy",
 			"complexityScore": 5,
 			"recommendedSubtasks": 4,
-			"expansionPrompt": "Split the text chunking utility into: 1) Core chunking algorithm with configurable size limits, 2) Sentence boundary detection logic to avoid mid-sentence breaks, 3) UTF-8 encoding handling for Hebrew text support, and 4) File I/O operations with proper error handling",
-			"reasoning": "Moderate complexity due to the need to handle sentence boundaries intelligently and support both English and Hebrew text with proper encoding. The chunking logic requires careful implementation to avoid data loss."
+			"expansionPrompt": "Decompose into: (1) Parse audit results for incomplete files, (2) Implement database update logic with transaction safety, (3) Update status fields and timestamps, (4) Test and verify rollback on error.",
+			"reasoning": "This task involves transactional database updates and error handling, but the logic is linear and based on audit output, keeping complexity moderate."
 		},
 		{
 			"taskId": 4,
-			"taskTitle": "Create Claude API Integration Module",
+			"taskTitle": "Setup OpenAI API Integration for Retranslation",
 			"complexityScore": 6,
 			"recommendedSubtasks": 5,
-			"expansionPrompt": "Break down the Claude API integration into: 1) Basic API client setup and authentication, 2) Translation improvement prompt engineering with system/user prompts, 3) Error handling and retry logic implementation, 4) Rate limiting to avoid API throttling, and 5) Response parsing and Hebrew text extraction",
-			"reasoning": "Higher complexity due to external API integration, sophisticated prompt engineering for translation improvement, and the need for robust error handling and rate limiting mechanisms."
+			"expansionPrompt": "Expand into: (1) Configure OpenAI API client, (2) Implement rate limiting and retry logic, (3) Track API usage and costs, (4) Integrate with translation pipeline, (5) Test with sample data and error scenarios.",
+			"reasoning": "API integration with rate limiting, retries, and cost tracking introduces external dependencies and error handling, raising complexity above average."
 		},
 		{
 			"taskId": 5,
-			"taskTitle": "Implement Translation File Manager",
-			"complexityScore": 4,
-			"recommendedSubtasks": 4,
-			"expansionPrompt": "Organize the file manager into: 1) Path resolution and directory structure navigation, 2) Reading translation pairs (English and Hebrew files), 3) Backup creation with timestamp-based naming, and 4) Saving improved translations with proper encoding",
-			"reasoning": "Moderate complexity involving file system operations, backup management, and proper handling of Hebrew text encoding. The logic is straightforward but requires careful implementation for data safety."
+			"taskTitle": "Implement Parallel Hebrew Translation Pipeline",
+			"complexityScore": 7,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Break down into: (1) Design pipeline architecture, (2) Implement file reading and queuing, (3) Integrate translation API calls, (4) Handle concurrency and rate limiting, (5) Save translated files, (6) Monitor progress and handle errors.",
+			"reasoning": "This task requires parallel processing, error handling, and integration with external APIs, making it one of the more complex tasks due to concurrency and coordination requirements."
 		},
 		{
 			"taskId": 6,
-			"taskTitle": "Develop Hebrew Evaluation Script",
-			"complexityScore": 7,
-			"recommendedSubtasks": 5,
-			"expansionPrompt": "Divide the evaluation script into: 1) OpenAI API integration for GPT-4 evaluation calls, 2) Evaluation prompt construction with the 4-part rubric criteria, 3) Score extraction and validation from API responses, 4) Database storage of evaluation results, and 5) Command-line interface with argument parsing",
-			"reasoning": "High complexity due to integration with evaluation API, sophisticated prompt design for accurate scoring, and the need to parse and validate scores while maintaining database consistency."
+			"taskTitle": "Create Missing Hebrew Translation Files",
+			"complexityScore": 5,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Expand into: (1) Identify missing files from audit, (2) Prepare source and target paths, (3) Queue files for translation, (4) Verify creation and content of new files.",
+			"reasoning": "While related to the translation pipeline, this task is focused on handling a specific subset (missing files), with moderate complexity due to file management and validation."
 		},
 		{
 			"taskId": 7,
-			"taskTitle": "Build Batch Processing Pipeline",
-			"complexityScore": 8,
-			"recommendedSubtasks": 6,
-			"expansionPrompt": "Break down the batch processor into: 1) TSV file reading and job queue creation, 2) Concurrent processing setup with ThreadPoolExecutor, 3) Chunking logic integration for large files, 4) Progress tracking and logging system, 5) Error recovery and failed job handling, and 6) Results aggregation and reporting",
-			"reasoning": "High complexity due to concurrent processing, integration of multiple modules (chunking, translation, evaluation), error handling across threads, and the need for robust progress tracking and recovery mechanisms."
+			"taskTitle": "Implement Content Validation Module",
+			"complexityScore": 6,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Decompose into: (1) Implement file existence checks, (2) Detect placeholders and invalid content, (3) Integrate language detection, (4) Handle encoding and error cases, (5) Return structured validation results.",
+			"reasoning": "This module combines file I/O, regex, language detection, and error handling, requiring careful design for robustness and extensibility."
 		},
 		{
 			"taskId": 8,
-			"taskTitle": "Create Targeted Patch System",
-			"complexityScore": 6,
-			"recommendedSubtasks": 4,
-			"expansionPrompt": "Organize the patch system into: 1) Issue identification algorithms (number mismatches, proper nouns), 2) Issue categorization and prioritization logic, 3) Targeted prompt generation for specific fixes, and 4) Patch application with minimal text disruption",
-			"reasoning": "Moderate to high complexity due to the need for pattern matching algorithms, intelligent issue detection, and careful prompt engineering to fix only specific issues without affecting the rest of the translation."
+			"taskTitle": "Implement Database Integrity Validation System",
+			"complexityScore": 7,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Expand into: (1) Retrieve all translation records, (2) Validate each translation file, (3) Compare and update statuses, (4) Support dry-run and fix modes, (5) Log all changes, (6) Test with corrupted data.",
+			"reasoning": "This task involves iterating over large datasets, integrating validation logic, supporting transactional updates, and logging, making it complex and critical for system integrity."
 		},
 		{
 			"taskId": 9,
-			"taskTitle": "Implement Progress Monitoring Dashboard",
-			"complexityScore": 5,
-			"recommendedSubtasks": 4,
-			"expansionPrompt": "Split the monitoring system into: 1) Database queries for statistics collection, 2) Progress calculation and trend analysis, 3) Report generation in JSON format, and 4) Time estimation algorithms for completion",
-			"reasoning": "Moderate complexity involving multiple database queries with window functions, statistical calculations, and report generation. The logic is clear but requires careful SQL query design."
+			"taskTitle": "Modify Translation Pipeline for Mandatory Evaluation",
+			"complexityScore": 6,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Break down into: (1) Enforce evaluation existence before completion, (2) Check minimum evaluation score, (3) Integrate validation checks, (4) Update status and timestamps, (5) Test enforcement logic.",
+			"reasoning": "Adding mandatory evaluation introduces new business rules and validation steps into the pipeline, increasing logical complexity and requiring careful testing."
 		},
 		{
 			"taskId": 10,
-			"taskTitle": "Create Final Validation and Archive System",
+			"taskTitle": "Add Validation Hooks to Pipeline Stages",
+			"complexityScore": 5,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Expand into: (1) Design decorator-based hook system, (2) Implement stage-specific validation logic, (3) Integrate hooks into pipeline stages, (4) Test with valid and invalid inputs.",
+			"reasoning": "While the decorator pattern adds some abstraction, the logic is modular and focused on validation, keeping complexity moderate."
+		},
+		{
+			"taskId": 11,
+			"taskTitle": "Create Comprehensive Test Suite Foundation",
+			"complexityScore": 5,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Decompose into: (1) Set up pytest and async fixtures, (2) Create temporary directory and database fixtures, (3) Implement basic validation tests, (4) Ensure fixture cleanup and isolation.",
+			"reasoning": "Test suite setup is essential but follows established patterns with moderate complexity, mainly in async and fixture management."
+		},
+		{
+			"taskId": 12,
+			"taskTitle": "Implement Placeholder Detection Tests",
+			"complexityScore": 4,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Expand into: (1) Test detection of known placeholders, (2) Test completed translations for placeholder presence, (3) Validate edge cases and performance.",
+			"reasoning": "This is a focused testing task with clear scope and low algorithmic complexity, though thoroughness is required."
+		},
+		{
+			"taskId": 13,
+			"taskTitle": "Implement Hebrew Language Validation Tests",
+			"complexityScore": 4,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Break down into: (1) Test Hebrew character detection, (2) Test UTF-8 encoding validation, (3) Test mixed and edge case content.",
+			"reasoning": "Similar to placeholder tests, this is a targeted validation suite with low to moderate complexity."
+		},
+		{
+			"taskId": 14,
+			"taskTitle": "Implement Database-Filesystem Consistency Tests",
+			"complexityScore": 5,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Expand into: (1) Test all DB translations have files, (2) Detect orphaned files, (3) Test status vs file existence rules, (4) Validate with large datasets.",
+			"reasoning": "Consistency checks require cross-referencing data sources and handling edge cases, adding moderate complexity."
+		},
+		{
+			"taskId": 15,
+			"taskTitle": "Implement Evaluation Coverage Tests",
+			"complexityScore": 4,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Decompose into: (1) Test evaluation requirement for completion, (2) Test minimum score enforcement, (3) Calculate and report evaluation coverage.",
+			"reasoning": "This is a business rule validation task with clear logic and limited complexity."
+		},
+		{
+			"taskId": 16,
+			"taskTitle": "Create Daily Validation Report Generator",
 			"complexityScore": 6,
 			"recommendedSubtasks": 5,
-			"expansionPrompt": "Divide the validation and archive system into: 1) Threshold validation checks across all files, 2) Manifest generation with file checksums, 3) Archive creation using tar.gz compression, 4) Final statistics calculation and reporting, and 5) Archive integrity verification",
-			"reasoning": "Moderate to high complexity due to the need for comprehensive validation, checksum calculation, archive creation with proper structure, and detailed reporting. Requires careful handling of file operations and data integrity."
+			"expansionPrompt": "Expand into: (1) Collect and aggregate validation metrics, (2) Generate HTML reports with Jinja2, (3) Create visualizations, (4) Automate daily scheduling, (5) Test with various data states.",
+			"reasoning": "Automated reporting with templating and visualization introduces moderate complexity, especially in data aggregation and scheduling."
+		},
+		{
+			"taskId": 17,
+			"taskTitle": "Implement Alert System for Translation Issues",
+			"complexityScore": 6,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Break down into: (1) Scan for validation issues, (2) Implement alert threshold and cooldown logic, (3) Send email notifications, (4) Send Slack notifications, (5) Test alert delivery and spam prevention.",
+			"reasoning": "Alerting involves external integrations, threshold logic, and concurrency, making it moderately complex."
+		},
+		{
+			"taskId": 18,
+			"taskTitle": "Create System Health Dashboard",
+			"complexityScore": 7,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Expand into: (1) Design dashboard UI and endpoints, (2) Implement real-time metrics collection, (3) Integrate Plotly Dash for visualization, (4) Set up WebSocket updates, (5) Handle concurrent users, (6) Test dashboard performance.",
+			"reasoning": "Building a real-time dashboard with live updates, visualization, and concurrency is a complex, multi-faceted task."
+		},
+		{
+			"taskId": 19,
+			"taskTitle": "Implement Rollback and Recovery Procedures",
+			"complexityScore": 7,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Decompose into: (1) Design checkpoint and rollback architecture, (2) Implement database and file backup, (3) Log operations and checkpoints, (4) Implement rollback logic, (5) Test rollback in failure scenarios, (6) Manage checkpoint cleanup.",
+			"reasoning": "Rollback and recovery require careful state management, error handling, and testing for data integrity, making this a high-complexity task."
+		},
+		{
+			"taskId": 20,
+			"taskTitle": "Create Comprehensive Documentation and Monitoring Setup",
+			"complexityScore": 5,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Expand into: (1) Document validation procedures and runbooks, (2) Set up MkDocs site structure, (3) Implement Prometheus monitoring metrics, (4) Test documentation and monitoring integration.",
+			"reasoning": "Documentation and monitoring setup are essential but follow established tools and patterns, with moderate complexity mainly in integration and completeness."
 		}
 	]
 }
