@@ -3,148 +3,1170 @@
     "tasks": [
       {
         "id": 1,
-        "title": "Setup Database Schema and Initial Environment",
-        "description": "Create SQLite database schema for media_tracking.db with quality_evaluations table and configure project structure",
-        "details": "Create SQLite database with schema:\n```sql\nCREATE TABLE quality_evaluations (\n    id INTEGER PRIMARY KEY AUTOINCREMENT,\n    file_id TEXT NOT NULL,\n    language TEXT NOT NULL,\n    model TEXT NOT NULL,\n    score REAL NOT NULL,\n    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,\n    content_accuracy REAL,\n    speech_patterns REAL,\n    cultural_context REAL,\n    reliability REAL\n);\nCREATE INDEX idx_hebrew_scores ON quality_evaluations(language, model, score);\n```\nCreate directory structure:\n- output/{file_id}/\n- chunks/\n- scripts/\nInstall dependencies: sqlite3, uv (Python package manager)",
-        "testStrategy": "Verify database creation with: sqlite3 media_tracking.db '.schema'\nCheck directory structure exists\nInsert test record and query to validate indexes work correctly",
+        "title": "Create Comprehensive System Backup",
+        "description": "Create full backup of database and all translation files before making any changes to ensure rollback capability",
+        "details": "Use Python's shutil and sqlite3 libraries to create timestamped backups. Implementation:\n```python\nimport shutil\nimport sqlite3\nimport datetime\nimport os\n\nbackup_dir = f'backups/{datetime.datetime.now().strftime(\"%Y%m%d_%H%M%S\")}'\nos.makedirs(backup_dir, exist_ok=True)\n\n# Backup database\nshutil.copy2('scribe.db', f'{backup_dir}/scribe.db')\n\n# Backup translation directories\nfor lang in ['en', 'de', 'he']:\n    shutil.copytree(f'translations/{lang}', f'{backup_dir}/translations/{lang}')\n```\nAlso create a manifest file documenting current state statistics.",
+        "testStrategy": "Verify backup integrity by comparing file counts, sizes, and checksums between original and backup. Test restore procedure on a test environment.",
         "priority": "high",
         "dependencies": [],
         "status": "pending",
-        "subtasks": []
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Prepare Backup Directory and Timestamping",
+            "description": "Create a dedicated backup directory if it does not exist and generate a unique timestamp to organize and identify the backup session.",
+            "dependencies": [],
+            "details": "Use Python's os and datetime modules to create a backup directory structure and generate a timestamp string (e.g., YYYYMMDD_HHMMSS) for naming backup folders or files.",
+            "status": "pending"
+          },
+          {
+            "id": 2,
+            "title": "Backup Database File",
+            "description": "Copy the database file to the prepared backup directory, ensuring the operation is atomic and the file is not corrupted during the process.",
+            "dependencies": [
+              1
+            ],
+            "details": "Use Python's shutil module to copy the database file (e.g., SQLite, MySQL dump) into the timestamped backup directory. Verify the file exists and matches the original size or checksum.",
+            "status": "pending"
+          },
+          {
+            "id": 3,
+            "title": "Backup Translation Directories for Each Language",
+            "description": "Iterate through each language's translation directory and copy its contents into the backup directory, preserving the directory structure.",
+            "dependencies": [
+              2
+            ],
+            "details": "For each language, use shutil.copytree or similar methods to recursively copy translation directories into the backup location. Handle errors if a directory is missing or unreadable.",
+            "status": "pending"
+          },
+          {
+            "id": 4,
+            "title": "Generate and Verify Manifest File with State Statistics",
+            "description": "Create a manifest file in the backup directory listing all backed-up files and directories, including metadata such as file sizes, checksums, and timestamps. Verify the manifest matches the actual backup state.",
+            "dependencies": [
+              3
+            ],
+            "details": "Use Python's os and hashlib modules to walk the backup directory, collect file statistics, and write them to a manifest file (e.g., JSON or CSV). After generation, re-parse the manifest and compare with the backup contents to ensure consistency.",
+            "status": "pending"
+          }
+        ]
       },
       {
         "id": 2,
-        "title": "Implement Low Score Query Module",
-        "description": "Create module to identify Hebrew translations scoring below 8.5 threshold",
-        "details": "Create Python module `query_low_scores.py`:\n```python\nimport sqlite3\nimport csv\n\ndef export_low_hebrew_scores(db_path='media_tracking.db', output_file='low_hebrew.tsv'):\n    conn = sqlite3.connect(db_path)\n    cursor = conn.cursor()\n    \n    query = '''\n    SELECT file_id, score \n    FROM quality_evaluations\n    WHERE language='he' \n      AND model!='sanity-check' \n      AND score < 8.5\n    ORDER BY score ASC\n    '''\n    \n    cursor.execute(query)\n    results = cursor.fetchall()\n    \n    with open(output_file, 'w', newline='') as f:\n        writer = csv.writer(f, delimiter='\\t')\n        writer.writerows(results)\n    \n    conn.close()\n    return len(results)\n```\nAdd CLI wrapper for easy execution",
-        "testStrategy": "Insert test records with various scores (7.0, 8.0, 8.5, 9.0)\nRun query and verify only scores < 8.5 are returned\nValidate TSV format with tab separation",
+        "title": "Implement Comprehensive Audit Script",
+        "description": "Create audit script to identify all discrepancies between database and filesystem, documenting Hebrew translation issues",
+        "details": "Create audit_system.py using Python 3.11+ with asyncio for performance:\n```python\nimport asyncio\nimport sqlite3\nimport os\nimport json\nfrom pathlib import Path\nimport hashlib\n\nasync def audit_translation(file_path):\n    content = await asyncio.to_thread(Path(file_path).read_text, encoding='utf-8')\n    return {\n        'exists': True,\n        'has_placeholder': '[HEBREW TRANSLATION]' in content,\n        'char_count': len(content),\n        'hash': hashlib.md5(content.encode()).hexdigest(),\n        'contains_hebrew': any('\\u0590' <= c <= '\\u05FF' for c in content)\n    }\n```\nGenerate detailed JSON report with statistics for each language.",
+        "testStrategy": "Test against known good/bad translation files. Verify audit correctly identifies all 328 placeholder files and 51 missing files mentioned in PRD.",
         "priority": "high",
         "dependencies": [
           1
         ],
         "status": "pending",
-        "subtasks": []
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Design Audit Data Structures",
+            "description": "Define and document the data structures required to represent audit information, including file metadata, database records, and discrepancy details.",
+            "dependencies": [],
+            "details": "Specify schemas for storing file paths, sizes, timestamps, database record identifiers, and fields for tracking discrepancies. Ensure structures are suitable for efficient comparison and reporting.",
+            "status": "pending"
+          },
+          {
+            "id": 2,
+            "title": "Implement Async File Reading and Analysis",
+            "description": "Develop asynchronous routines to read and analyze files from the filesystem, collecting relevant metadata for audit comparison.",
+            "dependencies": [
+              1
+            ],
+            "details": "Use appropriate async libraries or language features (e.g., asyncio in Python, CompletableFuture in Java, async/await in C#) to efficiently scan and process files, populating the audit data structures.",
+            "status": "pending"
+          },
+          {
+            "id": 3,
+            "title": "Compare Database and Filesystem for Discrepancies",
+            "description": "Implement logic to compare the collected filesystem data with database records, identifying and recording any mismatches or missing entries.",
+            "dependencies": [
+              2
+            ],
+            "details": "Cross-reference file metadata with database entries, flagging discrepancies such as missing files, orphaned database records, or mismatched attributes.",
+            "status": "pending"
+          },
+          {
+            "id": 4,
+            "title": "Generate JSON Report with Statistics",
+            "description": "Create a module to generate a comprehensive JSON report summarizing audit results, including statistics on matches, mismatches, and overall integrity.",
+            "dependencies": [
+              3
+            ],
+            "details": "Format the audit findings into a structured JSON document, including counts, lists of discrepancies, and summary statistics for easy consumption and further analysis.",
+            "status": "pending"
+          },
+          {
+            "id": 5,
+            "title": "Validate Audit Results Against Known Issues",
+            "description": "Develop validation routines to cross-check audit results with a list of known issues, ensuring accuracy and highlighting any unexpected findings.",
+            "dependencies": [
+              4
+            ],
+            "details": "Compare the generated discrepancies with a predefined set of known issues, marking resolved, recurring, or new problems for further investigation.",
+            "status": "pending"
+          }
+        ]
       },
       {
         "id": 3,
-        "title": "Build Text Chunking Utility",
-        "description": "Implement utility to split large text files into manageable 2-3k character chunks for processing",
-        "details": "Create `text_chunker.py`:\n```python\nimport os\nimport math\n\ndef chunk_text_file(input_path, output_dir, prefix, chunk_size=2000):\n    os.makedirs(output_dir, exist_ok=True)\n    \n    with open(input_path, 'r', encoding='utf-8') as f:\n        content = f.read()\n    \n    chunks = []\n    for i in range(0, len(content), chunk_size):\n        chunk = content[i:i+chunk_size]\n        # Try to break at sentence boundary\n        if i + chunk_size < len(content):\n            last_period = chunk.rfind('.')\n            if last_period > chunk_size * 0.8:\n                chunk = content[i:i+last_period+1]\n        chunks.append(chunk)\n    \n    for idx, chunk in enumerate(chunks):\n        output_path = os.path.join(output_dir, f'{prefix}{idx:03d}.txt')\n        with open(output_path, 'w', encoding='utf-8') as f:\n            f.write(chunk)\n    \n    return len(chunks)\n```\nHandle both English and Hebrew text with proper encoding",
-        "testStrategy": "Test with sample 10k character text file\nVerify chunks are ~2000 chars each\nEnsure no data loss when reassembling chunks\nTest with Hebrew UTF-8 text",
-        "priority": "medium",
-        "dependencies": [
-          1
-        ],
-        "status": "pending",
-        "subtasks": []
-      },
-      {
-        "id": 4,
-        "title": "Create Claude API Integration Module",
-        "description": "Implement module to interact with Claude API for translation improvements",
-        "details": "Create `claude_translator.py`:\n```python\nimport anthropic\nimport json\nfrom typing import Dict, Optional\n\nclass ClaudeTranslator:\n    def __init__(self, api_key: str):\n        self.client = anthropic.Anthropic(api_key=api_key)\n    \n    def improve_translation(self, english_text: str, hebrew_text: str, \n                          score: float, mode: str = 'full') -> str:\n        if mode == 'full':\n            system_prompt = \"You are a professional Hebrew linguist who preserves historical speech patterns faithfully.\"\n            user_prompt = f'''Below is an English transcript followed by its current Hebrew translation. \nThe translation scored {score}/10 on a 4-part rubric:\n1⃣ Content accuracy 40%\n2⃣ Speech patterns 30%\n3⃣ Cultural context 15%\n4⃣ Reliability 15%\n\nPlease rewrite the Hebrew so that it would earn at least 9/10 on all criteria.\nKeep speaker quirks and era-appropriate expressions.\nReturn ONLY the improved Hebrew text, no explanations.\n\n--- ENGLISH TRANSCRIPT ---\n{english_text}\n\n--- CURRENT HEBREW TRANSLATION ---\n{hebrew_text}'''\n        \n        response = self.client.messages.create(\n            model=\"claude-3-opus-20240229\",\n            max_tokens=4000,\n            system=system_prompt,\n            messages=[{\"role\": \"user\", \"content\": user_prompt}]\n        )\n        \n        return response.content[0].text\n```\nAdd error handling, retry logic, and rate limiting",
-        "testStrategy": "Mock Claude API responses for unit tests\nTest with small sample translations\nVerify proper error handling for API failures\nValidate Hebrew text encoding is preserved",
+        "title": "Fix Database Status Accuracy",
+        "description": "Update database to reflect actual filesystem state, correcting the false 100% Hebrew completion status",
+        "details": "Implement database correction script using sqlite3 with transaction safety:\n```python\nimport sqlite3\nfrom contextlib import contextmanager\n\n@contextmanager\ndef db_transaction(db_path):\n    conn = sqlite3.connect(db_path)\n    conn.row_factory = sqlite3.Row\n    try:\n        yield conn\n        conn.commit()\n    except Exception:\n        conn.rollback()\n        raise\n    finally:\n        conn.close()\n\n# Update statuses based on audit results\nwith db_transaction('scribe.db') as conn:\n    cursor = conn.cursor()\n    # Mark incomplete translations\n    cursor.execute('''\n        UPDATE translations \n        SET status = 'incomplete', \n            updated_at = datetime('now')\n        WHERE language = 'he' \n        AND file_id IN (?)\n    ''', (placeholder_file_ids,))\n```",
+        "testStrategy": "Query database before and after to verify Hebrew completion percentage changes from 100% to ~48%. Validate transaction rollback on error.",
         "priority": "high",
         "dependencies": [
-          1
-        ],
-        "status": "pending",
-        "subtasks": []
-      },
-      {
-        "id": 5,
-        "title": "Implement Translation File Manager",
-        "description": "Create module to read, write, and manage translation files in the output directory structure",
-        "details": "Create `file_manager.py`:\n```python\nimport os\nimport shutil\nfrom datetime import datetime\n\nclass TranslationFileManager:\n    def __init__(self, base_dir='output'):\n        self.base_dir = base_dir\n    \n    def get_file_paths(self, file_id: str) -> Dict[str, str]:\n        file_dir = os.path.join(self.base_dir, file_id)\n        return {\n            'english': os.path.join(file_dir, f'{file_id}.txt'),\n            'hebrew': os.path.join(file_dir, f'{file_id}.he.txt'),\n            'backup': os.path.join(file_dir, f'{file_id}.he.txt.bak')\n        }\n    \n    def read_translation_pair(self, file_id: str) -> tuple[str, str]:\n        paths = self.get_file_paths(file_id)\n        \n        with open(paths['english'], 'r', encoding='utf-8') as f:\n            english = f.read()\n        \n        with open(paths['hebrew'], 'r', encoding='utf-8') as f:\n            hebrew = f.read()\n        \n        return english, hebrew\n    \n    def save_improved_translation(self, file_id: str, improved_hebrew: str, \n                                backup: bool = True) -> None:\n        paths = self.get_file_paths(file_id)\n        \n        if backup and os.path.exists(paths['hebrew']):\n            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')\n            backup_path = f\"{paths['hebrew']}.bak.{timestamp}\"\n            shutil.copy2(paths['hebrew'], backup_path)\n        \n        with open(paths['hebrew'], 'w', encoding='utf-8') as f:\n            f.write(improved_hebrew)\n```",
-        "testStrategy": "Create test file structure with sample translations\nTest read/write operations with Hebrew text\nVerify backup creation with timestamps\nTest error handling for missing files",
-        "priority": "medium",
-        "dependencies": [
-          1
-        ],
-        "status": "pending",
-        "subtasks": []
-      },
-      {
-        "id": 6,
-        "title": "Develop Hebrew Evaluation Script",
-        "description": "Create or enhance evaluate_hebrew_improved.py script to re-evaluate translations",
-        "details": "Create `evaluate_hebrew_improved.py`:\n```python\nimport argparse\nimport sqlite3\nimport openai\nfrom datetime import datetime\n\ndef evaluate_hebrew_translation(file_id: str, model: str = 'gpt-4-turbo-preview', \n                              db_path: str = 'media_tracking.db') -> float:\n    # Read translation files\n    file_mgr = TranslationFileManager()\n    english, hebrew = file_mgr.read_translation_pair(file_id)\n    \n    # Prepare evaluation prompt\n    prompt = f'''Evaluate this Hebrew translation on a scale of 0-10:\n    \n    English: {english[:1000]}...\n    Hebrew: {hebrew[:1000]}...\n    \n    Score based on:\n    1. Content accuracy (40%)\n    2. Speech patterns preservation (30%)\n    3. Cultural context (15%)\n    4. Overall reliability (15%)\n    \n    Return only a numeric score.'''\n    \n    # Call evaluation model\n    response = openai.ChatCompletion.create(\n        model=model,\n        messages=[{\"role\": \"user\", \"content\": prompt}]\n    )\n    \n    score = float(response.choices[0].message.content.strip())\n    \n    # Store in database\n    conn = sqlite3.connect(db_path)\n    cursor = conn.cursor()\n    cursor.execute('''\n        INSERT INTO quality_evaluations \n        (file_id, language, model, score, timestamp)\n        VALUES (?, ?, ?, ?, ?)\n    ''', (file_id, 'he', model, score, datetime.now()))\n    conn.commit()\n    conn.close()\n    \n    return score\n\nif __name__ == '__main__':\n    parser = argparse.ArgumentParser()\n    parser.add_argument('--file', required=True)\n    parser.add_argument('--model', default='gpt-4-turbo-preview')\n    parser.add_argument('--limit', type=int, default=1)\n    args = parser.parse_args()\n    \n    score = evaluate_hebrew_translation(args.file, args.model)\n    print(f\"Score: {score}\")\n```",
-        "testStrategy": "Test with known good/bad translations\nVerify scores are stored correctly in database\nTest different evaluation models\nValidate score ranges (0-10)",
-        "priority": "high",
-        "dependencies": [
-          1,
           2
         ],
         "status": "pending",
-        "subtasks": []
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Parse Audit Results for Incomplete Files",
+            "description": "Extract and identify incomplete files from the audit results to prepare for database updates.",
+            "dependencies": [],
+            "details": "This involves reading the audit output, filtering for entries marked as incomplete, and structuring the data for further processing.",
+            "status": "pending"
+          },
+          {
+            "id": 2,
+            "title": "Implement Database Update Logic with Transaction Safety",
+            "description": "Develop logic to update the database records for incomplete files, ensuring all operations are wrapped in a transaction for atomicity and consistency.",
+            "dependencies": [
+              1
+            ],
+            "details": "Use database transactions to guarantee that either all updates succeed or none are applied, following ACID principles for reliability and rollback on error.",
+            "status": "pending"
+          },
+          {
+            "id": 3,
+            "title": "Update Status Fields and Timestamps",
+            "description": "Modify the relevant status fields and timestamps in the database for each incomplete file as part of the transaction.",
+            "dependencies": [
+              2
+            ],
+            "details": "Ensure that the status and timestamp fields are accurately updated for each record, and that these changes are included in the transaction scope.",
+            "status": "pending"
+          },
+          {
+            "id": 4,
+            "title": "Test and Verify Rollback on Error",
+            "description": "Simulate errors during the update process to confirm that the transaction is rolled back and no partial updates are committed.",
+            "dependencies": [
+              3
+            ],
+            "details": "Introduce controlled failures and verify that the database remains consistent, with no changes applied if an error occurs during the transaction.",
+            "status": "pending"
+          }
+        ]
       },
       {
-        "id": 7,
-        "title": "Build Batch Processing Pipeline",
-        "description": "Create automated pipeline to process all low-scoring translations in batch",
-        "details": "Create `batch_processor.py`:\n```python\nimport csv\nimport time\nimport logging\nfrom concurrent.futures import ThreadPoolExecutor, as_completed\n\nclass BatchTranslationImprover:\n    def __init__(self, claude_api_key: str, max_workers: int = 3):\n        self.translator = ClaudeTranslator(claude_api_key)\n        self.file_mgr = TranslationFileManager()\n        self.max_workers = max_workers\n        logging.basicConfig(level=logging.INFO)\n    \n    def process_file(self, file_id: str, current_score: float) -> dict:\n        try:\n            # Read files\n            english, hebrew = self.file_mgr.read_translation_pair(file_id)\n            \n            # Check if chunking needed\n            if len(hebrew) > 3000:\n                # Process in chunks\n                improved_chunks = []\n                chunks = chunk_text(hebrew, 2000)\n                en_chunks = chunk_text(english, 2000)\n                \n                for en_chunk, he_chunk in zip(en_chunks, chunks):\n                    improved = self.translator.improve_translation(\n                        en_chunk, he_chunk, current_score\n                    )\n                    improved_chunks.append(improved)\n                    time.sleep(1)  # Rate limiting\n                \n                improved_hebrew = ''.join(improved_chunks)\n            else:\n                improved_hebrew = self.translator.improve_translation(\n                    english, hebrew, current_score\n                )\n            \n            # Save improved version\n            self.file_mgr.save_improved_translation(file_id, improved_hebrew)\n            \n            # Re-evaluate\n            new_score = evaluate_hebrew_translation(file_id)\n            \n            return {\n                'file_id': file_id,\n                'old_score': current_score,\n                'new_score': new_score,\n                'success': new_score >= 8.5\n            }\n            \n        except Exception as e:\n            logging.error(f\"Error processing {file_id}: {e}\")\n            return {\n                'file_id': file_id,\n                'old_score': current_score,\n                'error': str(e)\n            }\n    \n    def process_batch(self, tsv_file: str = 'low_hebrew.tsv') -> list:\n        results = []\n        \n        with open(tsv_file, 'r') as f:\n            reader = csv.reader(f, delimiter='\\t')\n            files = [(row[0], float(row[1])) for row in reader]\n        \n        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:\n            futures = {\n                executor.submit(self.process_file, file_id, score): (file_id, score)\n                for file_id, score in files\n            }\n            \n            for future in as_completed(futures):\n                result = future.result()\n                results.append(result)\n                logging.info(f\"Processed {result['file_id']}: \"\n                           f\"{result.get('old_score', 'N/A')} -> \"\n                           f\"{result.get('new_score', 'N/A')}\")\n        \n        return results\n```",
-        "testStrategy": "Test with small batch of 2-3 files\nVerify concurrent processing works correctly\nTest error recovery and logging\nValidate all files reach 8.5+ score",
-        "priority": "medium",
+        "id": 4,
+        "title": "Setup OpenAI API Integration for Retranslation",
+        "description": "Configure OpenAI API client with rate limiting and cost tracking for Hebrew retranslation",
+        "details": "Use openai==1.12.0 with tenacity for retry logic:\n```python\nimport openai\nfrom tenacity import retry, stop_after_attempt, wait_exponential\nimport asyncio\nfrom dataclasses import dataclass\n\n@dataclass\nclass APIUsageTracker:\n    total_tokens: int = 0\n    total_cost: float = 0.0\n    \nclient = openai.AsyncOpenAI(api_key=os.getenv('OPENAI_API_KEY'))\n\n@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))\nasync def translate_to_hebrew(text: str, tracker: APIUsageTracker):\n    response = await client.chat.completions.create(\n        model='gpt-4-turbo-preview',\n        messages=[{\n            'role': 'system',\n            'content': 'You are a professional translator. Translate the following English text to Hebrew accurately.'\n        }, {\n            'role': 'user',\n            'content': text\n        }],\n        temperature=0.3\n    )\n    tracker.total_tokens += response.usage.total_tokens\n    tracker.total_cost += calculate_cost(response.usage)\n    return response.choices[0].message.content\n```",
+        "testStrategy": "Test API connection with small sample. Verify cost tracking accuracy. Test retry logic with simulated failures.",
+        "priority": "high",
         "dependencies": [
-          2,
-          3,
-          4,
-          5,
-          6
+          3
         ],
         "status": "pending",
-        "subtasks": []
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Configure OpenAI API Client",
+            "description": "Set up the OpenAI API client in Python, ensuring secure handling of API keys and proper initialization using environment variables.",
+            "dependencies": [],
+            "details": "Install the OpenAI Python SDK, load API keys from environment variables (using python-dotenv if needed), and instantiate the OpenAI client as per official documentation.",
+            "status": "pending"
+          },
+          {
+            "id": 2,
+            "title": "Implement Rate Limiting and Retry Logic",
+            "description": "Add logic to handle OpenAI API rate limits and implement retries for transient errors to ensure robust API communication.",
+            "dependencies": [
+              1
+            ],
+            "details": "Monitor API responses for rate limit errors, implement exponential backoff for retries, and ensure compliance with OpenAI's usage policies.",
+            "status": "pending"
+          },
+          {
+            "id": 3,
+            "title": "Track API Usage and Costs",
+            "description": "Integrate mechanisms to monitor and log API usage metrics and associated costs for each request.",
+            "dependencies": [
+              2
+            ],
+            "details": "Capture request/response metadata, log token usage, and periodically summarize costs using OpenAI's response fields and available billing endpoints.",
+            "status": "pending"
+          },
+          {
+            "id": 4,
+            "title": "Integrate with Translation Pipeline",
+            "description": "Connect the configured and robust OpenAI API client to the existing translation pipeline, ensuring seamless data flow.",
+            "dependencies": [
+              3
+            ],
+            "details": "Modify the translation pipeline to use the OpenAI API for translation tasks, passing input data and handling outputs appropriately.",
+            "status": "pending"
+          },
+          {
+            "id": 5,
+            "title": "Test with Sample Data and Error Scenarios",
+            "description": "Validate the integration by running tests with sample data and simulating error scenarios such as rate limits, network failures, and invalid inputs.",
+            "dependencies": [
+              4
+            ],
+            "details": "Create test cases for normal and edge cases, verify error handling, and ensure accurate usage/cost tracking under various conditions.",
+            "status": "pending"
+          }
+        ]
       },
       {
-        "id": 8,
-        "title": "Create Targeted Patch System",
-        "description": "Implement system for applying targeted fixes to specific translation issues",
-        "details": "Create `patch_system.py`:\n```python\nimport re\nfrom typing import List, Dict\n\nclass TranslationPatcher:\n    def __init__(self, claude_translator: ClaudeTranslator):\n        self.translator = claude_translator\n    \n    def identify_issues(self, english: str, hebrew: str) -> List[Dict]:\n        issues = []\n        \n        # Check for number mismatches\n        en_numbers = re.findall(r'\\b\\d+\\b', english)\n        he_numbers = re.findall(r'\\b\\d+\\b', hebrew)\n        if len(en_numbers) != len(he_numbers):\n            issues.append({\n                'type': 'number_mismatch',\n                'description': 'Number count mismatch between translations'\n            })\n        \n        # Check for missing proper nouns\n        en_caps = re.findall(r'\\b[A-Z][a-z]+\\b', english)\n        if len(en_caps) > 0:\n            # Simple heuristic - could be enhanced\n            issues.append({\n                'type': 'proper_noun_check',\n                'description': 'Verify all proper nouns are translated'\n            })\n        \n        return issues\n    \n    def apply_patch(self, hebrew_text: str, issues: List[Dict]) -> str:\n        system_prompt = \"Expert historical Hebrew translator.\"\n        \n        issues_text = '\\n'.join([\n            f\"{i+1}. {issue['description']}\" \n            for i, issue in enumerate(issues)\n        ])\n        \n        user_prompt = f'''The excerpt below contains specific issues (listed after \"ISSUES:\").\nFix ONLY those, leaving everything else unchanged.\nReturn the corrected Hebrew excerpt verbatim—no extra commentary.\n\n--- HEBREW EXCERPT ---\n{hebrew_text}\n\nISSUES:\n{issues_text}'''\n        \n        response = self.translator.client.messages.create(\n            model=\"claude-3-opus-20240229\",\n            max_tokens=4000,\n            system=system_prompt,\n            messages=[{\"role\": \"user\", \"content\": user_prompt}]\n        )\n        \n        return response.content[0].text\n```",
-        "testStrategy": "Test issue identification with known problematic translations\nVerify patches only change targeted issues\nTest with various issue types (numbers, names, idioms)\nValidate Hebrew text integrity after patching",
-        "priority": "low",
+        "id": 5,
+        "title": "Implement Parallel Hebrew Translation Pipeline",
+        "description": "Create efficient parallel processing system to retranslate 379 Hebrew files using asyncio",
+        "details": "Implement using asyncio with semaphore for rate limiting:\n```python\nimport asyncio\nfrom asyncio import Semaphore\nimport aiofiles\n\nclass TranslationPipeline:\n    def __init__(self, max_concurrent=5):\n        self.semaphore = Semaphore(max_concurrent)\n        self.progress = 0\n        self.total = 0\n        \n    async def process_file(self, file_info):\n        async with self.semaphore:\n            try:\n                # Read English source\n                async with aiofiles.open(f'translations/en/{file_info[\"filename\"]}', 'r') as f:\n                    english_text = await f.read()\n                \n                # Translate\n                hebrew_text = await translate_to_hebrew(english_text, self.tracker)\n                \n                # Save Hebrew translation\n                async with aiofiles.open(f'translations/he/{file_info[\"filename\"]}', 'w', encoding='utf-8') as f:\n                    await f.write(hebrew_text)\n                    \n                self.progress += 1\n                print(f'Progress: {self.progress}/{self.total} ({self.progress/self.total*100:.1f}%)')\n            except Exception as e:\n                logging.error(f'Failed to translate {file_info[\"filename\"]}: {e}')\n                raise\n```",
+        "testStrategy": "Test with batch of 10 files first. Monitor memory usage and API rate limits. Verify all 379 files are processed.",
+        "priority": "high",
         "dependencies": [
-          4,
+          4
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Design Pipeline Architecture",
+            "description": "Define the overall structure of the file translation pipeline, including stages for reading, queuing, translation, saving, and monitoring.",
+            "dependencies": [],
+            "details": "Specify the flow of data between components, identify key modules (file reader, queue manager, translation worker, file writer, monitor), and outline how they interact.",
+            "status": "pending"
+          },
+          {
+            "id": 2,
+            "title": "Implement File Reading and Queuing",
+            "description": "Develop the logic to read files and enqueue their contents for processing.",
+            "dependencies": [
+              1
+            ],
+            "details": "Create a file reader that reads input files and places data chunks or lines into a processing queue, ensuring order and efficient resource usage.",
+            "status": "pending"
+          },
+          {
+            "id": 3,
+            "title": "Integrate Translation API Calls",
+            "description": "Connect the pipeline to an external translation API to process queued data.",
+            "dependencies": [
+              2
+            ],
+            "details": "Implement workers that dequeue items, call the translation API, and handle API responses, including error cases and retries.",
+            "status": "pending"
+          },
+          {
+            "id": 4,
+            "title": "Handle Concurrency and Rate Limiting",
+            "description": "Enable parallel processing and enforce API rate limits to prevent overload or throttling.",
+            "dependencies": [
+              3
+            ],
+            "details": "Use concurrency primitives (threads, async tasks, etc.) to process multiple items in parallel, and implement mechanisms to respect API rate limits.",
+            "status": "pending"
+          },
+          {
+            "id": 5,
+            "title": "Save Translated Files",
+            "description": "Write the translated output to files, ensuring data integrity and correct mapping to original inputs.",
+            "dependencies": [
+              4
+            ],
+            "details": "Implement logic to collect translated data and save it to the appropriate output files, handling partial results and file naming conventions.",
+            "status": "pending"
+          },
+          {
+            "id": 6,
+            "title": "Monitor Progress and Handle Errors",
+            "description": "Track pipeline progress and implement robust error handling and logging.",
+            "dependencies": [
+              5
+            ],
+            "details": "Add monitoring to report on processing status, log errors, and provide mechanisms for retrying or skipping failed items.",
+            "status": "pending"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Create Missing Hebrew Translation Files",
+        "description": "Generate the 51 missing Hebrew translation files identified in the audit",
+        "details": "Extend translation pipeline to handle missing files:\n```python\nasync def create_missing_translations(missing_files):\n    for file_info in missing_files:\n        source_path = f'translations/en/{file_info[\"filename\"]}'\n        target_path = f'translations/he/{file_info[\"filename\"]}'\n        \n        if not os.path.exists(source_path):\n            logging.error(f'Source file missing: {source_path}')\n            continue\n            \n        # Ensure directory exists\n        os.makedirs(os.path.dirname(target_path), exist_ok=True)\n        \n        # Add to translation queue\n        await translation_queue.put({\n            'source': source_path,\n            'target': target_path,\n            'file_id': file_info['id']\n        })\n```",
+        "testStrategy": "Verify all 51 files are created. Check file permissions and encoding. Validate content is actual Hebrew.",
+        "priority": "high",
+        "dependencies": [
           5
         ],
         "status": "pending",
-        "subtasks": []
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Identify Missing Files from Audit",
+            "description": "Analyze the results of the recent audit to determine which files are missing and need to be processed for translation.",
+            "dependencies": [],
+            "details": "Review the audit logs or reports to extract a list of files that are not present in the target location or have not yet been translated. Document these missing files for further processing.",
+            "status": "pending"
+          },
+          {
+            "id": 2,
+            "title": "Prepare Source and Target Paths",
+            "description": "For each missing file identified, determine the correct source file location and define the intended target path for the translated output.",
+            "dependencies": [
+              1
+            ],
+            "details": "Map each missing file to its corresponding source directory and specify where the translated file should be created. Ensure paths are valid and accessible for the translation process.",
+            "status": "pending"
+          },
+          {
+            "id": 3,
+            "title": "Queue Files for Translation",
+            "description": "Add the prepared files to the translation pipeline or queue, ensuring all necessary metadata and paths are included.",
+            "dependencies": [
+              2
+            ],
+            "details": "Use the translation management system or pipeline to enqueue the files, providing source and target paths, and any required context or metadata for accurate translation.",
+            "status": "pending"
+          },
+          {
+            "id": 4,
+            "title": "Verify Creation and Content of New Files",
+            "description": "After translation, check that new files have been created in the target locations and validate their content for completeness and correctness.",
+            "dependencies": [
+              3
+            ],
+            "details": "Perform file existence checks and content validation (e.g., format, completeness, and accuracy) to ensure the translation process was successful and the files meet quality standards.",
+            "status": "pending"
+          }
+        ]
       },
       {
-        "id": 9,
-        "title": "Implement Progress Monitoring Dashboard",
-        "description": "Create monitoring system to track improvement progress and generate reports",
-        "details": "Create `progress_monitor.py`:\n```python\nimport sqlite3\nimport json\nfrom datetime import datetime, timedelta\nimport matplotlib.pyplot as plt\n\nclass ProgressMonitor:\n    def __init__(self, db_path='media_tracking.db'):\n        self.db_path = db_path\n    \n    def get_current_status(self) -> dict:\n        conn = sqlite3.connect(self.db_path)\n        cursor = conn.cursor()\n        \n        # Count files below threshold\n        cursor.execute('''\n            SELECT COUNT(DISTINCT file_id)\n            FROM quality_evaluations\n            WHERE language='he' AND model!='sanity-check' AND score < 8.5\n        ''')\n        below_threshold = cursor.fetchone()[0]\n        \n        # Get score statistics\n        cursor.execute('''\n            SELECT AVG(score), MIN(score), MAX(score), COUNT(DISTINCT file_id)\n            FROM quality_evaluations\n            WHERE language='he' AND model!='sanity-check'\n        ''')\n        avg_score, min_score, max_score, total_files = cursor.fetchone()\n        \n        # Get improvement trends\n        cursor.execute('''\n            WITH RankedScores AS (\n                SELECT file_id, score, timestamp,\n                       ROW_NUMBER() OVER (PARTITION BY file_id ORDER BY timestamp DESC) as rn\n                FROM quality_evaluations\n                WHERE language='he' AND model!='sanity-check'\n            )\n            SELECT COUNT(*) \n            FROM RankedScores\n            WHERE rn = 1 AND score >= 8.5\n        ''')\n        above_threshold = cursor.fetchone()[0]\n        \n        conn.close()\n        \n        return {\n            'timestamp': datetime.now().isoformat(),\n            'total_files': total_files,\n            'below_threshold': below_threshold,\n            'above_threshold': above_threshold,\n            'average_score': round(avg_score, 2) if avg_score else 0,\n            'min_score': min_score,\n            'max_score': max_score,\n            'completion_percentage': round((above_threshold / total_files * 100), 1) if total_files > 0 else 0\n        }\n    \n    def generate_report(self, output_file='hebrew_improvement_report.json'):\n        status = self.get_current_status()\n        \n        conn = sqlite3.connect(self.db_path)\n        cursor = conn.cursor()\n        \n        # Get files still needing work\n        cursor.execute('''\n            WITH LatestScores AS (\n                SELECT file_id, score, \n                       ROW_NUMBER() OVER (PARTITION BY file_id ORDER BY timestamp DESC) as rn\n                FROM quality_evaluations\n                WHERE language='he' AND model!='sanity-check'\n            )\n            SELECT file_id, score\n            FROM LatestScores\n            WHERE rn = 1 AND score < 8.5\n            ORDER BY score ASC\n        ''')\n        \n        remaining_files = [\n            {'file_id': row[0], 'score': row[1]} \n            for row in cursor.fetchall()\n        ]\n        \n        conn.close()\n        \n        report = {\n            'status': status,\n            'remaining_files': remaining_files,\n            'estimated_completion_time': self._estimate_completion_time(len(remaining_files))\n        }\n        \n        with open(output_file, 'w') as f:\n            json.dump(report, f, indent=2)\n        \n        return report\n    \n    def _estimate_completion_time(self, remaining_count: int, \n                                 avg_processing_time_minutes: int = 5) -> str:\n        total_minutes = remaining_count * avg_processing_time_minutes\n        hours = total_minutes // 60\n        minutes = total_minutes % 60\n        return f\"{hours}h {minutes}m\"\n```",
-        "testStrategy": "Insert test data with various scores and timestamps\nVerify statistics calculations are accurate\nTest report generation with edge cases (no data, all passing)\nValidate JSON output format",
-        "priority": "low",
+        "id": 7,
+        "title": "Implement Content Validation Module",
+        "description": "Create validate_translation_content() method in database.py to check file existence and content validity",
+        "details": "Add to database.py using langdetect==1.0.9 for language detection:\n```python\nfrom langdetect import detect_langs\nimport re\n\nclass TranslationValidator:\n    HEBREW_CHAR_PATTERN = re.compile(r'[\\u0590-\\u05FF]')\n    GERMAN_INDICATORS = ['der', 'die', 'das', 'und', 'ist', 'nicht']\n    \n    def validate_translation_content(self, file_path: str, expected_language: str) -> dict:\n        result = {\n            'valid': False,\n            'exists': os.path.exists(file_path),\n            'issues': []\n        }\n        \n        if not result['exists']:\n            result['issues'].append('File does not exist')\n            return result\n            \n        try:\n            with open(file_path, 'r', encoding='utf-8') as f:\n                content = f.read()\n                \n            # Check for placeholders\n            if '[HEBREW TRANSLATION]' in content or '[TRANSLATION]' in content:\n                result['issues'].append('Contains placeholder text')\n                \n            # Language detection\n            if expected_language == 'he':\n                if not self.HEBREW_CHAR_PATTERN.search(content):\n                    result['issues'].append('No Hebrew characters found')\n                    \n            # Detect language\n            detected_langs = detect_langs(content)\n            primary_lang = detected_langs[0].lang if detected_langs else None\n            \n            if primary_lang != expected_language:\n                result['issues'].append(f'Language mismatch: expected {expected_language}, detected {primary_lang}')\n                \n            result['valid'] = len(result['issues']) == 0\n            result['detected_language'] = primary_lang\n            result['confidence'] = detected_langs[0].prob if detected_langs else 0\n            \n        except Exception as e:\n            result['issues'].append(f'Error reading file: {str(e)}')\n            \n        return result\n```",
+        "testStrategy": "Test with known good translations, placeholder files, wrong language files, and corrupted files. Verify all edge cases are handled.",
+        "priority": "high",
         "dependencies": [
-          1,
-          2,
           6
         ],
         "status": "pending",
-        "subtasks": []
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Implement File Existence Checks",
+            "description": "Develop logic to verify whether the specified file exists and is accessible before proceeding with further validation steps.",
+            "dependencies": [],
+            "details": "This includes checking for file presence, correct path, and basic accessibility (e.g., permissions).",
+            "status": "pending"
+          },
+          {
+            "id": 2,
+            "title": "Detect Placeholders and Invalid Content",
+            "description": "Scan the file for placeholder values (e.g., 'N/A', 'TBD') and content that does not conform to expected formats or patterns.",
+            "dependencies": [
+              1
+            ],
+            "details": "Use regular expressions or pattern matching to identify placeholders and flag content that appears invalid or incomplete.",
+            "status": "pending"
+          },
+          {
+            "id": 3,
+            "title": "Integrate Language Detection",
+            "description": "Incorporate a language detection module to analyze file content and determine its primary language.",
+            "dependencies": [
+              2
+            ],
+            "details": "Utilize a language detection library or API to process the file's text and return the detected language code or name.",
+            "status": "pending"
+          },
+          {
+            "id": 4,
+            "title": "Handle Encoding and Error Cases",
+            "description": "Implement robust handling for file encoding issues and unexpected errors during file reading and validation.",
+            "dependencies": [
+              3
+            ],
+            "details": "Detect and manage encoding mismatches, unreadable files, and other exceptions, ensuring the process fails gracefully with informative error messages.",
+            "status": "pending"
+          },
+          {
+            "id": 5,
+            "title": "Return Structured Validation Results",
+            "description": "Aggregate the outcomes of all validation steps and return a structured result object summarizing file validity, detected issues, and metadata.",
+            "dependencies": [
+              4
+            ],
+            "details": "Design a clear, extensible result schema (e.g., JSON) that includes status, errors, warnings, and relevant file information.",
+            "status": "pending"
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Implement Database Integrity Validation System",
+        "description": "Create validate_and_fix_status() method to ensure database matches filesystem reality",
+        "details": "Implement comprehensive integrity checker:\n```python\nclass DatabaseIntegrityChecker:\n    def __init__(self, db_path: str):\n        self.db_path = db_path\n        self.validator = TranslationValidator()\n        \n    async def validate_and_fix_status(self, dry_run=False):\n        changes = []\n        \n        with db_transaction(self.db_path) as conn:\n            cursor = conn.cursor()\n            \n            # Get all translations\n            cursor.execute('''\n                SELECT t.id, t.file_id, t.language, t.status, f.filename\n                FROM translations t\n                JOIN files f ON t.file_id = f.id\n            ''')\n            \n            for row in cursor.fetchall():\n                file_path = f'translations/{row[\"language\"]}/{row[\"filename\"]}'\n                validation = self.validator.validate_translation_content(file_path, row['language'])\n                \n                new_status = 'complete' if validation['valid'] else 'incomplete'\n                \n                if new_status != row['status']:\n                    changes.append({\n                        'translation_id': row['id'],\n                        'old_status': row['status'],\n                        'new_status': new_status,\n                        'reason': validation['issues']\n                    })\n                    \n                    if not dry_run:\n                        cursor.execute('''\n                            UPDATE translations\n                            SET status = ?, updated_at = datetime('now')\n                            WHERE id = ?\n                        ''', (new_status, row['id']))\n                        \n        # Log all changes\n        with open('integrity_changes.json', 'w') as f:\n            json.dump(changes, f, indent=2)\n            \n        return changes\n```",
+        "testStrategy": "Run in dry-run mode first to preview changes. Verify rollback works correctly. Test with intentionally corrupted data.",
+        "priority": "high",
+        "dependencies": [
+          7
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Retrieve All Translation Records",
+            "description": "Fetch all translation records from the database or storage system to prepare for validation and processing.",
+            "dependencies": [],
+            "details": "Ensure the retrieval process is efficient and can handle large datasets, possibly using pagination or batching if necessary.",
+            "status": "pending"
+          },
+          {
+            "id": 2,
+            "title": "Validate Each Translation File",
+            "description": "Iterate through each translation record and perform validation checks to ensure file integrity and correctness.",
+            "dependencies": [
+              1
+            ],
+            "details": "Implement validation logic to check for missing keys, formatting errors, and language consistency in each translation file.",
+            "status": "pending"
+          },
+          {
+            "id": 3,
+            "title": "Compare and Update Statuses",
+            "description": "Compare the current status of each translation record with validation results and update statuses accordingly.",
+            "dependencies": [
+              2
+            ],
+            "details": "Statuses may include valid, invalid, needs review, or fixed. Ensure updates are transactional to maintain data integrity.",
+            "status": "pending"
+          },
+          {
+            "id": 4,
+            "title": "Support Dry-Run and Fix Modes",
+            "description": "Implement functionality to allow running the process in dry-run mode (no changes applied) and fix mode (attempt to auto-correct issues).",
+            "dependencies": [
+              3
+            ],
+            "details": "Dry-run should report what would change without making updates. Fix mode should attempt automated corrections where possible.",
+            "status": "pending"
+          },
+          {
+            "id": 5,
+            "title": "Log All Changes",
+            "description": "Log all detected issues, status changes, and fixes applied during the process for auditability and debugging.",
+            "dependencies": [
+              4
+            ],
+            "details": "Ensure logs are detailed, timestamped, and include before/after states where applicable.",
+            "status": "pending"
+          },
+          {
+            "id": 6,
+            "title": "Test with Corrupted Data",
+            "description": "Run the entire workflow using intentionally corrupted translation files to verify validation, error handling, and logging.",
+            "dependencies": [
+              5
+            ],
+            "details": "Create test cases with various types of corruption (e.g., missing keys, malformed JSON) and confirm the system responds as expected.",
+            "status": "pending"
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Modify Translation Pipeline for Mandatory Evaluation",
+        "description": "Update translation pipeline to require evaluation before marking any translation as complete",
+        "details": "Modify existing pipeline to enforce evaluation:\n```python\nclass EnhancedTranslationPipeline:\n    MIN_EVALUATION_SCORE = 7.0\n    \n    async def complete_translation(self, translation_id: int) -> bool:\n        # Check file exists\n        file_info = await self.get_translation_info(translation_id)\n        file_path = f'translations/{file_info[\"language\"]}/{file_info[\"filename\"]}'\n        \n        # Validate content\n        validation = self.validator.validate_translation_content(file_path, file_info['language'])\n        if not validation['valid']:\n            raise ValueError(f'Cannot complete translation: {validation[\"issues\"]}')\n            \n        # Check evaluation exists and meets threshold\n        evaluation = await self.get_evaluation(translation_id)\n        if not evaluation:\n            raise ValueError('Cannot complete translation: No evaluation found')\n            \n        if evaluation['score'] < self.MIN_EVALUATION_SCORE:\n            raise ValueError(f'Cannot complete translation: Score {evaluation[\"score\"]} below minimum {self.MIN_EVALUATION_SCORE}')\n            \n        # Update status\n        async with self.db_transaction() as conn:\n            cursor = conn.cursor()\n            cursor.execute('''\n                UPDATE translations\n                SET status = 'complete',\n                    completed_at = datetime('now'),\n                    validation_passed = 1\n                WHERE id = ?\n            ''', (translation_id,))\n            \n        return True\n```",
+        "testStrategy": "Test completion attempts without evaluation, with low scores, and with invalid content. Verify all checks are enforced.",
+        "priority": "high",
+        "dependencies": [
+          8
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Enforce Evaluation Existence Before Completion",
+            "description": "Implement logic to ensure that an evaluation record exists before allowing the completion of the process or workflow.",
+            "dependencies": [],
+            "details": "This step involves adding a validation check that blocks completion actions unless an evaluation entity is present, enforcing the new business rule.",
+            "status": "pending"
+          },
+          {
+            "id": 2,
+            "title": "Check Minimum Evaluation Score",
+            "description": "Add logic to verify that the evaluation score meets or exceeds the defined minimum threshold before proceeding.",
+            "dependencies": [
+              1
+            ],
+            "details": "This subtask ensures that not only does an evaluation exist, but it also satisfies the minimum quality or performance criteria required for completion.",
+            "status": "pending"
+          },
+          {
+            "id": 3,
+            "title": "Integrate Validation Checks",
+            "description": "Combine the existence and score checks into the main validation pipeline to enforce both rules consistently.",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Update the validation layer or middleware to include both the evaluation existence and minimum score checks, ensuring atomic enforcement.",
+            "status": "pending"
+          },
+          {
+            "id": 4,
+            "title": "Update Status and Timestamps",
+            "description": "Modify the workflow to update relevant status fields and timestamps only after all validation checks pass.",
+            "dependencies": [
+              3
+            ],
+            "details": "Ensure that status transitions and completion timestamps are set only when the evaluation requirements are satisfied, maintaining data integrity.",
+            "status": "pending"
+          },
+          {
+            "id": 5,
+            "title": "Test Enforcement Logic",
+            "description": "Develop and execute test cases to verify that the enforcement logic works as intended and handles edge cases.",
+            "dependencies": [
+              4
+            ],
+            "details": "Create unit and integration tests to confirm that completion is blocked without a valid evaluation and minimum score, and that status/timestamps update correctly when requirements are met.",
+            "status": "pending"
+          }
+        ]
       },
       {
         "id": 10,
-        "title": "Create Final Validation and Archive System",
-        "description": "Implement final validation checks and archival system for completed improvements",
-        "details": "Create `final_validation.py`:\n```python\nimport os\nimport shutil\nimport sqlite3\nimport hashlib\nfrom datetime import datetime\nimport tarfile\n\nclass FinalValidator:\n    def __init__(self, db_path='media_tracking.db', archive_dir='archives'):\n        self.db_path = db_path\n        self.archive_dir = archive_dir\n        os.makedirs(archive_dir, exist_ok=True)\n    \n    def validate_all_above_threshold(self) -> tuple[bool, list]:\n        conn = sqlite3.connect(self.db_path)\n        cursor = conn.cursor()\n        \n        cursor.execute('''\n            WITH LatestScores AS (\n                SELECT file_id, score,\n                       ROW_NUMBER() OVER (PARTITION BY file_id ORDER BY timestamp DESC) as rn\n                FROM quality_evaluations\n                WHERE language='he' AND model!='sanity-check'\n            )\n            SELECT file_id, score\n            FROM LatestScores\n            WHERE rn = 1 AND score < 8.5\n        ''')\n        \n        below_threshold = cursor.fetchall()\n        conn.close()\n        \n        return len(below_threshold) == 0, below_threshold\n    \n    def create_archive(self, tag: str = None) -> str:\n        if tag is None:\n            tag = datetime.now().strftime('%Y%m%d_%H%M%S')\n        \n        archive_name = f'hebrew_translations_{tag}.tar.gz'\n        archive_path = os.path.join(self.archive_dir, archive_name)\n        \n        # Create manifest\n        manifest = self._create_manifest()\n        \n        with tarfile.open(archive_path, 'w:gz') as tar:\n            # Add all Hebrew translation files\n            for file_info in manifest['files']:\n                file_path = file_info['path']\n                if os.path.exists(file_path):\n                    tar.add(file_path, arcname=os.path.basename(file_path))\n            \n            # Add manifest\n            manifest_path = os.path.join(self.archive_dir, f'manifest_{tag}.json')\n            with open(manifest_path, 'w') as f:\n                json.dump(manifest, f, indent=2)\n            tar.add(manifest_path, arcname='manifest.json')\n        \n        return archive_path\n    \n    def _create_manifest(self) -> dict:\n        conn = sqlite3.connect(self.db_path)\n        cursor = conn.cursor()\n        \n        cursor.execute('''\n            WITH LatestScores AS (\n                SELECT file_id, score, timestamp,\n                       ROW_NUMBER() OVER (PARTITION BY file_id ORDER BY timestamp DESC) as rn\n                FROM quality_evaluations\n                WHERE language='he' AND model!='sanity-check'\n            )\n            SELECT file_id, score, timestamp\n            FROM LatestScores\n            WHERE rn = 1\n        ''')\n        \n        files = []\n        for file_id, score, timestamp in cursor.fetchall():\n            he_path = f'output/{file_id}/{file_id}.he.txt'\n            if os.path.exists(he_path):\n                with open(he_path, 'rb') as f:\n                    checksum = hashlib.sha256(f.read()).hexdigest()\n                \n                files.append({\n                    'file_id': file_id,\n                    'path': he_path,\n                    'score': score,\n                    'last_evaluated': timestamp,\n                    'checksum': checksum\n                })\n        \n        conn.close()\n        \n        return {\n            'created_at': datetime.now().isoformat(),\n            'total_files': len(files),\n            'all_above_threshold': all(f['score'] >= 8.5 for f in files),\n            'average_score': sum(f['score'] for f in files) / len(files) if files else 0,\n            'files': files\n        }\n    \n    def generate_final_report(self) -> None:\n        is_valid, below = self.validate_all_above_threshold()\n        \n        print(\"\\n=== FINAL VALIDATION REPORT ===\")\n        print(f\"All files above 8.5 threshold: {'YES' if is_valid else 'NO'}\")\n        \n        if not is_valid:\n            print(f\"\\nFiles still below threshold: {len(below)}\")\n            for file_id, score in below:\n                print(f\"  - {file_id}: {score}\")\n        else:\n            conn = sqlite3.connect(self.db_path)\n            cursor = conn.cursor()\n            \n            cursor.execute('''\n                SELECT AVG(score), MIN(score), MAX(score), COUNT(DISTINCT file_id)\n                FROM (\n                    SELECT file_id, score,\n                           ROW_NUMBER() OVER (PARTITION BY file_id ORDER BY timestamp DESC) as rn\n                    FROM quality_evaluations\n                    WHERE language='he' AND model!='sanity-check'\n                ) t\n                WHERE rn = 1\n            ''')\n            \n            avg_score, min_score, max_score, total = cursor.fetchone()\n            conn.close()\n            \n            print(f\"\\nFinal Statistics:\")\n            print(f\"  Total files: {total}\")\n            print(f\"  Average score: {avg_score:.2f}\")\n            print(f\"  Min score: {min_score}\")\n            print(f\"  Max score: {max_score}\")\n            print(\"\\n✅ All Hebrew translations meet quality standards!\")\n\nif __name__ == '__main__':\n    validator = FinalValidator()\n    validator.generate_final_report()\n    \n    is_valid, _ = validator.validate_all_above_threshold()\n    if is_valid:\n        archive_path = validator.create_archive()\n        print(f\"\\nArchive created: {archive_path}\")\n```",
-        "testStrategy": "Test validation with mix of passing and failing scores\nVerify archive creation includes all files with checksums\nTest manifest generation accuracy\nValidate report output format and statistics",
+        "title": "Add Validation Hooks to Pipeline Stages",
+        "description": "Implement validation checks at each stage of the translation pipeline to catch issues early",
+        "details": "Create pipeline hooks using Python decorators:\n```python\nfrom functools import wraps\nimport logging\n\nclass PipelineHooks:\n    @staticmethod\n    def validate_stage(stage_name: str):\n        def decorator(func):\n            @wraps(func)\n            async def wrapper(self, *args, **kwargs):\n                # Pre-validation\n                translation_id = args[0] if args else kwargs.get('translation_id')\n                \n                logging.info(f'Starting {stage_name} for translation {translation_id}')\n                \n                # Stage-specific validation\n                if stage_name == 'translation':\n                    await self.validate_source_exists(translation_id)\n                elif stage_name == 'evaluation':\n                    await self.validate_translation_complete(translation_id)\n                elif stage_name == 'completion':\n                    await self.validate_all_requirements(translation_id)\n                    \n                # Execute stage\n                result = await func(self, *args, **kwargs)\n                \n                # Post-validation\n                await self.log_stage_completion(stage_name, translation_id, result)\n                \n                return result\n            return wrapper\n        return decorator\n        \n    @validate_stage('translation')\n    async def translate_file(self, translation_id: int):\n        # Translation logic here\n        pass\n```",
+        "testStrategy": "Test each hook with valid and invalid inputs. Verify logging captures all stage transitions. Test error propagation.",
         "priority": "medium",
         "dependencies": [
-          1,
-          2,
-          5,
-          6,
           9
         ],
         "status": "pending",
-        "subtasks": []
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Design Decorator-Based Hook System",
+            "description": "Create a flexible decorator-based hook system that allows attaching custom behaviors to pipeline stages. Define interfaces and base classes for hooks and ensure decorators can wrap and extend stage functionality.",
+            "dependencies": [],
+            "details": "Specify how hooks are registered and invoked, and ensure the decorator pattern is used to allow stacking multiple hooks on a single stage.",
+            "status": "pending"
+          },
+          {
+            "id": 2,
+            "title": "Implement Stage-Specific Validation Logic",
+            "description": "Develop validation logic tailored to each pipeline stage. Ensure that each stage can define its own validation rules, which are triggered by the hook system.",
+            "dependencies": [
+              1
+            ],
+            "details": "Implement validation functions or classes for each stage, and ensure they integrate with the decorator-based hook system for modularity.",
+            "status": "pending"
+          },
+          {
+            "id": 3,
+            "title": "Integrate Hooks into Pipeline Stages",
+            "description": "Modify pipeline stages to utilize the decorator-based hook system, ensuring that hooks (including validation) are executed at the appropriate points in each stage.",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Update the pipeline execution flow to call hooks before, after, or around stage logic as needed, maintaining modularity and extensibility.",
+            "status": "pending"
+          },
+          {
+            "id": 4,
+            "title": "Test with Valid and Invalid Inputs",
+            "description": "Develop and run tests to verify that the hook system and validation logic work as intended with both valid and invalid inputs.",
+            "dependencies": [
+              1,
+              2,
+              3
+            ],
+            "details": "Create test cases covering normal and edge scenarios, ensuring that validation errors are caught and hooks behave as expected.",
+            "status": "pending"
+          }
+        ]
+      },
+      {
+        "id": 11,
+        "title": "Create Comprehensive Test Suite Foundation",
+        "description": "Set up test_translation_integrity.py with pytest framework and fixtures for translation testing",
+        "details": "Setup pytest==8.0.0 with async support and fixtures:\n```python\nimport pytest\nimport pytest_asyncio\nimport tempfile\nimport shutil\nfrom pathlib import Path\n\n@pytest.fixture\ndef temp_translation_dir():\n    with tempfile.TemporaryDirectory() as tmpdir:\n        # Create structure\n        for lang in ['en', 'de', 'he']:\n            Path(tmpdir, 'translations', lang).mkdir(parents=True)\n        yield tmpdir\n        \n@pytest.fixture\ndef mock_db():\n    db_path = ':memory:'\n    conn = sqlite3.connect(db_path)\n    # Create schema\n    conn.executescript('''\n        CREATE TABLE files (id INTEGER PRIMARY KEY, filename TEXT);\n        CREATE TABLE translations (\n            id INTEGER PRIMARY KEY,\n            file_id INTEGER,\n            language TEXT,\n            status TEXT,\n            content TEXT\n        );\n    ''')\n    yield conn\n    conn.close()\n    \n@pytest_asyncio.fixture\nasync def translation_validator():\n    validator = TranslationValidator()\n    yield validator\n```",
+        "testStrategy": "Verify all fixtures work correctly. Test fixture cleanup. Ensure async fixtures work with pytest-asyncio.",
+        "priority": "high",
+        "dependencies": [
+          10
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Set up pytest and async fixtures",
+            "description": "Install pytest and pytest-asyncio, configure pytest to support async test functions, and define basic async fixtures using @pytest_asyncio.fixture.",
+            "dependencies": [],
+            "details": "Ensure pytest and pytest-asyncio are installed. Update pytest.ini if needed. Create a sample async fixture using @pytest_asyncio.fixture and verify async test functions run correctly.",
+            "status": "pending"
+          },
+          {
+            "id": 2,
+            "title": "Create temporary directory and database fixtures",
+            "description": "Implement fixtures that provide a temporary directory and a temporary database for tests, ensuring they are compatible with async usage.",
+            "dependencies": [
+              1
+            ],
+            "details": "Use pytest's tmp_path or tmpdir for directory fixtures. For database, create an async fixture that sets up and tears down a test database, possibly using an in-memory database or a temporary file.",
+            "status": "pending"
+          },
+          {
+            "id": 3,
+            "title": "Implement basic validation tests",
+            "description": "Write basic tests that use the async fixtures and temporary resources to validate core functionality.",
+            "dependencies": [
+              2
+            ],
+            "details": "Create async test functions that utilize the temporary directory and database fixtures to perform simple validation, such as CRUD operations or file creation.",
+            "status": "pending"
+          },
+          {
+            "id": 4,
+            "title": "Ensure fixture cleanup and isolation",
+            "description": "Verify that all fixtures properly clean up resources after tests and that tests remain isolated from each other.",
+            "dependencies": [
+              3
+            ],
+            "details": "Check that temporary directories and databases are removed after each test. Confirm that no state leaks between tests by running tests in parallel or in sequence.",
+            "status": "pending"
+          }
+        ]
+      },
+      {
+        "id": 12,
+        "title": "Implement Placeholder Detection Tests",
+        "description": "Create tests to ensure no completed translations contain placeholder text",
+        "details": "Add comprehensive placeholder detection tests:\n```python\nclass TestPlaceholderDetection:\n    KNOWN_PLACEHOLDERS = [\n        '[HEBREW TRANSLATION]',\n        '[TRANSLATION]',\n        '[TODO]',\n        'PLACEHOLDER',\n        '{{translation}}'\n    ]\n    \n    @pytest.mark.parametrize('placeholder', KNOWN_PLACEHOLDERS)\n    async def test_detect_placeholder_content(self, translation_validator, placeholder):\n        # Create test file with placeholder\n        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:\n            f.write(f'Some content {placeholder} more content')\n            f.flush()\n            \n        result = translation_validator.validate_translation_content(f.name, 'he')\n        \n        assert not result['valid']\n        assert 'Contains placeholder text' in result['issues']\n        \n    async def test_no_placeholders_in_completed_translations(self, mock_db):\n        # Query all completed translations\n        cursor = mock_db.cursor()\n        cursor.execute('''\n            SELECT t.id, t.content, f.filename\n            FROM translations t\n            JOIN files f ON t.file_id = f.id\n            WHERE t.status = 'complete'\n        ''')\n        \n        failures = []\n        for row in cursor.fetchall():\n            for placeholder in self.KNOWN_PLACEHOLDERS:\n                if placeholder in row['content']:\n                    failures.append({\n                        'id': row['id'],\n                        'filename': row['filename'],\n                        'placeholder': placeholder\n                    })\n                    \n        assert len(failures) == 0, f'Found {len(failures)} completed translations with placeholders'\n```",
+        "testStrategy": "Test with various placeholder formats. Test edge cases like placeholders in comments. Verify performance with large datasets.",
+        "priority": "high",
+        "dependencies": [
+          11
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Test Detection of Known Placeholders",
+            "description": "Develop and execute tests to ensure the system can accurately identify all known placeholder patterns within the source content.",
+            "dependencies": [],
+            "details": "This includes compiling a list of expected placeholder formats (e.g., {name}, %s, {{variable}}) and verifying that the detection logic flags them correctly in various contexts.",
+            "status": "pending"
+          },
+          {
+            "id": 2,
+            "title": "Test Completed Translations for Placeholder Presence",
+            "description": "Verify that completed translations retain all required placeholders and that none are missing, altered, or incorrectly formatted.",
+            "dependencies": [
+              1
+            ],
+            "details": "This involves comparing the placeholders detected in the source content with those present in the translated output, ensuring one-to-one correspondence and correct formatting.",
+            "status": "pending"
+          },
+          {
+            "id": 3,
+            "title": "Validate Edge Cases and Performance",
+            "description": "Assess the system's handling of edge cases (e.g., nested, malformed, or ambiguous placeholders) and measure performance under large-scale or complex input scenarios.",
+            "dependencies": [
+              2
+            ],
+            "details": "Design tests for unusual or problematic placeholder patterns, and conduct performance benchmarks to ensure the detection and validation processes remain efficient at scale.",
+            "status": "pending"
+          }
+        ]
+      },
+      {
+        "id": 13,
+        "title": "Implement Hebrew Language Validation Tests",
+        "description": "Create tests to verify Hebrew files contain actual Hebrew text and correct character encoding",
+        "details": "Implement Hebrew-specific validation tests:\n```python\nclass TestHebrewValidation:\n    def test_hebrew_character_detection(self):\n        test_cases = [\n            ('שלום עולם', True),  # Valid Hebrew\n            ('Hello World', False),  # English\n            ('Hallo Welt', False),  # German\n            ('שלום Hello', True),  # Mixed (should pass)\n            ('', False),  # Empty\n        ]\n        \n        for text, expected in test_cases:\n            with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', delete=False) as f:\n                f.write(text)\n                f.flush()\n                \n            result = self.validator.validate_translation_content(f.name, 'he')\n            \n            if expected:\n                assert result['valid'], f'Failed to validate valid Hebrew: {text}'\n            else:\n                assert not result['valid'], f'Incorrectly validated invalid Hebrew: {text}'\n                \n    def test_hebrew_encoding_utf8(self):\n        # Test various encodings\n        hebrew_text = 'שלום עולם - Hello World'\n        \n        # Correct encoding\n        with open('test_hebrew.txt', 'w', encoding='utf-8') as f:\n            f.write(hebrew_text)\n            \n        result = self.validator.validate_translation_content('test_hebrew.txt', 'he')\n        assert result['valid']\n        \n        # Wrong encoding (will fail)\n        with open('test_hebrew_wrong.txt', 'wb') as f:\n            f.write(hebrew_text.encode('windows-1255'))\n            \n        result = self.validator.validate_translation_content('test_hebrew_wrong.txt', 'he')\n        assert 'encoding' in str(result['issues']).lower()\n```",
+        "testStrategy": "Test with RTL text, mixed direction text, and various Hebrew Unicode blocks. Verify proper handling of Hebrew punctuation.",
+        "priority": "high",
+        "dependencies": [
+          12
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Test Hebrew Character Detection",
+            "description": "Develop and execute tests to verify that the system can accurately detect and identify Hebrew characters in various input scenarios, including different fonts and handwritten forms.",
+            "dependencies": [],
+            "details": "Include tests for standard Hebrew letters, final forms, and edge cases such as font variations and stylized characters. Reference methods such as pixel distance histograms, CNN-based detection, and bounding box localization as described in the literature.",
+            "status": "pending"
+          },
+          {
+            "id": 2,
+            "title": "Test UTF-8 Encoding Validation",
+            "description": "Create and run tests to ensure that the system correctly validates UTF-8 encoding for input data, including Hebrew characters and other Unicode blocks.",
+            "dependencies": [
+              1
+            ],
+            "details": "Test with valid and invalid UTF-8 sequences, including Hebrew Unicode ranges (U+05D0–U+05EF) and mixed content. Ensure the system can distinguish between properly and improperly encoded data.",
+            "status": "pending"
+          },
+          {
+            "id": 3,
+            "title": "Test Mixed and Edge Case Content",
+            "description": "Design and execute tests that combine Hebrew, non-Hebrew, and malformed content to evaluate the system's robustness in handling mixed and edge case scenarios.",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Include tests with mixed scripts (e.g., Hebrew and Latin), incomplete or corrupted UTF-8 sequences, and rare or ambiguous character combinations. Assess detection accuracy and encoding validation under these conditions.",
+            "status": "pending"
+          }
+        ]
+      },
+      {
+        "id": 14,
+        "title": "Implement Database-Filesystem Consistency Tests",
+        "description": "Create tests to ensure database records match actual filesystem state",
+        "details": "Implement consistency verification tests:\n```python\nclass TestDatabaseFilesystemConsistency:\n    async def test_all_db_translations_have_files(self, mock_db, temp_translation_dir):\n        # Setup test data\n        cursor = mock_db.cursor()\n        cursor.execute('INSERT INTO files VALUES (1, \"test.txt\")')\n        cursor.execute('INSERT INTO translations VALUES (1, 1, \"he\", \"complete\", \"content\")')\n        \n        # Create corresponding file\n        Path(temp_translation_dir, 'translations/he/test.txt').write_text('שלום')\n        \n        # Run consistency check\n        checker = DatabaseIntegrityChecker(mock_db)\n        issues = await checker.find_missing_files()\n        \n        assert len(issues) == 0, f'Found {len(issues)} missing files'\n        \n    async def test_detect_orphaned_files(self, mock_db, temp_translation_dir):\n        # Create file without DB record\n        orphan_path = Path(temp_translation_dir, 'translations/he/orphan.txt')\n        orphan_path.write_text('Orphaned content')\n        \n        checker = DatabaseIntegrityChecker(mock_db)\n        orphans = await checker.find_orphaned_files(temp_translation_dir)\n        \n        assert len(orphans) == 1\n        assert 'orphan.txt' in orphans[0]\n        \n    @pytest.mark.parametrize('status,file_exists,expected_valid', [\n        ('complete', True, True),\n        ('complete', False, False),\n        ('incomplete', False, True),\n        ('incomplete', True, True),\n    ])\n    async def test_status_file_existence_rules(self, status, file_exists, expected_valid):\n        # Test business rules for status vs file existence\n        pass\n```",
+        "testStrategy": "Test with large datasets to ensure performance. Verify transaction handling. Test concurrent access scenarios.",
+        "priority": "high",
+        "dependencies": [
+          13
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Verify All DB Translations Have Corresponding Files",
+            "description": "Check that every translation entry in the database has a corresponding translation file present in the file system.",
+            "dependencies": [],
+            "details": "Cross-reference the database translation records with the available translation files. Identify any missing files for existing DB entries.",
+            "status": "pending"
+          },
+          {
+            "id": 2,
+            "title": "Detect Orphaned Translation Files",
+            "description": "Identify translation files that do not have a corresponding entry in the database.",
+            "dependencies": [
+              1
+            ],
+            "details": "Scan the translation files directory and compare against the database records to find files that are not referenced in the DB.",
+            "status": "pending"
+          },
+          {
+            "id": 3,
+            "title": "Test Status vs File Existence Rules",
+            "description": "Validate that the status of each translation in the database aligns with the existence or absence of its corresponding file according to defined business rules.",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "For example, ensure that translations marked as 'active' have files, and those marked as 'deleted' do not. Report any inconsistencies.",
+            "status": "pending"
+          },
+          {
+            "id": 4,
+            "title": "Validate Consistency Checks with Large Datasets",
+            "description": "Run the above consistency checks on large datasets to ensure performance and reliability at scale.",
+            "dependencies": [
+              3
+            ],
+            "details": "Test the implemented checks with large volumes of translation records and files to identify performance bottlenecks or edge case failures.",
+            "status": "pending"
+          }
+        ]
+      },
+      {
+        "id": 15,
+        "title": "Implement Evaluation Coverage Tests",
+        "description": "Create tests to verify 100% evaluation coverage requirement is enforced",
+        "details": "Implement evaluation coverage verification:\n```python\nclass TestEvaluationCoverage:\n    async def test_evaluation_required_for_completion(self, mock_pipeline):\n        # Attempt to complete without evaluation\n        with pytest.raises(ValueError, match='No evaluation found'):\n            await mock_pipeline.complete_translation(1)\n            \n    async def test_minimum_score_enforcement(self, mock_pipeline):\n        # Add evaluation with low score\n        await mock_pipeline.add_evaluation(1, score=6.5)\n        \n        with pytest.raises(ValueError, match='Score.*below minimum'):\n            await mock_pipeline.complete_translation(1)\n            \n    async def test_calculate_evaluation_coverage(self, mock_db):\n        cursor = mock_db.cursor()\n        \n        # Add test data\n        for i in range(10):\n            cursor.execute('INSERT INTO translations VALUES (?, 1, \"he\", \"complete\", \"content\")', (i,))\n            if i < 7:  # 70% coverage\n                cursor.execute('INSERT INTO evaluations VALUES (?, ?, 8.0)', (i, i))\n                \n        coverage = await calculate_evaluation_coverage(mock_db)\n        \n        assert coverage == 0.7\n        assert coverage < 1.0  # Should not be 100%\n        \n    async def test_evaluation_coverage_by_language(self, mock_db):\n        coverage_report = await generate_coverage_report(mock_db)\n        \n        assert 'he' in coverage_report\n        assert 'de' in coverage_report\n        assert 'en' in coverage_report\n        assert all(0 <= cov <= 1 for cov in coverage_report.values())\n```",
+        "testStrategy": "Test edge cases like deleted evaluations, multiple evaluations per translation. Verify coverage calculation accuracy.",
+        "priority": "medium",
+        "dependencies": [
+          14
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Test Evaluation Requirement for Completion",
+            "description": "Determine whether the business rule requires that a test or evaluation must be completed before a process or workflow can be considered finished. This involves verifying the presence and enforcement of a rule that mandates evaluation as a prerequisite for completion.",
+            "dependencies": [],
+            "details": "Review the business rules and process documentation to identify if completion is contingent on test evaluation. Confirm that the rule is explicit and practicable, ensuring that authorized users can interpret and act on it.",
+            "status": "pending"
+          },
+          {
+            "id": 2,
+            "title": "Test Minimum Score Enforcement",
+            "description": "Verify that the business rule enforces a minimum score or threshold for passing the evaluation. This includes checking that the system or process validates the score and restricts completion or progression if the minimum is not met.",
+            "dependencies": [
+              1
+            ],
+            "details": "Inspect the rule logic to ensure it checks for a minimum score and enforces the requirement. Confirm that the rule is logically consistent and unambiguous, and that it is integrated into the workflow as intended.",
+            "status": "pending"
+          },
+          {
+            "id": 3,
+            "title": "Calculate and Report Evaluation Coverage",
+            "description": "Assess and report the coverage of the evaluation process, ensuring that all relevant scenarios, rules, and edge cases are tested. This involves analyzing test cases to identify gaps and ensure completeness.",
+            "dependencies": [
+              2
+            ],
+            "details": "Review test results and coverage reports to determine if all business rules and scenarios are adequately tested. Identify any missing cases or coverage gaps and document the overall evaluation coverage.",
+            "status": "pending"
+          }
+        ]
+      },
+      {
+        "id": 16,
+        "title": "Create Daily Validation Report Generator",
+        "description": "Implement automated daily report generation for system health and validation status",
+        "details": "Implement report generator using Jinja2==3.1.3 for HTML reports:\n```python\nfrom jinja2 import Template\nimport matplotlib.pyplot as plt\nimport pandas as pd\nfrom datetime import datetime, timedelta\n\nclass DailyValidationReporter:\n    def __init__(self, db_path: str):\n        self.db_path = db_path\n        self.template = Template('''\n        <!DOCTYPE html>\n        <html>\n        <head><title>Scribe Validation Report - {{ date }}</title></head>\n        <body>\n            <h1>Daily Validation Report</h1>\n            <h2>Summary</h2>\n            <ul>\n                <li>Total Translations: {{ summary.total }}</li>\n                <li>Completed: {{ summary.completed }} ({{ summary.completion_rate }}%)</li>\n                <li>With Issues: {{ summary.issues_count }}</li>\n                <li>Evaluation Coverage: {{ summary.eval_coverage }}%</li>\n            </ul>\n            \n            <h2>Language Breakdown</h2>\n            <table>\n                <tr><th>Language</th><th>Total</th><th>Complete</th><th>Issues</th></tr>\n                {% for lang in languages %}\n                <tr>\n                    <td>{{ lang.name }}</td>\n                    <td>{{ lang.total }}</td>\n                    <td>{{ lang.complete }}</td>\n                    <td>{{ lang.issues }}</td>\n                </tr>\n                {% endfor %}\n            </table>\n            \n            <h2>Recent Issues</h2>\n            <ul>\n                {% for issue in recent_issues %}\n                <li>{{ issue.timestamp }}: {{ issue.description }}</li>\n                {% endfor %}\n            </ul>\n        </body>\n        </html>\n        ''')\n        \n    async def generate_report(self, date: datetime = None):\n        if date is None:\n            date = datetime.now()\n            \n        # Collect metrics\n        summary = await self.collect_summary_metrics(date)\n        languages = await self.collect_language_metrics(date)\n        recent_issues = await self.collect_recent_issues(date - timedelta(days=1), date)\n        \n        # Generate visualizations\n        await self.create_completion_chart(languages)\n        \n        # Render report\n        html = self.template.render(\n            date=date.strftime('%Y-%m-%d'),\n            summary=summary,\n            languages=languages,\n            recent_issues=recent_issues\n        )\n        \n        # Save report\n        report_path = f'reports/daily_{date.strftime(\"%Y%m%d\")}.html'\n        Path(report_path).parent.mkdir(exist_ok=True)\n        Path(report_path).write_text(html)\n        \n        return report_path\n```",
+        "testStrategy": "Test report generation with various data states. Verify HTML validity. Test performance with large datasets.",
+        "priority": "medium",
+        "dependencies": [
+          15
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Collect and Aggregate Validation Metrics",
+            "description": "Gather validation metrics from various data sources, process them, and aggregate the results into a structured format suitable for reporting.",
+            "dependencies": [],
+            "details": "Implement scripts or functions to extract validation metrics, perform necessary calculations or aggregations, and store the results in a data structure (e.g., DataFrame or dictionary) for further use.",
+            "status": "pending"
+          },
+          {
+            "id": 2,
+            "title": "Generate HTML Reports with Jinja2",
+            "description": "Create HTML report templates using Jinja2 and render them with the aggregated validation metrics.",
+            "dependencies": [
+              1
+            ],
+            "details": "Design Jinja2 HTML templates and use Python code to inject the aggregated metrics into the templates, producing complete HTML reports.",
+            "status": "pending"
+          },
+          {
+            "id": 3,
+            "title": "Create Visualizations",
+            "description": "Develop visualizations (e.g., charts, graphs) to represent the validation metrics and integrate them into the HTML reports.",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Use visualization libraries (such as matplotlib or Altair) to generate images or embeddable charts, and update the Jinja2 templates to include these visualizations in the final reports.",
+            "status": "pending"
+          },
+          {
+            "id": 4,
+            "title": "Automate Daily Scheduling",
+            "description": "Set up automation to run the data collection, report generation, and visualization tasks on a daily schedule.",
+            "dependencies": [
+              1,
+              2,
+              3
+            ],
+            "details": "Configure a scheduler (e.g., cron, Airflow, or a Python scheduling library) to execute the entire reporting pipeline automatically each day.",
+            "status": "pending"
+          },
+          {
+            "id": 5,
+            "title": "Test with Various Data States",
+            "description": "Test the reporting pipeline using different data states (e.g., missing data, outliers, normal operation) to ensure robustness and correctness.",
+            "dependencies": [
+              1,
+              2,
+              3,
+              4
+            ],
+            "details": "Create test cases with diverse data scenarios and verify that the pipeline produces accurate and meaningful reports under all conditions.",
+            "status": "pending"
+          }
+        ]
+      },
+      {
+        "id": 17,
+        "title": "Implement Alert System for Translation Issues",
+        "description": "Create alert system to notify when completed translations have validation issues",
+        "details": "Implement alerting using email and Slack notifications:\n```python\nimport smtplib\nfrom email.mime.text import MIMEText\nimport aiohttp\nfrom typing import List, Dict\nimport asyncio\n\nclass AlertSystem:\n    def __init__(self, config: dict):\n        self.smtp_config = config.get('smtp', {})\n        self.slack_webhook = config.get('slack_webhook')\n        self.alert_threshold = config.get('alert_threshold', 5)\n        self.alert_cooldown = config.get('cooldown_minutes', 60)\n        self.last_alert_time = {}\n        \n    async def check_and_alert(self):\n        issues = await self.scan_for_issues()\n        \n        if len(issues) >= self.alert_threshold:\n            alert_key = 'validation_issues'\n            \n            # Check cooldown\n            if alert_key in self.last_alert_time:\n                time_since_last = datetime.now() - self.last_alert_time[alert_key]\n                if time_since_last.total_seconds() < self.alert_cooldown * 60:\n                    return\n                    \n            # Send alerts\n            await asyncio.gather(\n                self.send_email_alert(issues),\n                self.send_slack_alert(issues),\n                return_exceptions=True\n            )\n            \n            self.last_alert_time[alert_key] = datetime.now()\n            \n    async def scan_for_issues(self) -> List[Dict]:\n        with db_transaction(self.db_path) as conn:\n            cursor = conn.cursor()\n            cursor.execute('''\n                SELECT t.id, f.filename, t.language, t.status, t.updated_at\n                FROM translations t\n                JOIN files f ON t.file_id = f.id\n                WHERE t.status = 'complete'\n                AND t.validation_passed = 0\n                ORDER BY t.updated_at DESC\n                LIMIT 100\n            ''')\n            \n            return [dict(row) for row in cursor.fetchall()]\n            \n    async def send_slack_alert(self, issues: List[Dict]):\n        if not self.slack_webhook:\n            return\n            \n        message = {\n            'text': f'🚨 Scribe Validation Alert: {len(issues)} completed translations have issues',\n            'attachments': [{\n                'color': 'danger',\n                'fields': [\n                    {'title': 'Affected Files', 'value': len(issues), 'short': True},\n                    {'title': 'Languages', 'value': ', '.join(set(i['language'] for i in issues)), 'short': True}\n                ]\n            }]\n        }\n        \n        async with aiohttp.ClientSession() as session:\n            await session.post(self.slack_webhook, json=message)\n```",
+        "testStrategy": "Test alert triggering logic with various issue counts. Verify cooldown prevents spam. Test notification delivery.",
+        "priority": "medium",
+        "dependencies": [
+          16
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Scan for Validation Issues",
+            "description": "Review incoming alert data and configurations for validation errors, such as missing fields, invalid thresholds, or malformed notification targets.",
+            "dependencies": [],
+            "details": "Ensure all required parameters for alerting, thresholds, and notification channels are present and correctly formatted before proceeding to logic implementation.",
+            "status": "pending"
+          },
+          {
+            "id": 2,
+            "title": "Implement Alert Threshold and Cooldown Logic",
+            "description": "Develop logic to evaluate alert conditions against defined thresholds and manage cooldown periods to prevent alert spamming.",
+            "dependencies": [
+              1
+            ],
+            "details": "Incorporate support for static and dynamic thresholds, and implement cooldown timers that reset when alert conditions are met, ensuring alerts are not sent too frequently.",
+            "status": "pending"
+          },
+          {
+            "id": 3,
+            "title": "Send Email Notifications",
+            "description": "Integrate with an email service to send alert notifications when threshold and cooldown conditions are satisfied.",
+            "dependencies": [
+              2
+            ],
+            "details": "Format alert messages according to a standardized schema and ensure reliable delivery to configured email recipients.",
+            "status": "pending"
+          },
+          {
+            "id": 4,
+            "title": "Send Slack Notifications",
+            "description": "Integrate with Slack to deliver alert notifications to specified channels or users when alerting criteria are met.",
+            "dependencies": [
+              2
+            ],
+            "details": "Format Slack messages for clarity and consistency, and handle any API rate limits or errors gracefully.",
+            "status": "pending"
+          },
+          {
+            "id": 5,
+            "title": "Test Alert Delivery and Spam Prevention",
+            "description": "Verify that alerts are delivered correctly via email and Slack, and that cooldown logic effectively prevents duplicate or excessive notifications.",
+            "dependencies": [
+              3,
+              4
+            ],
+            "details": "Simulate various alert scenarios, including rapid condition changes, to ensure the system behaves as expected and does not generate alert spam.",
+            "status": "pending"
+          }
+        ]
+      },
+      {
+        "id": 18,
+        "title": "Create System Health Dashboard",
+        "description": "Build real-time dashboard to monitor translation system health and metrics",
+        "details": "Implement dashboard using FastAPI==0.109.0 and Plotly Dash==2.14.2:\n```python\nfrom fastapi import FastAPI, WebSocket\nfrom fastapi.responses import HTMLResponse\nimport plotly.graph_objects as go\nimport asyncio\nimport json\n\napp = FastAPI()\n\nclass DashboardMetrics:\n    def __init__(self, db_path: str):\n        self.db_path = db_path\n        self.metrics_cache = {}\n        self.update_interval = 30  # seconds\n        \n    async def get_realtime_metrics(self) -> dict:\n        return {\n            'timestamp': datetime.now().isoformat(),\n            'total_translations': await self.count_total_translations(),\n            'completion_by_language': await self.get_completion_by_language(),\n            'recent_activity': await self.get_recent_activity(),\n            'validation_issues': await self.count_validation_issues(),\n            'evaluation_coverage': await self.calculate_evaluation_coverage(),\n            'api_usage': await self.get_api_usage_stats()\n        }\n        \n    async def create_completion_chart(self):\n        data = await self.get_completion_by_language()\n        \n        fig = go.Figure(data=[\n            go.Bar(\n                x=list(data.keys()),\n                y=[d['completed'] for d in data.values()],\n                name='Completed',\n                marker_color='green'\n            ),\n            go.Bar(\n                x=list(data.keys()),\n                y=[d['total'] - d['completed'] for d in data.values()],\n                name='Incomplete',\n                marker_color='red'\n            )\n        ])\n        \n        fig.update_layout(\n            title='Translation Completion by Language',\n            barmode='stack',\n            xaxis_title='Language',\n            yaxis_title='Number of Translations'\n        )\n        \n        return fig.to_json()\n\n@app.websocket('/ws')\nasync def websocket_endpoint(websocket: WebSocket):\n    await websocket.accept()\n    metrics = DashboardMetrics(DB_PATH)\n    \n    try:\n        while True:\n            data = await metrics.get_realtime_metrics()\n            await websocket.send_json(data)\n            await asyncio.sleep(metrics.update_interval)\n    except Exception as e:\n        print(f'WebSocket error: {e}')\n    finally:\n        await websocket.close()\n\n@app.get('/')\nasync def dashboard():\n    return HTMLResponse('''\n    <!DOCTYPE html>\n    <html>\n    <head>\n        <title>Scribe System Dashboard</title>\n        <script src=\"https://cdn.plot.ly/plotly-latest.min.js\"></script>\n    </head>\n    <body>\n        <h1>Scribe Translation System Dashboard</h1>\n        <div id=\"metrics\"></div>\n        <div id=\"completion-chart\"></div>\n        <script>\n            const ws = new WebSocket('ws://localhost:8000/ws');\n            ws.onmessage = (event) => {\n                const data = JSON.parse(event.data);\n                updateDashboard(data);\n            };\n        </script>\n    </body>\n    </html>\n    ''')\n```",
+        "testStrategy": "Test WebSocket connection stability. Verify metrics update correctly. Test dashboard performance with multiple concurrent users.",
+        "priority": "low",
+        "dependencies": [
+          17
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Design Dashboard UI and Define API Endpoints",
+            "description": "Create wireframes and UI mockups for the dashboard, focusing on clarity, progressive disclosure, and user-centric design. Define RESTful API endpoints for data retrieval and interaction.",
+            "dependencies": [],
+            "details": "Incorporate best practices such as limiting visual clutter, using progressive disclosure for advanced features, and providing clear filter options. Ensure endpoints are well-documented and support the required data flows.",
+            "status": "pending"
+          },
+          {
+            "id": 2,
+            "title": "Implement Real-Time Metrics Collection",
+            "description": "Develop backend logic to collect and aggregate real-time metrics from relevant data sources, ensuring efficient and accurate data updates.",
+            "dependencies": [
+              1
+            ],
+            "details": "Balance the frequency of real-time updates to avoid unnecessary distraction and system load, as per dashboard best practices. Implement smart alarms or triggers for critical events.",
+            "status": "pending"
+          },
+          {
+            "id": 3,
+            "title": "Integrate Plotly Dash for Visualization",
+            "description": "Set up Plotly Dash within the application to render interactive and visually appealing charts and graphs based on the collected metrics.",
+            "dependencies": [
+              2
+            ],
+            "details": "Choose appropriate chart types for each metric, enable hover states for detailed views, and ensure the dashboard remains uncluttered and easy to interpret.",
+            "status": "pending"
+          },
+          {
+            "id": 4,
+            "title": "Set Up WebSocket Updates for Live Data",
+            "description": "Implement WebSocket communication to push real-time data updates from the backend to the dashboard UI, enabling live metric refreshes.",
+            "dependencies": [
+              3
+            ],
+            "details": "Ensure the WebSocket setup is robust, handles connection drops gracefully, and only pushes relevant updates to minimize bandwidth and latency.",
+            "status": "pending"
+          },
+          {
+            "id": 5,
+            "title": "Handle Concurrent Users and Session Management",
+            "description": "Implement mechanisms to support multiple concurrent users, managing sessions, user-specific data views, and access controls as needed.",
+            "dependencies": [
+              4
+            ],
+            "details": "Ensure that user actions (such as filtering or toggling chart variables) are isolated per session and that the system scales efficiently under load.",
+            "status": "pending"
+          },
+          {
+            "id": 6,
+            "title": "Test Dashboard Performance and User Experience",
+            "description": "Conduct thorough testing of the dashboard for performance, responsiveness, and usability under various load conditions and user scenarios.",
+            "dependencies": [
+              5
+            ],
+            "details": "Test for latency in real-time updates, UI responsiveness, concurrent user handling, and adherence to dashboard design best practices. Gather user feedback for further refinement.",
+            "status": "pending"
+          }
+        ]
+      },
+      {
+        "id": 19,
+        "title": "Implement Rollback and Recovery Procedures",
+        "description": "Create comprehensive rollback procedures for database changes and file operations",
+        "details": "Implement transaction-safe rollback system:\n```python\nimport pickle\nfrom contextlib import contextmanager\nfrom typing import List, Tuple\n\nclass RollbackManager:\n    def __init__(self, backup_dir: str):\n        self.backup_dir = Path(backup_dir)\n        self.backup_dir.mkdir(exist_ok=True)\n        self.operation_log = []\n        \n    @contextmanager\n    def rollback_context(self, operation_name: str):\n        checkpoint_id = self.create_checkpoint(operation_name)\n        \n        try:\n            yield checkpoint_id\n            self.commit_checkpoint(checkpoint_id)\n        except Exception as e:\n            print(f'Error in {operation_name}: {e}')\n            self.rollback_to_checkpoint(checkpoint_id)\n            raise\n            \n    def create_checkpoint(self, operation_name: str) -> str:\n        checkpoint_id = f'{operation_name}_{datetime.now().strftime(\"%Y%m%d_%H%M%S\")}'\n        checkpoint_dir = self.backup_dir / checkpoint_id\n        checkpoint_dir.mkdir()\n        \n        # Backup current state\n        shutil.copy2('scribe.db', checkpoint_dir / 'scribe.db')\n        \n        # Save file checksums\n        checksums = {}\n        for lang in ['en', 'de', 'he']:\n            lang_dir = Path(f'translations/{lang}')\n            if lang_dir.exists():\n                for file in lang_dir.glob('*.txt'):\n                    with open(file, 'rb') as f:\n                        checksums[str(file)] = hashlib.md5(f.read()).hexdigest()\n                        \n        with open(checkpoint_dir / 'checksums.pkl', 'wb') as f:\n            pickle.dump(checksums, f)\n            \n        self.operation_log.append({\n            'id': checkpoint_id,\n            'operation': operation_name,\n            'timestamp': datetime.now(),\n            'status': 'pending'\n        })\n        \n        return checkpoint_id\n        \n    def rollback_to_checkpoint(self, checkpoint_id: str):\n        checkpoint_dir = self.backup_dir / checkpoint_id\n        \n        if not checkpoint_dir.exists():\n            raise ValueError(f'Checkpoint {checkpoint_id} not found')\n            \n        # Restore database\n        shutil.copy2(checkpoint_dir / 'scribe.db', 'scribe.db')\n        \n        # Verify file integrity\n        with open(checkpoint_dir / 'checksums.pkl', 'rb') as f:\n            original_checksums = pickle.load(f)\n            \n        # Log rollback\n        with open('rollback_log.json', 'a') as f:\n            json.dump({\n                'checkpoint_id': checkpoint_id,\n                'rollback_time': datetime.now().isoformat(),\n                'files_affected': len(original_checksums)\n            }, f)\n            f.write('\\n')\n            \n    def list_available_checkpoints(self) -> List[dict]:\n        checkpoints = []\n        for checkpoint_dir in self.backup_dir.iterdir():\n            if checkpoint_dir.is_dir():\n                info_file = checkpoint_dir / 'info.json'\n                if info_file.exists():\n                    with open(info_file) as f:\n                        checkpoints.append(json.load(f))\n        return sorted(checkpoints, key=lambda x: x['timestamp'], reverse=True)\n```",
+        "testStrategy": "Test rollback with various failure scenarios. Verify data integrity after rollback. Test checkpoint cleanup procedures.",
+        "priority": "high",
+        "dependencies": [
+          18
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Design Checkpoint and Rollback Architecture",
+            "description": "Define the overall architecture for checkpointing and rollback, including where and how checkpoints are created, stored, and managed. Specify the granularity (e.g., cache-level, database-level), rollback window, and integration points with the system.",
+            "dependencies": [],
+            "details": "Consider trade-offs between performance, overhead, and recovery window. Reference existing schemes such as cache-level checkpointing and dependency graphs for recovery lines.",
+            "status": "pending"
+          },
+          {
+            "id": 2,
+            "title": "Implement Database and File Backup",
+            "description": "Develop mechanisms to create and store backups of databases and files at each checkpoint. Ensure backups are consistent and can be restored reliably.",
+            "dependencies": [
+              1
+            ],
+            "details": "Implement backup routines that trigger at checkpoint creation. Store backups in stable storage to avoid data loss during rollback.",
+            "status": "pending"
+          },
+          {
+            "id": 3,
+            "title": "Log Operations and Checkpoints",
+            "description": "Implement logging of all operations and checkpoint events to enable precise rollback and recovery. Ensure logs are durable and efficiently managed.",
+            "dependencies": [
+              1
+            ],
+            "details": "Design log format to capture necessary metadata for each operation and checkpoint. Integrate logging with backup and checkpoint creation.",
+            "status": "pending"
+          },
+          {
+            "id": 4,
+            "title": "Implement Rollback Logic",
+            "description": "Develop the logic to restore the system to a previous checkpoint using backups and logs. Handle dependencies and ensure data consistency during rollback.",
+            "dependencies": [
+              2,
+              3
+            ],
+            "details": "Use dependency graphs or similar mechanisms to determine the correct recovery line and ensure all related components are rolled back together.",
+            "status": "pending"
+          },
+          {
+            "id": 5,
+            "title": "Test Rollback in Failure Scenarios",
+            "description": "Simulate various failure scenarios to verify that rollback and recovery work as intended. Validate data integrity and system consistency after rollback.",
+            "dependencies": [
+              4
+            ],
+            "details": "Create test cases for different types of failures (e.g., transient faults, crashes) and ensure the system can recover to a consistent state.",
+            "status": "pending"
+          },
+          {
+            "id": 6,
+            "title": "Manage Checkpoint Cleanup",
+            "description": "Implement processes to clean up obsolete checkpoints and logs to free resources and maintain system performance.",
+            "dependencies": [
+              4
+            ],
+            "details": "Define retention policies and automate cleanup of checkpoints and logs that are no longer needed for recovery.",
+            "status": "pending"
+          }
+        ]
+      },
+      {
+        "id": 20,
+        "title": "Create Comprehensive Documentation and Monitoring Setup",
+        "description": "Document all validation procedures, create runbooks, and set up long-term monitoring",
+        "details": "Create documentation using MkDocs==1.5.3 and implement monitoring with Prometheus client:\n```python\n# monitoring.py\nfrom prometheus_client import Counter, Gauge, Histogram, start_http_server\nimport time\n\n# Define metrics\ntranslation_validations = Counter('scribe_validations_total', 'Total validation checks performed', ['language', 'result'])\ntranslation_completion_rate = Gauge('scribe_completion_rate', 'Translation completion percentage', ['language'])\nvalidation_duration = Histogram('scribe_validation_duration_seconds', 'Time spent in validation')\nactive_issues = Gauge('scribe_active_issues', 'Number of active validation issues')\n\nclass MonitoringService:\n    def __init__(self, port=8080):\n        self.port = port\n        start_http_server(port)\n        \n    @validation_duration.time()\n    def track_validation(self, language: str, is_valid: bool):\n        result = 'valid' if is_valid else 'invalid'\n        translation_validations.labels(language=language, result=result).inc()\n        \n    async def update_metrics(self):\n        while True:\n            # Update completion rates\n            for lang in ['en', 'de', 'he']:\n                rate = await self.calculate_completion_rate(lang)\n                translation_completion_rate.labels(language=lang).set(rate)\n                \n            # Update active issues\n            issues_count = await self.count_active_issues()\n            active_issues.set(issues_count)\n            \n            await asyncio.sleep(60)  # Update every minute\n\n# documentation/mkdocs.yml\nsite_name: Scribe Validation System\nnav:\n  - Home: index.md\n  - Setup:\n    - Installation: setup/installation.md\n    - Configuration: setup/configuration.md\n  - Operations:\n    - Daily Validation: operations/daily-validation.md\n    - Rollback Procedures: operations/rollback.md\n    - Troubleshooting: operations/troubleshooting.md\n  - API Reference:\n    - Validation API: api/validation.md\n    - Database API: api/database.md\n  - Monitoring:\n    - Metrics: monitoring/metrics.md\n    - Alerts: monitoring/alerts.md\n\n# Create runbook template\nRUNBOOK_TEMPLATE = '''\n# Scribe Validation Runbook\n\n## Daily Operations\n\n### Morning Checks (9:00 AM)\n1. Review overnight validation report\n2. Check for any alert notifications\n3. Verify all languages show correct completion rates\n\n### Issue Resolution\n\n#### Placeholder Text Found\n1. Identify affected files: `python audit_system.py --find-placeholders`\n2. Queue for retranslation: `python retranslate.py --files <file_list>`\n3. Monitor progress: `python monitor.py --watch-translation`\n\n#### Database-Filesystem Mismatch\n1. Run integrity check: `python integrity_check.py --full`\n2. Review proposed changes: `python integrity_check.py --dry-run`\n3. Apply fixes: `python integrity_check.py --fix`\n\n## Emergency Procedures\n\n### Full System Rollback\n1. List checkpoints: `python rollback.py --list`\n2. Select checkpoint: `python rollback.py --to <checkpoint_id>`\n3. Verify system state: `python validate_all.py`\n'''\n```",
+        "testStrategy": "Test documentation generation. Verify all code examples work. Test monitoring metrics accuracy. Validate runbook procedures.",
+        "priority": "low",
+        "dependencies": [
+          19
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Document Validation Procedures and Runbooks",
+            "description": "Create comprehensive documentation outlining validation procedures and operational runbooks for the project. This should include step-by-step guides, troubleshooting steps, and escalation paths.",
+            "dependencies": [],
+            "details": "Gather existing procedures, interview subject matter experts, and draft clear, actionable documentation. Ensure all runbooks are version-controlled and accessible to relevant stakeholders.",
+            "status": "pending"
+          },
+          {
+            "id": 2,
+            "title": "Set Up MkDocs Site Structure",
+            "description": "Establish the MkDocs documentation site, including directory structure, navigation, and configuration. Integrate the documentation from Subtask 1 into the site.",
+            "dependencies": [
+              1
+            ],
+            "details": "Install MkDocs and any required themes (e.g., Material for MkDocs). Configure mkdocs.yml with site_name, navigation, and repo_url. Organize docs/ directory and ensure index.md is informative. Prepare for future customization and deployment.",
+            "status": "pending"
+          },
+          {
+            "id": 3,
+            "title": "Implement Prometheus Monitoring Metrics",
+            "description": "Integrate Prometheus monitoring into the project, exposing relevant metrics and ensuring they are documented within the MkDocs site.",
+            "dependencies": [
+              2
+            ],
+            "details": "Identify key metrics, instrument the application, and expose endpoints for Prometheus scraping. Document metric definitions and usage in the documentation site.",
+            "status": "pending"
+          },
+          {
+            "id": 4,
+            "title": "Test Documentation and Monitoring Integration",
+            "description": "Verify that the MkDocs documentation site accurately reflects the implemented monitoring metrics and that all documentation is up to date and accessible.",
+            "dependencies": [
+              3
+            ],
+            "details": "Perform end-to-end testing of the documentation and monitoring setup. Validate that runbooks reference live metrics, and that documentation updates are reflected on the site. Address any gaps or inconsistencies.",
+            "status": "pending"
+          }
+        ]
       }
     ],
     "metadata": {
-      "created": "2025-06-17T19:20:20.445Z",
-      "updated": "2025-06-17T19:20:20.445Z",
+      "created": "2025-06-20T17:38:03.261Z",
+      "updated": "2025-06-20T17:39:48.336Z",
       "description": "Tasks for master context"
     }
   }
