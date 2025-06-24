@@ -67,6 +67,12 @@ if target_language.lower() in ['he', 'hebrew', 'heb']:
 ```
 This fix ensures Hebrew translations use Microsoft/OpenAI instead of DeepL.
 
+### Async Translation Improvements (December 2024)
+- **Timeout Configuration**: OpenAI client configured with 60s timeout and 3 retries
+- **Retry Logic**: Exponential backoff decorator for handling transient failures
+- **Worker Pool Enhancements**: Timeout handling prevents indefinite blocking
+- **Progress Persistence**: Database commits after each successful translation
+
 ### Enhanced Hebrew Evaluation (in scribe/evaluate.py)
 - Enhanced evaluation mode with sanity checks for Hebrew translations
 - Detects missing Hebrew characters and low Hebrew character ratios

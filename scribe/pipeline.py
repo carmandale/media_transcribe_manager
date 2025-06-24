@@ -201,10 +201,39 @@ class Pipeline:
                 
             return result
         
-        # Process in parallel
+        # Process in parallel with progress persistence
+        results = []
+        
+        def progress_callback(item, result, error):
+            """Callback to persist progress after each translation"""
+            if result and not error:
+                # Progress is already saved in process_one via db.update_status
+                logger.debug(f"Translation completed for {item['file_id']}")
+            elif error:
+                logger.warning(f"Translation failed for {item['file_id']}: {error}")
+        
         with SimpleWorkerPool(max_workers=self.config.translation_workers) as pool:
-            results = pool.map(process_one, pending)
+            batch_results = pool.process_batch(
+                process_one, 
+                pending,
+                callback=progress_callback,
+                timeout=180  # 3 minutes per translation
+            )
             
+            # Convert batch results to list of PipelineResult objects
+            for item in pending:
+                if str(item) in batch_results['results']:
+                    results.append(batch_results['results'][str(item)])
+                else:
+                    # Create failed result for missing items
+                    result = PipelineResult(
+                        file_id=item['file_id'],
+                        file_path=Path(item.get('file_path') or self.config.output_dir / item['file_id'])
+                    )
+                    result.errors.append(f"Translation {language}: Processing failed or timed out")
+                    results.append(result)
+            
+        logger.info(f"Translation batch complete: {batch_results['completed']} succeeded, {batch_results['failed']} failed")
         return results
     
     def evaluate_translations(self, language: str, sample_size: Optional[int] = None, enhanced: bool = False, model: str = "gpt-4") -> List[Tuple[str, float, Dict]]:

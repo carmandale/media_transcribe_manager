@@ -13,7 +13,7 @@ import unicodedata
 import multiprocessing
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Callable, Tuple
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError
 
 logger = logging.getLogger(__name__)
 
@@ -144,14 +144,16 @@ class SimpleWorkerPool:
         return list(self.executor.map(func, items))
     
     def process_batch(self, func: Callable, items: List[Any], 
-                     callback: Optional[Callable] = None) -> Dict[str, Any]:
+                     callback: Optional[Callable] = None,
+                     timeout: Optional[float] = None) -> Dict[str, Any]:
         """
-        Process a batch of items with progress tracking.
+        Process a batch of items with progress tracking and timeout handling.
         
         Args:
             func: Function to apply to each item
             items: List of items to process
             callback: Optional callback for each completed item
+            timeout: Optional timeout per task in seconds (default: 120)
             
         Returns:
             Dictionary with processing statistics
@@ -168,23 +170,33 @@ class SimpleWorkerPool:
         results = {}
         completed = 0
         failed = 0
+        timeout = timeout or 120  # Default 2 minute timeout per task
         
         # Submit all tasks
         for item in items:
             future = self.executor.submit(func, item)
             futures[future] = item
         
-        # Process results as they complete
-        for future in as_completed(futures):
+        # Process results as they complete with timeout
+        for future in as_completed(futures, timeout=timeout * len(items)):
             item = futures[future]
             
             try:
-                result = future.result()
+                # Individual task timeout
+                result = future.result(timeout=timeout)
                 results[str(item)] = result
                 completed += 1
                 
                 if callback:
                     callback(item, result, None)
+                    
+            except TimeoutError:
+                logger.warning(f"Task timed out for {item} after {timeout}s")
+                results[str(item)] = None
+                failed += 1
+                
+                if callback:
+                    callback(item, None, TimeoutError(f"Timeout after {timeout}s"))
                     
             except Exception as e:
                 logger.error(f"Task failed for {item}: {e}")

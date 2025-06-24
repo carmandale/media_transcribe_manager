@@ -10,8 +10,10 @@ import os
 import re
 import json
 import logging
+import time
 from typing import Dict, List, Optional, Tuple
 from pathlib import Path
+from functools import wraps
 
 # Optional imports with graceful fallbacks
 try:
@@ -34,7 +36,46 @@ try:
 except ImportError:
     detect = None
 
+try:
+    import httpx
+except ImportError:
+    httpx = None
+
 logger = logging.getLogger(__name__)
+
+
+def retry(tries=3, delay=1, backoff=2, exceptions=(Exception,)):
+    """
+    Retry decorator with exponential backoff.
+    
+    Args:
+        tries: Number of attempts
+        delay: Initial delay between retries in seconds
+        backoff: Multiplier for delay after each attempt
+        exceptions: Tuple of exceptions to catch
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            attempt = 0
+            current_delay = delay
+            
+            while attempt < tries:
+                try:
+                    return func(*args, **kwargs)
+                except exceptions as e:
+                    attempt += 1
+                    if attempt >= tries:
+                        logger.error(f"Max retries ({tries}) exceeded for {func.__name__}")
+                        raise
+                    
+                    logger.warning(f"Attempt {attempt} failed: {e}. Retrying in {current_delay}s...")
+                    time.sleep(current_delay)
+                    current_delay *= backoff
+                    
+            return None
+        return wrapper
+    return decorator
 
 
 class HistoricalTranslator:
@@ -79,9 +120,22 @@ class HistoricalTranslator:
         # OpenAI
         openai_key = self.config.get('openai_api_key') or os.getenv('OPENAI_API_KEY')
         if openai_key and openai:
-            self.openai_client = openai.OpenAI(api_key=openai_key)
+            # Configure with proper timeout
+            if httpx:
+                self.openai_client = openai.OpenAI(
+                    api_key=openai_key,
+                    timeout=httpx.Timeout(60.0, connect=5.0),
+                    max_retries=3
+                )
+            else:
+                # Fallback without httpx
+                self.openai_client = openai.OpenAI(
+                    api_key=openai_key,
+                    timeout=60.0,
+                    max_retries=3
+                )
             self.providers['openai'] = True
-            logger.info("OpenAI provider initialized")
+            logger.info("OpenAI provider initialized with timeout configuration")
         else:
             self.openai_client = None
     
@@ -170,8 +224,9 @@ class HistoricalTranslator:
         
         return self._call_microsoft_api(text, target_lang, source_lang)
     
+    @retry(tries=3, delay=1, backoff=2, exceptions=(Exception,))
     def _call_microsoft_api(self, text: str, target_lang: str, source_lang: Optional[str]) -> Optional[str]:
-        """Make API call to Microsoft Translator."""
+        """Make API call to Microsoft Translator with retry logic."""
         api_key = self.providers['microsoft']['api_key']
         location = self.providers['microsoft']['location']
         
@@ -240,8 +295,9 @@ class HistoricalTranslator:
             logger.error(f"OpenAI translation error: {e}")
             return None
     
+    @retry(tries=3, delay=1, backoff=2, exceptions=(Exception,))
     def _call_openai_api(self, system_prompt: str, text: str) -> Optional[str]:
-        """Make API call to OpenAI."""
+        """Make API call to OpenAI with retry logic."""
         if not self.openai_client:
             raise ValueError("OpenAI client not initialized")
             
