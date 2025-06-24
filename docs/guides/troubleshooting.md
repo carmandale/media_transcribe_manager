@@ -37,21 +37,55 @@ uv run python scribe_cli.py fix-stuck --reset-all
 
 ### "No pending files" but files exist
 **Cause**: Files already processed or in wrong status  
-**Solution**: Check database status:
+**Solution**: Use database maintenance tools:
 ```bash
+# Run comprehensive audit
+uv run python scribe_cli.py db audit
+
+# Fix status inconsistencies
+uv run python scribe_cli.py db fix-status
+
 # Check overall status
 uv run python scribe_cli.py status --detailed
+```
 
-# Query database directly
-sqlite3 media_tracking.db "SELECT file_id, translation_he_status FROM processing_status WHERE translation_he_status != 'completed' LIMIT 10;"
+### System Recovery After Crashes
+**Solution**: Use systematic recovery approach:
+```bash
+# 1. Create emergency backup
+uv run python scribe_cli.py backup create --quick
+
+# 2. Audit system for issues
+uv run python scribe_cli.py db audit
+
+# 3. Fix identified problems
+uv run python scribe_cli.py db fix-status
+
+# 4. Validate system health
+uv run python scribe_cli.py db validate
 ```
 
 ## Evaluation Issues
 
+### Hebrew Evaluation Failures
+**Cause**: Missing Hebrew characters or language validation issues  
+**Solution**: Use enhanced Hebrew evaluation:
+```bash
+# Enhanced Hebrew evaluation with sanity checks
+uv run python scribe_cli.py evaluate he --sample 20 --enhanced --model gpt-4.1
+
+# Check specific problematic file
+uv run python scribe_cli.py check-translation <file_id> he
+```
+
 ### Token Limit Errors
 **Cause**: Transcripts too long for GPT-4 context window  
-**Solution**: Use evaluate_hebrew.py script which automatically truncates:
+**Solution**: Enhanced mode handles truncation automatically:
 ```bash
+# Recommended approach (handles truncation)
+uv run python scribe_cli.py evaluate he --sample 20 --enhanced
+
+# Legacy script (still available)
 uv run python evaluate_hebrew.py --limit 10
 ```
 
@@ -62,9 +96,27 @@ uv run python evaluate_hebrew.py --limit 10
 sqlite3 media_tracking.db "DELETE FROM quality_evaluations WHERE score = 0.0 AND language = 'he';"
 ```
 
+### Hebrew Sanity Check Failures
+**Symptoms**: "NO_HEBREW_CHARACTERS" or "LOW_HEBREW_RATIO" warnings  
+**Solution**: 
+```bash
+# Identify problematic files
+uv run python scribe_cli.py evaluate he --sample 50 --enhanced
+
+# Re-translate problematic files
+uv run python scribe_cli.py translate he --limit 10
+
+# Verify improvements
+uv run python scribe_cli.py evaluate he --sample 10 --enhanced
+```
+
 ### Inconsistent Scores
 **Cause**: Different evaluation models or truncation  
-**Solution**: Ensure consistent model usage and check if texts were truncated
+**Solution**: Use consistent model and enhanced mode:
+```bash
+# Always use same model for comparability
+uv run python scribe_cli.py evaluate he --sample 20 --enhanced --model gpt-4.1
+```
 
 ## API Issues
 
@@ -120,13 +172,77 @@ uv run python test_hebrew_fix.py
 **Cause**: Text editor doesn't support RTL  
 **Solution**: Use RTL-compatible editor or viewer
 
+## Backup and Recovery
+
+### System Corruption
+**Solution**: Restore from backup:
+```bash
+# List available backups
+uv run python scribe_cli.py backup list
+
+# Restore from specific backup
+uv run python scribe_cli.py backup restore <backup_id>
+```
+
+### Preventive Measures
+**Best Practice**: Regular backups and maintenance:
+```bash
+# Daily quick backup
+uv run python scribe_cli.py backup create --quick
+
+# Weekly maintenance
+uv run python scribe_cli.py backup create
+uv run python scribe_cli.py db audit
+uv run python scribe_cli.py db fix-status
+```
+
+### Emergency Recovery
+If system is severely corrupted:
+```bash
+# 1. Create emergency backup of current state
+uv run python scribe_cli.py backup create --quick
+
+# 2. Find most recent good backup
+uv run python scribe_cli.py backup list
+
+# 3. Restore from backup
+uv run python scribe_cli.py backup restore <backup_id>
+
+# 4. Validate restoration
+uv run python scribe_cli.py db validate
+```
+
+## Utilities Directory
+
+### One-off Scripts
+For specialized troubleshooting, scripts are available in `utilities/`:
+
+```bash
+# Hebrew-specific utilities
+ls utilities/hebrew_fixes/
+
+# Database maintenance utilities
+ls utilities/database/
+
+# Backup utilities
+ls utilities/backup/
+```
+
+**Warning**: Always backup before using utilities scripts.
+
 ## Getting Help
 
-1. Check logs in `logs/` directory
-2. Enable debug logging:
+1. **System Validation**: `uv run python scribe_cli.py db validate`
+2. **Database Audit**: `uv run python scribe_cli.py db audit`
+3. **Check logs** in `logs/` directory
+4. **Review backups**: `uv run python scribe_cli.py backup list`
+5. **Enable debug logging**:
    ```python
    import logging
    logging.basicConfig(level=logging.DEBUG)
    ```
-3. Review [documentation](../README.md)
-4. Check [Hebrew Evaluation Fix PRD](../PRDs/hebrew-evaluation-fix.md) for recent fixes
+6. **Review documentation**:
+   - [Backup Guide](backup.md)
+   - [Database Maintenance Guide](database-maintenance.md)
+   - [Evaluation Guide](evaluation.md)
+7. **Check recent fixes**: [Hebrew Evaluation Fix PRD](../PRDs/hebrew-evaluation-fix.md)

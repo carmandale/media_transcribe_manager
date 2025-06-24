@@ -8,6 +8,8 @@ For comprehensive documentation, see the [`docs/`](docs/) directory:
 - [Setup Guide](docs/guides/setup.md)
 - [Usage Guide](docs/guides/usage.md) 
 - [Architecture Overview](docs/architecture/)
+- [Backup Guide](docs/guides/backup.md)
+- [Database Maintenance Guide](docs/guides/database-maintenance.md)
 - [Current Issues](docs/PRDs/hebrew-evaluation-fix.md)
 
 ## Overview
@@ -51,16 +53,13 @@ uv run python scribe_cli.py add input/ --recursive
 # Transcribe audio to text
 uv run python scribe_cli.py transcribe --workers 10
 
-# Translate to specific language
+# Translate to specific language (Hebrew uses gpt-4.1-mini by default)
 uv run python scribe_cli.py translate en --workers 8
 uv run python scribe_cli.py translate de --workers 8
-uv run python scribe_cli.py translate he --workers 8
+uv run python scribe_cli.py translate he --workers 8 --model gpt-4.1-mini
 
-# Evaluate translation quality
-uv run python scribe_cli.py evaluate he --sample 20
-
-# Alternative: Use dedicated Hebrew evaluation script
-uv run python evaluate_hebrew.py --limit 50
+# Evaluate translation quality (enhanced mode for Hebrew)
+uv run python scribe_cli.py evaluate he --sample 20 --enhanced --model gpt-4.1
 ```
 
 ### Management
@@ -73,6 +72,33 @@ uv run python scribe_cli.py fix-stuck
 
 # Check specific translation
 uv run python scribe_cli.py check-translation <file_id> he
+```
+
+### Backup & Restore
+```bash
+# Create system backup
+uv run python scribe_cli.py backup create
+
+# Create quick backup (faster, uses tar compression)
+uv run python scribe_cli.py backup create --quick
+
+# List available backups
+uv run python scribe_cli.py backup list
+
+# Restore from backup
+uv run python scribe_cli.py backup restore <backup_id>
+```
+
+### Database Maintenance
+```bash
+# Audit database for issues
+uv run python scribe_cli.py db audit
+
+# Fix database status inconsistencies
+uv run python scribe_cli.py db fix-status
+
+# Validate system health
+uv run python scribe_cli.py db validate
 ```
 
 ## Configuration
@@ -106,16 +132,26 @@ scribe/
 ├── scribe/              # Core modules
 │   ├── database.py      # SQLite with thread-safe pooling
 │   ├── transcribe.py    # ElevenLabs Scribe integration
-│   ├── translate.py     # Multi-provider translation
-│   ├── evaluate.py      # Quality scoring
+│   ├── translate.py     # Multi-provider translation (Hebrew fix)
+│   ├── evaluate.py      # Quality scoring (enhanced Hebrew support)
 │   ├── pipeline.py      # Workflow orchestration
+│   ├── backup.py        # Backup and restore system
+│   ├── audit.py         # Database auditing and validation
 │   └── utils.py         # Helper functions
 │
+├── utilities/           # One-off scripts and maintenance tools
+│   ├── backup/         # Backup utilities
+│   ├── database/       # Database maintenance scripts
+│   ├── hebrew_fixes/   # Hebrew-specific utilities
+│   └── validate_all_translations.py
+│
+├── tests/               # Test suite
+├── scripts/             # Processing scripts
 ├── scribe_cli.py        # Command-line interface
-├── evaluate_hebrew.py   # Dedicated Hebrew evaluation script
 ├── requirements.txt     # Python dependencies
 ├── .env                 # API keys and settings
 │
+├── backups/             # System backups
 ├── output/              # Processed results
 └── logs/                # Application logs
 ```
@@ -132,9 +168,16 @@ output/
     └── {file_id}_he.txt           # Hebrew translation
 ```
 
-## Hebrew Translation Note
+## Hebrew Translation Features
 
-Hebrew translations automatically use Microsoft Translator or OpenAI instead of DeepL (which doesn't support Hebrew). This routing happens automatically - just ensure you have either `MS_TRANSLATOR_KEY` or `OPENAI_API_KEY` configured.
+Hebrew translations have special handling:
+
+- **Automatic Provider Routing**: Uses Microsoft Translator or OpenAI instead of DeepL (which doesn't support Hebrew)
+- **Enhanced Evaluation**: Includes sanity checks for Hebrew character presence and language detection
+- **GPT-4.1-mini Default**: Optimized model selection for Hebrew translation quality
+- **Validation Checks**: Automatically detects and flags translations with issues
+
+Just ensure you have either `MS_TRANSLATOR_KEY` or `OPENAI_API_KEY` configured.
 
 ## Quality Standards
 
@@ -168,6 +211,24 @@ uv run python scribe_cli.py fix-stuck --reset-all
 ```bash
 # Show configuration status
 uv run python scribe_cli.py version
+```
+
+### Database Issues
+```bash
+# Run comprehensive audit
+uv run python scribe_cli.py db audit
+
+# Fix status inconsistencies
+uv run python scribe_cli.py db fix-status
+```
+
+### System Recovery
+```bash
+# Create emergency backup before troubleshooting
+uv run python scribe_cli.py backup create --quick
+
+# Restore from backup if needed
+uv run python scribe_cli.py backup restore <backup_id>
 ```
 
 ### Test Hebrew Translation

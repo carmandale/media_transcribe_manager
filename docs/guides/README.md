@@ -8,13 +8,22 @@ Step-by-step guides for using and maintaining the Scribe system.
 How to install and configure Scribe for first use.
 
 ### [Usage Guide](usage.md)
-Complete guide to using all CLI commands.
+Complete guide to using all CLI commands including backup and database maintenance.
 
 ### [Evaluation Guide](evaluation.md)
-How to evaluate translation quality for historical accuracy.
+How to evaluate translation quality for historical accuracy, including enhanced Hebrew evaluation.
+
+### [Backup Guide](backup.md)
+Complete guide to the backup and restore system.
+
+### [Database Maintenance Guide](database-maintenance.md)
+Database auditing, validation, and maintenance procedures.
+
+### [Utilities Guide](utilities.md)
+Guide to one-off scripts and maintenance utilities (use with caution).
 
 ### [Troubleshooting Guide](troubleshooting.md)
-Common issues and their solutions.
+Common issues and their solutions, including system recovery procedures.
 
 ## Quick Start
 

@@ -52,6 +52,7 @@ class HistoricalTranslator:
         """Initialize translator with configuration."""
         self.config = config or {}
         self.providers = {}
+        self.openai_model = self.config.get('openai_model') or os.getenv('OPENAI_MODEL', 'gpt-4.1-mini')
         self._initialize_providers()
     
     def _initialize_providers(self) -> None:
@@ -245,7 +246,7 @@ class HistoricalTranslator:
             raise ValueError("OpenAI client not initialized")
             
         response = self.openai_client.chat.completions.create(
-            model="gpt-4-turbo-preview",  # or "gpt-3.5-turbo" for lower cost
+            model=self.openai_model,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": text}

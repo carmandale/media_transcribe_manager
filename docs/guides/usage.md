@@ -21,6 +21,19 @@ python scribe_cli.py status
 3. **Translate** to target languages
 4. **Evaluate** translation quality
 5. **Review** results
+6. **Backup** completed work
+
+## System Maintenance
+
+Before starting large operations, ensure system health:
+
+```bash
+# Validate system configuration
+uv run python scribe_cli.py db validate
+
+# Create backup before major processing
+uv run python scribe_cli.py backup create
+```
 
 ## Commands Reference
 
@@ -66,8 +79,11 @@ uv run python scribe_cli.py translate en --workers 8
 # Translate to German
 uv run python scribe_cli.py translate de --workers 8
 
-# Translate to Hebrew
+# Translate to Hebrew (uses gpt-4.1-mini by default)
 uv run python scribe_cli.py translate he --workers 8
+
+# Translate with custom model
+uv run python scribe_cli.py translate he --workers 8 --model gpt-4.1-mini
 
 # Translate with file limit
 uv run python scribe_cli.py translate en --limit 10
@@ -75,17 +91,31 @@ uv run python scribe_cli.py translate en --limit 10
 
 Output: `output/{file_id}/{file_id}_{language}.txt`
 
+**Note**: Hebrew translations automatically use Microsoft Translator or OpenAI instead of DeepL (which doesn't support Hebrew).
+
 ### Quality Evaluation
 
-Evaluate translation quality (currently broken - see [fix PRD](../PRDs/hebrew-evaluation-fix.md)):
+Evaluate translation quality with enhanced Hebrew support:
 
 ```bash
-# Evaluate Hebrew translations (sample of 20)
-uv run python scribe_cli.py evaluate he --sample 20
+# Evaluate Hebrew translations with enhanced mode (includes sanity checks)
+uv run python scribe_cli.py evaluate he --sample 20 --enhanced --model gpt-4.1
 
 # Evaluate German translations
 uv run python scribe_cli.py evaluate de --sample 50
+
+# Evaluate English translations
+uv run python scribe_cli.py evaluate en --sample 30
+
+# Basic Hebrew evaluation (without enhanced features)
+uv run python scribe_cli.py evaluate he --sample 20
 ```
+
+**Enhanced Hebrew Evaluation Features**:
+- Sanity checks for Hebrew character presence
+- Language detection to prevent English/placeholder content
+- Detailed Hebrew-specific analysis
+- GPT-4.1 model for better accuracy
 
 ### Status Monitoring
 
@@ -95,7 +125,7 @@ Check processing status:
 # Basic status
 uv run python scribe_cli.py status
 
-# Detailed status (currently has issues)
+# Detailed status with quality scores
 uv run python scribe_cli.py status --detailed
 ```
 
@@ -180,8 +210,13 @@ uv run python scribe_cli.py translate en --workers 8
 uv run python scribe_cli.py translate de --workers 8
 uv run python scribe_cli.py translate he --workers 8
 
-# 5. Evaluate quality (when fixed)
-uv run python scribe_cli.py evaluate he --sample 20
+# 5. Evaluate quality (enhanced mode for Hebrew)
+uv run python scribe_cli.py evaluate he --sample 20 --enhanced
+uv run python scribe_cli.py evaluate en --sample 20
+uv run python scribe_cli.py evaluate de --sample 20
+
+# 6. Create backup of completed work
+uv run python scribe_cli.py backup create
 ```
 
 ### Resume Interrupted Processing
@@ -197,6 +232,46 @@ uv run python scribe_cli.py fix-stuck --reset-all
 uv run python scribe_cli.py transcribe --workers 10
 ```
 
+## Backup and Restore
+
+Regularly backup your work:
+
+```bash
+# Create full backup
+uv run python scribe_cli.py backup create
+
+# Create quick backup (faster, uses compression)
+uv run python scribe_cli.py backup create --quick
+
+# List available backups
+uv run python scribe_cli.py backup list
+
+# Restore from backup
+uv run python scribe_cli.py backup restore <backup_id>
+```
+
+See [Backup Guide](backup.md) for complete documentation.
+
+## Database Maintenance
+
+Maintain database health:
+
+```bash
+# Audit database for issues
+uv run python scribe_cli.py db audit
+
+# Fix status inconsistencies
+uv run python scribe_cli.py db fix-status
+
+# Preview fixes without applying
+uv run python scribe_cli.py db fix-status --dry-run
+
+# Validate system health
+uv run python scribe_cli.py db validate
+```
+
+See [Database Maintenance Guide](database-maintenance.md) for complete documentation.
+
 ## Database Queries
 
 For advanced users, you can query the SQLite database directly:
@@ -208,6 +283,52 @@ sqlite3 media_tracking.db
 # Example queries
 SELECT COUNT(*) FROM processing_status WHERE translation_he_status = 'completed';
 SELECT file_id, score FROM quality_evaluations WHERE language = 'he' ORDER BY score DESC LIMIT 10;
+```
+
+## Advanced Workflows
+
+### System Recovery
+
+If you encounter issues:
+
+```bash
+# 1. Create emergency backup
+uv run python scribe_cli.py backup create --quick
+
+# 2. Audit database
+uv run python scribe_cli.py db audit
+
+# 3. Fix issues
+uv run python scribe_cli.py db fix-status
+
+# 4. Validate system
+uv run python scribe_cli.py db validate
+```
+
+### Hebrew Translation Issues
+
+For Hebrew-specific problems:
+
+```bash
+# Enhanced evaluation with detailed reporting
+uv run python scribe_cli.py evaluate he --sample 50 --enhanced
+
+# Check specific translation
+uv run python scribe_cli.py check-translation <file_id> he
+```
+
+### Maintenance Schedule
+
+Recommended maintenance routine:
+
+```bash
+# Daily: Quick backup
+uv run python scribe_cli.py backup create --quick
+
+# Weekly: Full audit and cleanup
+uv run python scribe_cli.py backup create
+uv run python scribe_cli.py db audit
+uv run python scribe_cli.py db fix-status
 ```
 
 ## Troubleshooting

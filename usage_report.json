@@ -1,0 +1,24 @@
+{
+  "usage_stats": {
+    "total_requests": 2,
+    "successful_requests": 2,
+    "failed_requests": 0,
+    "total_prompt_tokens": 141,
+    "total_completion_tokens": 133,
+    "total_tokens": 274,
+    "total_cost": 0.005399999999999999,
+    "errors": [],
+    "start_time": "2025-06-20T15:10:04.768199",
+    "last_updated": "2025-06-20T15:10:10.392298"
+  },
+  "progress": {
+    "completed_files": 11,
+    "failed_files": 0,
+    "completion_rate": 1.0
+  },
+  "model_config": {
+    "model": "gpt-4-0125-preview",
+    "temperature": 0.3,
+    "max_concurrent": 10
+  }
+}

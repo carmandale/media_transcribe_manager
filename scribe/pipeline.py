@@ -4,6 +4,7 @@ Pipeline orchestration for the full transcription → translation → evaluation
 This module coordinates all processing steps for historical interview preservation.
 """
 
+import json
 import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -29,6 +30,7 @@ class PipelineConfig:
     translation_workers: int = 8
     evaluation_sample_size: int = 100
     batch_size: int = 50
+    openai_model: Optional[str] = None
 
 
 @dataclass
@@ -163,10 +165,12 @@ class Pipeline:
                 transcript_text = transcript_path.read_text(encoding='utf-8')
                 
                 # Translate
+                config = {'openai_model': self.config.openai_model} if self.config.openai_model else None
                 translation = translate_text(
                     transcript_text,
                     target_language=language,
-                    source_language='de'  # Assuming German source
+                    source_language='de',  # Assuming German source
+                    config=config
                 )
                 
                 # Validate Hebrew if applicable
@@ -203,8 +207,19 @@ class Pipeline:
             
         return results
     
-    def evaluate_translations(self, language: str, sample_size: Optional[int] = None) -> List[Tuple[str, float]]:
-        """Evaluate translation quality for a language"""
+    def evaluate_translations(self, language: str, sample_size: Optional[int] = None, enhanced: bool = False, model: str = "gpt-4") -> List[Tuple[str, float, Dict]]:
+        """
+        Evaluate translation quality for a language
+        
+        Args:
+            language: Language code to evaluate ('en', 'de', 'he')
+            sample_size: Number of files to evaluate (optional)
+            enhanced: Use enhanced evaluation with sanity checks (especially for Hebrew)
+            model: OpenAI model to use for evaluation
+            
+        Returns:
+            List of tuples (file_id, score, full_results)
+        """
         # Get completed translations without scores
         query = """
             SELECT DISTINCT p.file_id
@@ -234,7 +249,10 @@ class Pipeline:
                 # Evaluate
                 score, evaluation_results = evaluate_translation(
                     transcript_path.read_text(encoding='utf-8'),
-                    translation_path.read_text(encoding='utf-8')
+                    translation_path.read_text(encoding='utf-8'),
+                    model=model,
+                    language=language,
+                    enhanced=enhanced
                 )
                 
                 # Save evaluation to database
@@ -247,21 +265,29 @@ class Pipeline:
                 issues = evaluation_results.get('issues', []) if evaluation_results else []
                 comment = evaluation_results.get('feedback', '') if evaluation_results else ''
                 
+                # For enhanced Hebrew evaluation, also capture suitability and validation info
+                if enhanced and language == 'he' and evaluation_results:
+                    if 'suitability' in evaluation_results:
+                        comment += f" | {evaluation_results['suitability']}"
+                    if 'hebrew_validation' in evaluation_results:
+                        validation = evaluation_results['hebrew_validation']
+                        comment += f" | Hebrew ratio: {validation.get('hebrew_ratio', 0):.1%}"
+                
                 # Note: execute_query is for SELECT only, we need a different approach for INSERT
                 # For now, we'll use the connection directly
                 conn = self.db._get_connection()
                 conn.execute(insert_query, (
                     file_info['file_id'],
                     language,
-                    'gpt-4',  # Default model
+                    model,  # Use the specified model instead of hardcoded 'gpt-4'
                     score,
-                    str(issues),  # Convert list to string
+                    json.dumps(issues, ensure_ascii=False),  # Proper JSON encoding for issues
                     comment,
                     datetime.now()
                 ))
                 conn.commit()
                 
-                scores.append((file_info['file_id'], score))
+                scores.append((file_info['file_id'], score, evaluation_results))
                 logger.info(f"Evaluated {file_info['file_id']}: {score:.1f}/10")
                 
             except Exception as e:
