@@ -25,3 +25,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Scribe Viewer custom ignores
+/public/media
+/public/manifest.json
+/scripts/requirements.txt.lock

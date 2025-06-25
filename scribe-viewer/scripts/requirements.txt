@@ -1,0 +1,2 @@
+# Requirements for Scribe Viewer build_manifest.py script
+webvtt-py==0.4.6
