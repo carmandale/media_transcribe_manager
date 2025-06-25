@@ -283,6 +283,19 @@ class Database:
         row = cursor.fetchone()
         return dict(row) if row else None
     
+    def get_all_files(self) -> List[Dict[str, Any]]:
+        """Get all file records from the database."""
+        conn = self._get_connection()
+        
+        cursor = conn.execute("""
+            SELECT m.*, p.*
+            FROM media_files m
+            LEFT JOIN processing_status p ON m.file_id = p.file_id
+            ORDER BY m.created_at
+        """)
+        
+        return [dict(row) for row in cursor.fetchall()]
+    
     # Status management methods
     
     def get_status(self, file_id: str) -> Optional[Dict[str, Any]]:

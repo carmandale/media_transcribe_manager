@@ -322,6 +322,35 @@ def get_file_info(file_path: str) -> Dict[str, Any]:
     }
 
 
+def find_transcript_file(file_output_dir: Path, file_id: str) -> Optional[Path]:
+    """
+    Find the most likely original transcript file in an output directory.
+
+    Args:
+        file_output_dir: The directory where output files are stored.
+        file_id: The unique ID of the file.
+
+    Returns:
+        The Path to the transcript file, or None if not found.
+    """
+    # Common transcript file extensions in order of preference
+    preferred_filenames = [
+        f"{file_id}.txt",
+        f"{file_id}.orig.srt",
+        f"{file_id}.en.txt"
+    ]
+
+    for filename in preferred_filenames:
+        path = file_output_dir / filename
+        if path.exists():
+            logger.debug(f"Found transcript file: {path}")
+            return path
+    
+    logger.warning(f"Could not find a primary transcript file for {file_id}. "
+                   f"Checked for: {', '.join(preferred_filenames)}")
+    return None
+
+
 # Batch Processing Utilities
 def chunk_list(items: List[Any], chunk_size: int) -> List[List[Any]]:
     """
