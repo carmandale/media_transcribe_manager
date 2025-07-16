@@ -1,0 +1,65 @@
+[run]
+source = scribe
+branch = True
+parallel = True
+omit = 
+    */tests/*
+    */test_*
+    */__pycache__/*
+    */venv/*
+    */.venv/*
+    */utilities/*
+    */site-packages/*
+    setup.py
+
+[report]
+precision = 2
+show_missing = True
+skip_covered = False
+sort = Cover
+
+exclude_lines =
+    # Standard pragma
+    pragma: no cover
+    
+    # Don't complain about missing debug-only code
+    def __repr__
+    if self\.debug
+    if settings\.DEBUG
+    
+    # Don't complain if tests don't hit defensive assertion code
+    raise AssertionError
+    raise NotImplementedError
+    
+    # Don't complain if non-runnable code isn't run
+    if 0:
+    if __name__ == .__main__.:
+    
+    # Don't complain about type checking code
+    if TYPE_CHECKING:
+    @overload
+    
+    # Don't complain about abstract methods
+    @(abc\.)?abstractmethod
+    class .*\bProtocol\):
+    
+    # Don't complain about CLI-only code
+    def main\(\):
+    
+    # Don't complain about platform-specific code
+    if sys\.platform
+    
+    # Async context managers
+    async def __aenter__
+    async def __aexit__
+
+[html]
+directory = htmlcov
+
+[xml]
+output = coverage.xml
+
+[paths]
+source =
+    scribe/
+    */scribe/
