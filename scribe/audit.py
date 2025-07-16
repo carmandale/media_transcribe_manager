@@ -421,19 +421,19 @@ class DatabaseAuditor:
         fixes_applied = 0
         errors = []
         
-        # Fix placeholder files (set to pending)
+        # Fix placeholder files (set to not_started)
         placeholder_issues = audit_result.issues_by_type.get('placeholder_file', [])
         for issue in placeholder_issues:
             file_id = issue['file_id']
             language = issue['language']
             
             if dry_run:
-                logger.info(f"[DRY RUN] Would reset {file_id} {language} to pending (placeholder)")
+                logger.info(f"[DRY RUN] Would reset {file_id} {language} to not_started (placeholder)")
             else:
                 try:
                     status_field = f'translation_{language}_status'
-                    self.db.update_status(file_id, **{status_field: 'pending'})
-                    logger.info(f"Reset {file_id} {language} to pending (placeholder)")
+                    self.db.update_status(file_id, **{status_field: 'not_started'})
+                    logger.info(f"Reset {file_id} {language} to not_started (placeholder)")
                     fixes_applied += 1
                 except Exception as e:
                     error_msg = f"Failed to fix {file_id} {language}: {e}"

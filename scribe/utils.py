@@ -49,6 +49,9 @@ def sanitize_filename(filename: str) -> str:
     Returns:
         Sanitized filename safe for all file systems
     """
+    if not filename or not filename.strip():
+        return "file"
+    
     # Split the filename and extension
     base_name, extension = os.path.splitext(filename)
     
@@ -130,18 +133,39 @@ class SimpleWorkerPool:
         self.executor = ThreadPoolExecutor(max_workers=max_workers)
         logger.info(f"Worker pool initialized with {max_workers} workers")
     
-    def map(self, func: Callable, items: List[Any]) -> List[Any]:
+    def map(self, func: Callable, items: List[Any], timeout: Optional[float] = None) -> List[Any]:
         """
         Apply a function to each item in parallel.
         
         Args:
             func: Function to apply
             items: List of items to process
+            timeout: Optional timeout for each task
             
         Returns:
             List of results in the same order as inputs
         """
-        return list(self.executor.map(func, items))
+        try:
+            if timeout:
+                # Use submit for timeout support
+                futures = [self.executor.submit(func, item) for item in items]
+                results = []
+                for future in futures:
+                    try:
+                        result = future.result(timeout=timeout)
+                        results.append(result)
+                    except TimeoutError:
+                        logger.warning(f"Task timed out after {timeout}s")
+                        results.append(None)
+                    except Exception as e:
+                        logger.error(f"Task failed: {e}")
+                        results.append(None)
+                return results
+            else:
+                return list(self.executor.map(func, items))
+        except Exception as e:
+            logger.error(f"Map operation failed: {e}")
+            return [None] * len(items)
     
     def process_batch(self, func: Callable, items: List[Any], 
                      callback: Optional[Callable] = None,
@@ -213,6 +237,33 @@ class SimpleWorkerPool:
             'results': results
         }
     
+    def submit_with_callback(self, func: Callable, item: Any, callback: Optional[Callable] = None, timeout: Optional[float] = None):
+        """
+        Submit a single task with optional callback.
+        
+        Args:
+            func: Function to apply
+            item: Item to process
+            callback: Optional callback function
+            timeout: Optional timeout for the task
+        
+        Returns:
+            Future object
+        """
+        future = self.executor.submit(func, item)
+        
+        if callback:
+            def done_callback(fut):
+                try:
+                    result = fut.result(timeout=timeout)
+                    callback(item, result, None)
+                except Exception as e:
+                    callback(item, None, e)
+            
+            future.add_done_callback(done_callback)
+        
+        return future
+    
     def shutdown(self, wait: bool = True):
         """
         Shutdown the worker pool.
@@ -236,19 +287,27 @@ class ProgressTracker:
     Simple progress tracker for batch operations.
     """
     
-    def __init__(self, total: int, description: str = "Processing"):
+    def __init__(self, total: int = None, description: str = "Processing", show_eta: bool = True):
         """
         Initialize progress tracker.
         
         Args:
             total: Total number of items
             description: Description for progress display
+            show_eta: Whether to show estimated time of arrival
         """
         self.total = total
         self.description = description
+        self.show_eta = show_eta
         self.current = 0
         self.completed = 0
         self.failed = 0
+        self.start_time = None
+    
+    def start(self):
+        """Start the progress tracker."""
+        import time
+        self.start_time = time.time()
     
     def update(self, success: bool = True):
         """Update progress with success/failure status."""
@@ -259,13 +318,21 @@ class ProgressTracker:
             self.failed += 1
         
         # Log progress every 10% or at completion
-        percentage = (self.current / self.total) * 100
-        if percentage % 10 == 0 or self.current == self.total:
-            logger.info(
-                f"{self.description}: {percentage:.0f}% "
-                f"({self.current}/{self.total}) - "
-                f"Success: {self.completed}, Failed: {self.failed}"
-            )
+        if self.total:
+            percentage = (self.current / self.total) * 100
+            if percentage % 10 == 0 or self.current == self.total:
+                logger.info(
+                    f"{self.description}: {percentage:.0f}% "
+                    f"({self.current}/{self.total}) - "
+                    f"Success: {self.completed}, Failed: {self.failed}"
+                )
+        else:
+            # For unknown total, log every 10 items
+            if self.current % 10 == 0:
+                logger.info(
+                    f"{self.description}: {self.current} processed - "
+                    f"Success: {self.completed}, Failed: {self.failed}"
+                )
     
     def get_stats(self) -> Dict[str, int]:
         """Get current statistics."""
@@ -274,8 +341,17 @@ class ProgressTracker:
             'processed': self.current,
             'completed': self.completed,
             'failed': self.failed,
-            'remaining': self.total - self.current
+            'remaining': self.total - self.current if self.total else 0
         }
+    
+    def __enter__(self):
+        """Enter context manager."""
+        self.start()
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Exit context manager."""
+        pass
 
 
 # File System Utilities
