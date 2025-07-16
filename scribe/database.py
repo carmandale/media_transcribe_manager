@@ -40,7 +40,7 @@ class Database:
         
     def _get_connection(self) -> sqlite3.Connection:
         """Get or create thread-local connection."""
-        if not hasattr(self._local, 'conn'):
+        if not hasattr(self._local, 'conn') or self._local.conn is None:
             self._local.conn = sqlite3.connect(
                 str(self.db_path),
                 check_same_thread=False,
@@ -157,7 +157,7 @@ class Database:
         # Generate safe filename and file_id
         from .utils import sanitize_filename, generate_file_id
         safe_filename = sanitize_filename(file_path.name)
-        file_id = generate_file_id(file_path)
+        file_id = generate_file_id()
         
         # Determine media type from extension
         video_extensions = {'.mp4', '.avi', '.mov', '.mkv', '.flv', '.wmv'}
@@ -270,7 +270,13 @@ class Database:
         """, (file_path,))
         
         row = cursor.fetchone()
-        return dict(row) if row else None
+        if row:
+            try:
+                return dict(row)
+            except (TypeError, ValueError):
+                # Fallback if row is not a proper Row object
+                return None
+        return None
     
     def get_file_by_id(self, file_id: str) -> Optional[Dict[str, Any]]:
         """Get file record by ID."""
@@ -281,7 +287,13 @@ class Database:
         """, (file_id,))
         
         row = cursor.fetchone()
-        return dict(row) if row else None
+        if row:
+            try:
+                return dict(row)
+            except (TypeError, ValueError):
+                # Fallback if row is not a proper Row object
+                return None
+        return None
     
     def get_all_files(self) -> List[Dict[str, Any]]:
         """Get all file records from the database."""
@@ -294,7 +306,14 @@ class Database:
             ORDER BY m.created_at
         """)
         
-        return [dict(row) for row in cursor.fetchall()]
+        results = []
+        for row in cursor.fetchall():
+            try:
+                results.append(dict(row))
+            except (TypeError, ValueError):
+                # Skip malformed rows
+                continue
+        return results
     
     # Status management methods
     
@@ -310,7 +329,13 @@ class Database:
         """, (file_id,))
         
         row = cursor.fetchone()
-        return dict(row) if row else None
+        if row:
+            try:
+                return dict(row)
+            except (TypeError, ValueError):
+                # Fallback if row is not a proper Row object
+                return None
+        return None
     
     def update_status(self,
                      file_id: str,
@@ -399,7 +424,7 @@ class Database:
             SELECT m.*, p.*
             FROM media_files m
             JOIN processing_status p ON m.file_id = p.file_id
-            WHERE p.{status_field} IN ('not_started', 'pending')
+            WHERE p.{status_field} IN ('not_started')
               AND p.status != 'failed'
             ORDER BY p.last_updated ASC
         """
@@ -409,7 +434,14 @@ class Database:
         
         conn = self._get_connection()
         cursor = conn.execute(query)
-        return [dict(row) for row in cursor.fetchall()]
+        results = []
+        for row in cursor.fetchall():
+            try:
+                results.append(dict(row))
+            except (TypeError, ValueError):
+                # Skip malformed rows
+                continue
+        return results
     
     def get_files_by_status(self,
                            status: Union[str, List[str]],
@@ -434,7 +466,14 @@ class Database:
         
         conn = self._get_connection()
         cursor = conn.execute(query, statuses)
-        return [dict(row) for row in cursor.fetchall()]
+        results = []
+        for row in cursor.fetchall():
+            try:
+                results.append(dict(row))
+            except (TypeError, ValueError):
+                # Skip malformed rows
+                continue
+        return results
     
     def get_stuck_files(self, timeout_minutes: int = 30) -> List[Dict[str, Any]]:
         """Get files that have been in-progress for too long."""
@@ -449,7 +488,14 @@ class Database:
         
         conn = self._get_connection()
         cursor = conn.execute(query, (-timeout_minutes,))
-        return [dict(row) for row in cursor.fetchall()]
+        results = []
+        for row in cursor.fetchall():
+            try:
+                results.append(dict(row))
+            except (TypeError, ValueError):
+                # Skip malformed rows
+                continue
+        return results
     
     def get_files_for_srt_translation(self, language: str) -> List[Dict[str, Any]]:
         """
@@ -498,7 +544,14 @@ class Database:
         
         conn = self._get_connection()
         cursor = conn.execute(simple_query)
-        return [dict(row) for row in cursor.fetchall()]
+        results = []
+        for row in cursor.fetchall():
+            try:
+                results.append(dict(row))
+            except (TypeError, ValueError):
+                # Skip malformed rows
+                continue
+        return results
     
     # Error logging
     
@@ -524,11 +577,22 @@ class Database:
             query += " WHERE file_id = ?"
             params.append(file_id)
         
-        query += " ORDER BY timestamp DESC"
+        query += " ORDER BY timestamp ASC"
         
         conn = self._get_connection()
         cursor = conn.execute(query, params)
-        return [dict(row) for row in cursor.fetchall()]
+        results = []
+        for row in cursor.fetchall():
+            try:
+                results.append(dict(row))
+            except (TypeError, ValueError):
+                # Skip malformed rows
+                continue
+        return results
+    
+    def get_all_errors(self) -> List[Dict[str, Any]]:
+        """Get all errors - alias for get_errors()."""
+        return self.get_errors()
     
     # Summary statistics
     
