@@ -20,7 +20,7 @@ import sqlite3
 # Add the project root to Python path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from scribe.database import DatabaseOperations
+from scribe.database import Database
 
 
 # Test data constants
@@ -91,9 +91,9 @@ def test_db_path(temp_dir: Path) -> Path:
 
 
 @pytest.fixture(scope="function")
-def db_operations(test_db_path: Path) -> Generator[DatabaseOperations, None, None]:
-    """Create a DatabaseOperations instance with test database."""
-    db = DatabaseOperations(str(test_db_path))
+def db_operations(test_db_path: Path) -> Generator[Database, None, None]:
+    """Create a Database instance with test database."""
+    db = Database(str(test_db_path))
     yield db
     # Cleanup
     db.close()
@@ -102,7 +102,7 @@ def db_operations(test_db_path: Path) -> Generator[DatabaseOperations, None, Non
 
 
 @pytest.fixture(scope="function")
-def populated_db(db_operations: DatabaseOperations) -> DatabaseOperations:
+def populated_db(db_operations: Database) -> Database:
     """Create a database with sample data."""
     # Add sample file
     file_id = db_operations.add_file(
@@ -221,9 +221,9 @@ def capture_logs(caplog):
 @pytest.fixture(autouse=True)
 def reset_singletons():
     """Reset any singleton instances between tests."""
-    # Reset DatabaseOperations singleton if it exists
-    if hasattr(DatabaseOperations, '_instances'):
-        DatabaseOperations._instances = {}
+    # Reset Database singleton if it exists
+    if hasattr(Database, '_instances'):
+        Database._instances = {}
     yield
 
 
@@ -237,14 +237,14 @@ def event_loop():
 
 # Helper functions for tests
 
-def create_test_file_record(db: DatabaseOperations, **kwargs) -> int:
+def create_test_file_record(db: Database, **kwargs) -> int:
     """Helper to create a test file record with defaults."""
     defaults = SAMPLE_AUDIO_METADATA.copy()
     defaults.update(kwargs)
     return db.add_file(**defaults)
 
 
-def assert_db_file_count(db: DatabaseOperations, expected: int):
+def assert_db_file_count(db: Database, expected: int):
     """Assert the number of files in database."""
     conn = sqlite3.connect(db.db_path)
     cursor = conn.cursor()
@@ -254,7 +254,7 @@ def assert_db_file_count(db: DatabaseOperations, expected: int):
     assert count == expected, f"Expected {expected} files, found {count}"
 
 
-def assert_translation_exists(db: DatabaseOperations, file_id: int, language: str):
+def assert_translation_exists(db: Database, file_id: int, language: str):
     """Assert a translation exists for given file and language."""
     translations = db.get_translations(file_id)
     assert any(t['language_code'] == language for t in translations), \
