@@ -95,7 +95,7 @@ A comprehensive testing framework has been implemented for the Scribe project, p
 
 ### 5. CI/CD Integration
 
-- **`.github/workflows/tests.yml`**: GitHub Actions workflow with:
+- **`GITHUB_ACTIONS_SETUP.md`**: Instructions for setting up GitHub Actions workflow with:
   - Multi-Python version testing (3.8-3.11)
   - Separate Hebrew language tests
   - Code quality checks (linting)
