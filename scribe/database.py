@@ -157,7 +157,7 @@ class Database:
         # Generate safe filename and file_id
         from .utils import sanitize_filename, generate_file_id
         safe_filename = sanitize_filename(file_path.name)
-        file_id = generate_file_id(file_path)
+        file_id = generate_file_id()
         
         # Determine media type from extension
         video_extensions = {'.mp4', '.avi', '.mov', '.mkv', '.flv', '.wmv'}
@@ -399,7 +399,7 @@ class Database:
             SELECT m.*, p.*
             FROM media_files m
             JOIN processing_status p ON m.file_id = p.file_id
-            WHERE p.{status_field} IN ('not_started', 'pending')
+            WHERE p.{status_field} IN ('not_started')
               AND p.status != 'failed'
             ORDER BY p.last_updated ASC
         """
@@ -529,6 +529,10 @@ class Database:
         conn = self._get_connection()
         cursor = conn.execute(query, params)
         return [dict(row) for row in cursor.fetchall()]
+    
+    def get_all_errors(self) -> List[Dict[str, Any]]:
+        """Get all errors - alias for get_errors()."""
+        return self.get_errors()
     
     # Summary statistics
     
