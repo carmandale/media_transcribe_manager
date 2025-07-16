@@ -292,13 +292,3 @@ def pytest_unconfigure(config):
     if test_output.exists() and not any(test_output.iterdir()):
         test_output.rmdir()
 
-
-# Custom markers
-
-pytest.mark.unit = pytest.mark.unit
-pytest.mark.integration = pytest.mark.integration
-pytest.mark.slow = pytest.mark.slow
-pytest.mark.external = pytest.mark.external
-pytest.mark.database = pytest.mark.database
-pytest.mark.async = pytest.mark.asyncio
-pytest.mark.hebrew = pytest.mark.hebrew
