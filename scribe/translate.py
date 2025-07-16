@@ -508,6 +508,9 @@ class HistoricalTranslator:
     
     def _split_text_into_chunks(self, text: str, max_chars: int = 9500) -> List[str]:
         """Split text into chunks, preserving paragraph boundaries where possible."""
+        if not text:
+            return []
+        
         paragraphs = text.split('\n\n')
         chunks = []
         current_chunk = ""
@@ -525,6 +528,11 @@ class HistoricalTranslator:
                 # Split long paragraph by sentences
                 sentences = re.split(r'(?<=[.!?])\s+', para)
                 for sentence in sentences:
+                    sentence = sentence.strip()
+                    if not sentence:
+                        continue
+                    
+                    # If adding this sentence would exceed max_chars
                     if len(current_chunk) + len(sentence) + 1 > max_chars:
                         if current_chunk:
                             chunks.append(current_chunk.strip())
@@ -534,7 +542,8 @@ class HistoricalTranslator:
             
             # Normal paragraph handling
             elif len(current_chunk) + len(para) + 2 > max_chars:
-                chunks.append(current_chunk.strip())
+                if current_chunk:
+                    chunks.append(current_chunk.strip())
                 current_chunk = para
             else:
                 current_chunk += "\n\n" + para if current_chunk else para
