@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SRT Comparison Test</title>
+    <style>
+        body {
+            background: #000;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .video-container {
+            background: #111;
+            padding: 20px;
+            border-radius: 8px;
+        }
+        h2 {
+            margin: 0 0 15px 0;
+            font-size: 18px;
+        }
+        video {
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        .info {
+            font-size: 14px;
+            color: #888;
+            margin-top: 10px;
+        }
+        /* Force subtitle visibility */
+        video::cue {
+            background-color: rgba(0, 0, 0, 0.8) !important;
+            color: white !important;
+            font-size: 16px !important;
+            line-height: 1.4 !important;
+        }
+    </style>
+</head>
+<body>
+    <h1>SRT Timing Comparison</h1>
+    <div class="container">
+        <div class="video-container">
+            <h2>Original SRT (orig.srt)</h2>
+            <video id="video1" controls>
+                <source src="/media/225f0880-e414-43cd-b3a5-2bd6e5642f07/01.mp4" type="video/mp4">
+                <track kind="subtitles" src="/media/225f0880-e414-43cd-b3a5-2bd6e5642f07/225f0880-e414-43cd-b3a5-2bd6e5642f07.orig.vtt" srclang="de" label="Original German" default>
+            </video>
+            <div class="info">
+                <p>File: 225f0880-e414-43cd-b3a5-2bd6e5642f07.orig.vtt (converted from orig.srt)</p>
+                <p>This is the raw German transcript from ElevenLabs Scribe</p>
+            </div>
+        </div>
+        
+        <div class="video-container">
+            <h2>Processed English SRT (en.srt)</h2>
+            <video id="video2" controls>
+                <source src="/media/225f0880-e414-43cd-b3a5-2bd6e5642f07/01.mp4" type="video/mp4">
+                <track kind="subtitles" src="/media/225f0880-e414-43cd-b3a5-2bd6e5642f07/225f0880-e414-43cd-b3a5-2bd6e5642f07.en.vtt" srclang="en" label="English" default>
+            </video>
+            <div class="info">
+                <p>File: 225f0880-e414-43cd-b3a5-2bd6e5642f07.en.vtt</p>
+                <p>This is after processing/translation</p>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Force subtitle visibility for both videos independently
+        window.addEventListener('load', () => {
+            const video1 = document.getElementById('video1');
+            const video2 = document.getElementById('video2');
+            
+            [video1, video2].forEach(video => {
+                video.addEventListener('loadedmetadata', () => {
+                    if (video.textTracks.length > 0) {
+                        video.textTracks[0].mode = 'showing';
+                        console.log(`${video.id}: Set track to showing`);
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>

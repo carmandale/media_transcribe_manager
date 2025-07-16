@@ -147,6 +147,80 @@ def translate(language: str, workers: int, limit: Optional[int], model: Optional
         click.echo(f"✗ Failed: {failed}")
 
 
+@cli.command('translate-srt')
+@click.argument('language', type=click.Choice(['en', 'de', 'he']))
+@click.option('--workers', '-w', default=8, help='Number of parallel workers')
+@click.option('--limit', '-l', type=int, help='Maximum files to process')
+@click.option('--model', '-m', help='OpenAI model (default: uses configured model)')
+@click.option('--no-preserve', is_flag=True, help='Translate all segments (don\'t preserve segments already in target language)')
+def translate_srt(language: str, workers: int, limit: Optional[int], model: Optional[str], no_preserve: bool):
+    """Translate SRT subtitle files while preserving timing.
+    
+    LANGUAGE can be: en (English), de (German), or he (Hebrew).
+    
+    By default, preserves segments already in the target language.
+    This is useful for mixed-language interviews where we want to
+    maintain the original speaker's words when appropriate.
+    
+    Example: In a German interview with English questions,
+    translating to English will keep the English questions unchanged
+    and only translate the German responses.
+    """
+    config = PipelineConfig(translation_workers=workers)
+    if model:
+        config.openai_model = model
+    pipeline = Pipeline(config)
+    
+    # Check for files needing SRT translation
+    db = Database()
+    pending = db.get_files_for_srt_translation(language)
+    
+    if not pending:
+        click.echo(f"No SRT files pending translation to {language.upper()}")
+        return
+    
+    # Language names for display
+    lang_names = {'en': 'English', 'de': 'German', 'he': 'Hebrew'}
+    preserve_original = not no_preserve
+    
+    click.echo(f"Starting {lang_names[language]} SRT translation of up to {len(pending)} files with {workers} workers...")
+    if preserve_original:
+        click.echo(f"Preserving segments already in {lang_names[language]}")
+    
+    results = pipeline.translate_srt_files(language, preserve_original=preserve_original)
+    
+    # Summary
+    successful = sum(1 for r in results if r.translations.get(f"{language}_srt", False))
+    failed = len(results) - successful
+    
+    click.echo(f"\n✓ SRT Translated: {successful}")
+    if failed:
+        click.echo(f"✗ Failed: {failed}")
+
+
+@cli.command('estimate-srt-cost')
+@click.argument('srt_file', type=click.Path(exists=True))
+@click.argument('language', type=click.Choice(['en', 'de', 'he']))
+def estimate_srt_cost(srt_file: str, language: str):
+    """Estimate translation cost for an SRT file.
+    
+    Shows cost comparison between optimized batch translation
+    and traditional segment-by-segment translation.
+    """
+    from scribe.srt_translator import SRTTranslator
+    
+    translator = SRTTranslator()
+    cost_info = translator.estimate_cost(srt_file, language)
+    
+    click.echo(f"\nCost estimation for translating {Path(srt_file).name} to {language.upper()}:")
+    click.echo(f"  Total segments: {cost_info['total_segments']}")
+    click.echo(f"  Segments to translate: {cost_info['segments_to_translate']}")
+    click.echo(f"  Unique texts: {cost_info['unique_texts']}")
+    click.echo(f"\n  Cost without optimization: ${cost_info['cost_without_optimization']:.4f}")
+    click.echo(f"  Cost with optimization: ${cost_info['cost_with_optimization']:.4f}")
+    click.echo(f"  Savings: ${cost_info['cost_without_optimization'] - cost_info['cost_with_optimization']:.4f} ({cost_info['savings_factor']:.1f}x reduction)")
+
+
 @cli.command()
 @click.argument('language', type=click.Choice(['en', 'de', 'he']))
 @click.option('--sample', '-s', default=20, help='Number of files to evaluate')

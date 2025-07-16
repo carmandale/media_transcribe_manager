@@ -261,8 +261,20 @@ def process_interview(file_record: Dict, project_root: Path) -> Optional[Dict]:
         
         # Convert SRT to VTT
         if convert_srt_to_vtt(srt_path, vtt_path):
+            # Create symlink for VTT file
+            vtt_filename = f"{file_id}.{lang_code}.vtt"
+            vtt_symlink_path = media_dir / vtt_filename
+            
+            if not vtt_symlink_path.exists():
+                try:
+                    os.symlink(Path(vtt_path).resolve(), vtt_symlink_path)
+                    logger.info(f"  ✓ Created symlink for {lang_code} subtitles: {vtt_symlink_path}")
+                except Exception as e:
+                    logger.error(f"  ✗ Failed to create symlink for {vtt_filename}: {e}")
+                    continue  # Skip this language if we can't create the symlink
+            
             # Add subtitle asset
-            manifest_entry['assets']['subtitles'][lang_code] = f"/media/{file_id}/{file_id}.{lang_code}.vtt"
+            manifest_entry['assets']['subtitles'][lang_code] = f"/media/{file_id}/{vtt_filename}"
             
             # Parse cues from VTT
             cues = parse_vtt_for_cues(vtt_path)
@@ -317,12 +329,26 @@ def main():
     manifest_dir = "scribe-viewer/public"
     os.makedirs(manifest_dir, exist_ok=True)
     
-    # Write manifest file
+    # --- Write Full Manifest ---
     manifest_path = os.path.join(manifest_dir, "manifest.json")
-    logger.info(f"Writing manifest to {manifest_path}...")
-    
+    logger.info(f"Writing full manifest to {manifest_path}...")
     with open(manifest_path, 'w', encoding='utf-8') as f:
         json.dump(manifest, f, indent=2, ensure_ascii=False)
+    
+    # --- Write Minified Manifest for Gallery ---
+    mini_manifest = []
+    for entry in manifest:
+        mini_entry = {
+            "id": entry["id"],
+            "metadata": entry["metadata"]
+        }
+        mini_manifest.append(mini_entry)
+        
+    mini_manifest_path = os.path.join(manifest_dir, "manifest.min.json")
+    logger.info(f"Writing minified manifest to {mini_manifest_path}...")
+    with open(mini_manifest_path, 'w', encoding='utf-8') as f:
+        json.dump(mini_manifest, f, indent=2, ensure_ascii=False)
+
     
     logger.info(f"✓ Manifest generation complete!")
     logger.info(f"  - Total interviews processed: {len(manifest)}")

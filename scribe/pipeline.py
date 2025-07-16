@@ -16,6 +16,7 @@ from .transcribe import transcribe_file
 from .translate import translate_text, validate_hebrew
 from .evaluate import evaluate_translation
 from .utils import ensure_directory, ProgressTracker, SimpleWorkerPool
+from .srt_translator import translate_srt_file
 
 logger = logging.getLogger(__name__)
 
@@ -323,6 +324,106 @@ class Pipeline:
                 logger.error(f"Evaluation failed for {file_info['file_id']}: {e}")
                 
         return scores
+    
+    def translate_srt_files(self, language: str, preserve_original: bool = True) -> List[PipelineResult]:
+        """
+        Translate SRT subtitle files for a specific language.
+        
+        This method translates SRT files while preserving timing and optionally
+        preserving segments that are already in the target language. This is
+        particularly useful for mixed-language interviews where we want to
+        maintain the original speaker's words when they're already in the
+        target language.
+        
+        Args:
+            language: Target language code ('en', 'de', 'he')
+            preserve_original: If True, segments already in target language are preserved
+            
+        Returns:
+            List of PipelineResult objects
+        """
+        # Get files with original SRT but no translated SRT for this language
+        pending = self.db.get_files_for_srt_translation(language)
+        
+        if not pending:
+            logger.info(f"No SRT files pending translation to {language}")
+            return []
+            
+        logger.info(f"Translating {len(pending)} SRT files to {language}")
+        
+        # Track progress
+        tracker = ProgressTracker(len(pending), f"SRT Translation ({language})")
+        
+        def process_one(file_info):
+            """Process a single SRT file"""
+            result = PipelineResult(
+                file_id=file_info['file_id'],
+                file_path=Path(file_info.get('file_path') or self.config.output_dir / file_info['file_id'])
+            )
+            
+            try:
+                # Paths
+                file_dir = self.config.output_dir / file_info['file_id']
+                orig_srt_path = file_dir / f"{file_info['file_id']}.orig.srt"
+                output_srt_path = file_dir / f"{file_info['file_id']}.{language}.srt"
+                
+                # Check if original SRT exists
+                if not orig_srt_path.exists():
+                    # Try regular SRT if orig doesn't exist
+                    orig_srt_path = file_dir / f"{file_info['file_id']}.srt"
+                    if not orig_srt_path.exists():
+                        raise FileNotFoundError(f"No SRT file found for {file_info['file_id']}")
+                
+                # Translate SRT
+                config = {'openai_model': self.config.openai_model} if self.config.openai_model else None
+                success = translate_srt_file(
+                    str(orig_srt_path),
+                    str(output_srt_path),
+                    target_language=language,
+                    preserve_original_when_matching=preserve_original,
+                    config=config
+                )
+                
+                if success:
+                    result.translations[f"{language}_srt"] = True
+                    tracker.update(success=True)
+                    logger.info(f"Successfully translated SRT for {file_info['file_id']} to {language}")
+                else:
+                    result.errors.append(f"SRT translation to {language} failed")
+                    tracker.update(success=False)
+                    
+            except Exception as e:
+                logger.error(f"SRT translation failed for {file_info['file_id']}: {e}")
+                result.errors.append(f"SRT translation {language}: {str(e)}")
+                tracker.update(success=False)
+                
+            return result
+        
+        # Process in parallel
+        results = []
+        
+        with SimpleWorkerPool(max_workers=self.config.translation_workers) as pool:
+            batch_results = pool.process_batch(
+                process_one, 
+                pending,
+                timeout=120  # 2 minutes per SRT file
+            )
+            
+            # Convert batch results to list of PipelineResult objects
+            for item in pending:
+                if str(item) in batch_results['results']:
+                    results.append(batch_results['results'][str(item)])
+                else:
+                    # Create failed result for missing items
+                    result = PipelineResult(
+                        file_id=item['file_id'],
+                        file_path=Path(item.get('file_path') or self.config.output_dir / item['file_id'])
+                    )
+                    result.errors.append(f"SRT translation {language}: Processing failed or timed out")
+                    results.append(result)
+            
+        logger.info(f"SRT translation batch complete: {batch_results['completed']} succeeded, {batch_results['failed']} failed")
+        return results
     
     def run_full_pipeline(self):
         """Run the complete pipeline: scan → transcribe → translate → evaluate"""

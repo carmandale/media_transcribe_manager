@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Inline Subtitle Test</title>
+    <style>
+        body {
+            background: #000;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        video {
+            width: 100%;
+            max-width: 800px;
+            display: block;
+            margin: 0 auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Inline VTT Test</h1>
+    <video controls crossorigin="anonymous">
+        <source src="/media/225f0880-e414-43cd-b3a5-2bd6e5642f07/01.mp4" type="video/mp4">
+        <track kind="subtitles" srclang="en" label="English" default src="data:text/vtt;base64,V0VCVlRUCgowMDowMDowNS40ODAgLS0+IDAwOjAwOjEwLjQ4MApGYXN0LiBBdCB0aGUgYmVnaW5uaW5nIG9mIHRoZSBzZXZlbnRpZXMuIFRoYXQganVzdCBkaXNhcHBlYXJlZCBsYXRlci4KCjAwOjAwOjEwLjQ4MCAtLT4gMDA6MDA6MTQuMDgyCkFzIEkgc2FpZCwgd2hlbiBJIHdhcyBpbiB0aGUgbWlsaXRhcnkKCjAwOjAwOjE0LjA4MiAtLT4gMDA6MDA6MTkuMDgyCkkgZm91bmQgb3V0IHRoYXQgSSB3YXNuJ3QgZXZlbiBhbGxvd2VkIHRvIGJlY29tZSBhIG5vbi1jb21taXNzaW9uZWQgb2ZmaWNlci4=">
+    </video>
+    
+    <p>This test uses an inline base64-encoded VTT track to eliminate any CORS or file serving issues.</p>
+    
+    <script>
+        const video = document.querySelector('video');
+        video.addEventListener('loadedmetadata', () => {
+            console.log('Video loaded');
+            console.log('TextTracks:', video.textTracks.length);
+            
+            Array.from(video.textTracks).forEach((track, i) => {
+                console.log(`Track ${i}: ${track.label}, ${track.language}, ${track.mode}`);
+                track.mode = 'showing';
+            });
+        });
+    </script>
+</body>
+</html>

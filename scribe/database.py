@@ -451,6 +451,55 @@ class Database:
         cursor = conn.execute(query, (-timeout_minutes,))
         return [dict(row) for row in cursor.fetchall()]
     
+    def get_files_for_srt_translation(self, language: str) -> List[Dict[str, Any]]:
+        """
+        Get files that have original SRT but no translated SRT for a language.
+        
+        Args:
+            language: Target language code ('en', 'de', 'he')
+            
+        Returns:
+            List of file records needing SRT translation
+        """
+        query = """
+            SELECT m.*, p.*
+            FROM media_files m
+            JOIN processing_status p ON m.file_id = p.file_id
+            WHERE p.transcription_status = 'completed'
+              AND p.status != 'failed'
+              AND NOT EXISTS (
+                  SELECT 1 FROM (
+                      SELECT file_id,
+                             CASE 
+                                 WHEN ? = 'en' THEN 1
+                                 WHEN ? = 'de' THEN 1
+                                 WHEN ? = 'he' THEN 1
+                                 ELSE 0
+                             END as has_srt
+                      FROM processing_status
+                      WHERE file_id = m.file_id
+                  ) sub
+                  WHERE sub.has_srt = 0
+              )
+            ORDER BY p.last_updated ASC
+        """
+        
+        # Note: This query needs to be enhanced to check actual file existence
+        # For now, we'll return all files with completed transcription
+        # The pipeline will check for actual SRT file existence
+        simple_query = """
+            SELECT m.*, p.*
+            FROM media_files m
+            JOIN processing_status p ON m.file_id = p.file_id
+            WHERE p.transcription_status = 'completed'
+              AND p.status != 'failed'
+            ORDER BY p.last_updated ASC
+        """
+        
+        conn = self._get_connection()
+        cursor = conn.execute(simple_query)
+        return [dict(row) for row in cursor.fetchall()]
+    
     # Error logging
     
     def log_error(self,

@@ -1,0 +1,30 @@
+/* Ensure video subtitles are visible */
+video::cue {
+  background-color: rgba(0, 0, 0, 0.8);
+  color: white;
+  font-size: 18px;
+  line-height: 1.4;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+/* Override any theme styles that might hide cues */
+video::-webkit-media-text-track-container {
+  position: absolute;
+  bottom: 50px;
+  width: 100%;
+  text-align: center;
+}
+
+video::-webkit-media-text-track-display {
+  display: inline-block !important;
+}
+
+video::cue(.white) {
+  color: white;
+}
+
+/* Ensure track is visible */
+video::cue-region {
+  background: transparent;
+}

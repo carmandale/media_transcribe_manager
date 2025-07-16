@@ -200,6 +200,168 @@ class HistoricalTranslator:
             logger.error(f"Translation error with {provider}: {e}")
             return None
     
+    def batch_translate(self,
+                       texts: List[str],
+                       target_language: str,
+                       source_language: Optional[str] = None,
+                       provider: Optional[str] = None) -> List[str]:
+        """
+        Translate multiple texts in batch for efficiency.
+        
+        This method optimizes API calls by sending multiple texts at once,
+        significantly reducing costs and processing time for subtitle translation.
+        
+        Args:
+            texts: List of texts to translate
+            target_language: Target language code (e.g., 'en', 'de', 'he')
+            source_language: Source language code (optional)
+            provider: Preferred provider (optional, auto-selected for Hebrew)
+            
+        Returns:
+            List of translated texts in same order as input
+        """
+        if not texts:
+            return []
+        
+        # For single text, use regular translate
+        if len(texts) == 1:
+            result = self.translate(texts[0], target_language, source_language, provider)
+            return [result] if result else ['']
+        
+        # CRITICAL HEBREW FIX: Auto-route Hebrew to capable providers
+        if target_language.lower() in ['he', 'heb', 'hebrew']:
+            if provider == 'deepl' or provider is None:
+                # DeepL doesn't support Hebrew - switch providers
+                if 'openai' in self.providers:
+                    logger.info("Routing Hebrew batch translation to OpenAI")
+                    provider = 'openai'
+                elif 'microsoft' in self.providers:
+                    logger.info("Routing Hebrew batch translation to Microsoft Translator")
+                    provider = 'microsoft'
+                else:
+                    logger.error("No Hebrew-capable provider available")
+                    return [''] * len(texts)
+        
+        # Select default provider if not specified
+        if not provider:
+            provider = self._select_default_provider()
+        
+        if provider not in self.providers:
+            logger.error(f"Provider '{provider}' not available")
+            return [''] * len(texts)
+        
+        # Normalize language codes
+        target_lang = self._normalize_language_code(target_language, provider)
+        source_lang = self._normalize_language_code(source_language, provider) if source_language else None
+        
+        try:
+            # Route to appropriate batch translation method
+            if provider == 'deepl':
+                return self._batch_translate_deepl(texts, target_lang, source_lang)
+            elif provider == 'microsoft':
+                return self._batch_translate_microsoft(texts, target_lang, source_lang)
+            elif provider == 'openai':
+                return self._batch_translate_openai(texts, target_lang, source_lang)
+        except Exception as e:
+            logger.error(f"Batch translation error with {provider}: {e}")
+            # Fall back to individual translation
+            logger.warning("Falling back to individual translation")
+            return [self.translate(text, target_language, source_language, provider) or '' for text in texts]
+    
+    def _batch_translate_deepl(self, texts: List[str], target_lang: str, source_lang: Optional[str]) -> List[str]:
+        """Batch translate using DeepL."""
+        # DeepL accepts multiple texts in a single request
+        results = self.providers['deepl'].translate_text(
+            texts=texts,
+            target_lang=target_lang,
+            source_lang=source_lang
+        )
+        return [result.text for result in results]
+    
+    def _batch_translate_microsoft(self, texts: List[str], target_lang: str, source_lang: Optional[str]) -> List[str]:
+        """Batch translate using Microsoft Translator."""
+        api_key = self.providers['microsoft']['api_key']
+        location = self.providers['microsoft']['location']
+        
+        endpoint = "https://api.cognitive.microsofttranslator.com/translate"
+        headers = {
+            'Ocp-Apim-Subscription-Key': api_key,
+            'Ocp-Apim-Subscription-Region': location,
+            'Content-type': 'application/json'
+        }
+        
+        params = {
+            'api-version': '3.0',
+            'to': target_lang
+        }
+        if source_lang:
+            params['from'] = source_lang
+        
+        # Microsoft accepts array of texts
+        body = [{'text': text} for text in texts]
+        
+        response = requests.post(endpoint, headers=headers, params=params, json=body)
+        response.raise_for_status()
+        
+        results = response.json()
+        translations = []
+        for result in results:
+            if 'translations' in result and len(result['translations']) > 0:
+                translations.append(result['translations'][0]['text'])
+            else:
+                translations.append('')
+        
+        return translations
+    
+    def _batch_translate_openai(self, texts: List[str], target_lang: str, source_lang: Optional[str]) -> List[str]:
+        """Batch translate using OpenAI by joining texts with separator."""
+        # OpenAI doesn't have native batch support, so we use a separator approach
+        separator = "\n<<<SEP>>>\n"
+        combined_text = separator.join(texts)
+        
+        # Map language codes to names
+        lang_names = {
+            'en': 'English', 'de': 'German', 'he': 'Hebrew',
+            'fr': 'French', 'es': 'Spanish', 'it': 'Italian'
+        }
+        target_name = lang_names.get(target_lang.lower(), target_lang)
+        
+        # System prompt for batch translation
+        system_prompt = (
+            f"You are a professional translator specializing in historical documents. "
+            f"Translate the following texts to {target_name}. "
+            "The texts are separated by <<<SEP>>>. "
+            "Requirements:\n"
+            "1. Translate each text segment independently\n"
+            "2. Preserve the <<<SEP>>> separator between translations\n"
+            "3. Maintain the exact same number of segments\n"
+            "4. Return ONLY the translated texts with separators, no additional formatting\n"
+            "5. For Hebrew translations, use proper Hebrew script and grammar"
+        )
+        
+        try:
+            # Use the API call method
+            translated_combined = self._call_openai_api(system_prompt, combined_text)
+            
+            if not translated_combined:
+                return [''] * len(texts)
+            
+            # Split back into individual translations
+            translations = translated_combined.split(separator)
+            
+            # Ensure we have the right number of translations
+            if len(translations) != len(texts):
+                logger.warning(f"Translation count mismatch: expected {len(texts)}, got {len(translations)}")
+                # Fall back to individual translation
+                return [self.translate(text, target_lang, source_lang, 'openai') or '' for text in texts]
+            
+            return [t.strip() for t in translations]
+            
+        except Exception as e:
+            logger.error(f"OpenAI batch translation error: {e}")
+            # Fall back to individual translation
+            return [self.translate(text, target_lang, source_lang, 'openai') or '' for text in texts]
+    
     def _translate_deepl(self, text: str, target_lang: str, source_lang: Optional[str]) -> str:
         """Translate using DeepL."""
         result = self.providers['deepl'].translate_text(

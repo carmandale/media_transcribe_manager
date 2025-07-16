@@ -98,6 +98,7 @@ uv run python scribe_cli.py add output/ --recursive  # Add directory
 uv run python scribe_cli.py transcribe --workers 10
 
 # Translate to specific language (Hebrew uses gpt-4.1-mini by default)
+# Note: gpt-4.1-mini is a real OpenAI model (not a typo) - see https://platform.openai.com/docs/models/gpt-4.1-mini
 uv run python scribe_cli.py translate en --workers 8
 uv run python scribe_cli.py translate de --workers 8
 uv run python scribe_cli.py translate he --workers 8 --model gpt-4.1-mini
@@ -212,7 +213,7 @@ Required in .env:
 5. **Backups**: Stored in `backups/` directory with timestamps
 6. **Utilities**: Use scripts in `utilities/` directory with caution - always backup first
 7. **Hebrew Enhancements**: Enhanced mode provides better quality assessment
-8. **GPT-4.1-mini**: Default model for Hebrew translations, balances quality and cost
+8. **GPT-4.1-mini**: Default model for Hebrew translations, balances quality and cost (real model, not a typo)
 
 ## Historical Context
 This system preserves Holocaust survivor testimonies and WWII accounts. Every hesitation, pause, and emotional inflection matters for historical accuracy.
