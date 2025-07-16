@@ -66,8 +66,8 @@ def retry(tries=3, delay=1, backoff=2, exceptions=(Exception,)):
                 except exceptions as e:
                     attempt += 1
                     if attempt >= tries:
-                        logger.error(f"Max retries ({tries}) exceeded for {func.__name__}")
-                        raise
+                        logger.error(f"Max retries ({tries}) exceeded for {func.__name__}: {e}")
+                        return None
                     
                     logger.warning(f"Attempt {attempt} failed: {e}. Retrying in {current_delay}s...")
                     time.sleep(current_delay)
@@ -113,7 +113,7 @@ class HistoricalTranslator:
         if ms_key and requests:
             self.providers['microsoft'] = {
                 'api_key': ms_key,
-                'location': ms_location.split()[0].strip()  # Clean location
+                'location': ms_location.split()[0].strip() if ms_location and ms_location.strip() else 'global'  # Clean location
             }
             logger.info("Microsoft Translator initialized")
         
@@ -541,12 +541,19 @@ class HistoricalTranslator:
                         current_chunk += " " + sentence if current_chunk else sentence
             
             # Normal paragraph handling
-            elif len(current_chunk) + len(para) + 2 > max_chars:
-                if current_chunk:
-                    chunks.append(current_chunk.strip())
-                current_chunk = para
             else:
-                current_chunk += "\n\n" + para if current_chunk else para
+                # Check if adding this paragraph would exceed max_chars
+                separator = "\n\n" if current_chunk else ""
+                potential_length = len(current_chunk) + len(separator) + len(para)
+                
+                if potential_length > max_chars:
+                    # Start new chunk with this paragraph
+                    if current_chunk:
+                        chunks.append(current_chunk.strip())
+                    current_chunk = para
+                else:
+                    # Add paragraph to current chunk
+                    current_chunk += separator + para
         
         if current_chunk:
             chunks.append(current_chunk.strip())
