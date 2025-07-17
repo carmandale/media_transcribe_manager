@@ -323,12 +323,9 @@ class SimpleWorkerPool:
         
         if callback:
             def done_callback(fut):
-                try:
-                    result = fut.result(timeout=timeout)
-                    # CALLBACK FIX: Handle different callback signatures
-                    self._call_callback_safely(callback, item, result, None)
-                except Exception as e:
-                    self._call_callback_safely(callback, item, None, e)
+                # CALLBACK FIX: Pass the future object directly to the callback
+                # This matches the test expectation where callback(future) is called
+                callback(fut)
             
             future.add_done_callback(done_callback)
         
