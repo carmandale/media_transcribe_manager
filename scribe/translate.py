@@ -72,14 +72,18 @@ def retry(tries=3, delay=1, backoff=2, exceptions=(Exception,), return_on_failur
                         logger.error(f"Max retries ({tries}) exceeded for {func.__name__}: {e}")
                         if return_on_failure == 'raise':
                             raise e
+                        # CRITICAL FIX: Always re-raise the last exception when max attempts exceeded
+                        # This prevents silent failures that can cause data loss
+                        if last_exception:
+                            raise last_exception
                         return return_on_failure
                     
                     logger.warning(f"Attempt {attempt} failed: {e}. Retrying in {current_delay}s...")
                     time.sleep(current_delay)
                     current_delay *= backoff
                     
-            # Fallback (should not reach here)
-            if return_on_failure == 'raise' and last_exception:
+            # Fallback (should not reach here, but ensure we don't return None silently)
+            if last_exception:
                 raise last_exception
             return return_on_failure
         return wrapper
@@ -531,12 +535,24 @@ class HistoricalTranslator:
         chunks = []
         current_chunk = ""
         
+        # Buffer to collect consecutive short paragraphs
+        paragraph_buffer = []
+        
         for para in paragraphs:
             if not para.strip():
                 continue
                 
             # If paragraph itself is too long, split it
             if len(para) > max_chars:
+                # First, finish any buffered paragraphs
+                if paragraph_buffer:
+                    buffer_text = "\n\n".join(paragraph_buffer)
+                    if current_chunk:
+                        current_chunk += "\n\n" + buffer_text
+                    else:
+                        current_chunk = buffer_text
+                    paragraph_buffer = []
+                
                 if current_chunk:
                     chunks.append(current_chunk.strip())
                     current_chunk = ""
@@ -556,20 +572,47 @@ class HistoricalTranslator:
                     else:
                         current_chunk += " " + sentence if current_chunk else sentence
             
-            # Normal paragraph handling
+            # Normal paragraph handling - buffer related paragraphs
             else:
-                # Check if adding this paragraph would exceed max_chars
+                # Add to buffer
+                paragraph_buffer.append(para)
+                
+                # Check if buffer would exceed max_chars
+                buffer_text = "\n\n".join(paragraph_buffer)
                 separator = "\n\n" if current_chunk else ""
-                potential_length = len(current_chunk) + len(separator) + len(para)
+                potential_length = len(current_chunk) + len(separator) + len(buffer_text)
                 
                 if potential_length > max_chars:
-                    # Start new chunk with this paragraph
-                    if current_chunk:
-                        chunks.append(current_chunk.strip())
-                    current_chunk = para
-                else:
-                    # Add paragraph to current chunk
-                    current_chunk += separator + para
+                    # If buffer has multiple paragraphs, try to keep some together
+                    if len(paragraph_buffer) > 1:
+                        # Remove the last paragraph from buffer and process the rest
+                        last_para = paragraph_buffer.pop()
+                        if paragraph_buffer:
+                            buffer_text = "\n\n".join(paragraph_buffer)
+                            if current_chunk:
+                                current_chunk += "\n\n" + buffer_text
+                            else:
+                                current_chunk = buffer_text
+                        
+                        # Start new chunk with current paragraph
+                        if current_chunk:
+                            chunks.append(current_chunk.strip())
+                        current_chunk = ""
+                        paragraph_buffer = [last_para]
+                    else:
+                        # Single paragraph that doesn't fit, start new chunk
+                        if current_chunk:
+                            chunks.append(current_chunk.strip())
+                        current_chunk = paragraph_buffer[0]
+                        paragraph_buffer = []
+        
+        # Process any remaining buffered paragraphs
+        if paragraph_buffer:
+            buffer_text = "\n\n".join(paragraph_buffer)
+            if current_chunk:
+                current_chunk += "\n\n" + buffer_text
+            else:
+                current_chunk = buffer_text
         
         if current_chunk:
             chunks.append(current_chunk.strip())

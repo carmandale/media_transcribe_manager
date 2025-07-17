@@ -18,6 +18,14 @@ from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError
 logger = logging.getLogger(__name__)
 
 
+class WorkerPoolError(Exception):
+    """Exception raised when worker pool operations fail."""
+    
+    def __init__(self, message: str, errors: List[Tuple[Any, Exception]]):
+        super().__init__(message)
+        self.errors = errors
+
+
 # Path Management Utilities
 def normalize_path(path: str) -> Path:
     """
@@ -72,6 +80,16 @@ def sanitize_filename(filename: str) -> str:
     
     # Remove leading/trailing underscores
     base_name = base_name.strip('_')
+    
+    # Handle Windows reserved names
+    reserved_names = {
+        'con', 'prn', 'aux', 'nul',
+        'com1', 'com2', 'com3', 'com4', 'com5', 'com6', 'com7', 'com8', 'com9',
+        'lpt1', 'lpt2', 'lpt3', 'lpt4', 'lpt5', 'lpt6', 'lpt7', 'lpt8', 'lpt9'
+    }
+    
+    if base_name.lower() in reserved_names:
+        base_name = f"_{base_name}"
     
     # Handle special case where extension starts with underscore
     if not base_name and extension.startswith('.'):
@@ -176,6 +194,9 @@ class SimpleWorkerPool:
             
         Returns:
             List of results in the same order as inputs
+            
+        Raises:
+            WorkerPoolError: If any tasks fail, to prevent silent data loss
         """
         # Use provided timeout or default timeout
         effective_timeout = timeout or self.default_timeout
@@ -185,22 +206,33 @@ class SimpleWorkerPool:
                 # Use submit for timeout support
                 futures = [self.executor.submit(func, item) for item in items]
                 results = []
-                for future in futures:
+                errors = []
+                for i, future in enumerate(futures):
                     try:
                         result = future.result(timeout=effective_timeout)
                         results.append(result)
-                    except TimeoutError:
-                        logger.warning(f"Task timed out after {effective_timeout}s")
+                    except TimeoutError as e:
+                        logger.warning(f"Task timed out after {effective_timeout}s for item {items[i]}")
+                        errors.append((items[i], e))
                         results.append(None)
                     except Exception as e:
-                        logger.error(f"Task failed: {e}")
+                        logger.error(f"Task failed for item {items[i]}: {e}")
+                        errors.append((items[i], e))
                         results.append(None)
+                
+                # CRITICAL FIX: Raise exception if any tasks failed to prevent silent data loss
+                if errors:
+                    raise WorkerPoolError(f"Failed to process {len(errors)} items", errors)
+                
                 return results
             else:
                 return list(self.executor.map(func, items))
+        except WorkerPoolError:
+            # Re-raise WorkerPoolError as-is
+            raise
         except Exception as e:
             logger.error(f"Map operation failed: {e}")
-            return [None] * len(items)
+            raise WorkerPoolError(f"Map operation failed: {e}", [(item, e) for item in items])
     
     def process_batch(self, func: Callable, items: List[Any], 
                      callback: Optional[Callable] = None,
@@ -293,13 +325,50 @@ class SimpleWorkerPool:
             def done_callback(fut):
                 try:
                     result = fut.result(timeout=timeout)
-                    callback(item, result, None)
+                    # CALLBACK FIX: Handle different callback signatures
+                    self._call_callback_safely(callback, item, result, None)
                 except Exception as e:
-                    callback(item, None, e)
+                    self._call_callback_safely(callback, item, None, e)
             
             future.add_done_callback(done_callback)
         
         return future
+    
+    def _call_callback_safely(self, callback: Callable, item: Any, result: Any, error: Optional[Exception]):
+        """
+        Call callback function with automatic signature detection.
+        
+        Args:
+            callback: Callback function to call
+            item: Item being processed
+            result: Result of processing (or None if error)
+            error: Exception if processing failed (or None if successful)
+        """
+        import inspect
+        
+        try:
+            # Get callback signature
+            sig = inspect.signature(callback)
+            param_count = len(sig.parameters)
+            
+            # Call with appropriate number of arguments
+            if param_count == 1:
+                callback(result)
+            elif param_count == 2:
+                callback(item, result)
+            elif param_count == 3:
+                callback(item, result, error)
+            else:
+                # Try 3-arg version as default
+                callback(item, result, error)
+                
+        except Exception as e:
+            logger.error(f"Error calling callback: {e}")
+            # Try fallback with just the result
+            try:
+                callback(result)
+            except Exception as fallback_error:
+                logger.error(f"Callback fallback also failed: {fallback_error}")
     
     def shutdown(self, wait: bool = True):
         """
