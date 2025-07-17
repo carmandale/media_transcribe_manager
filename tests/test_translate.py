@@ -519,10 +519,10 @@ class TestErrorHandling:
         # Mock API error
         mock_post.side_effect = Exception("Connection error")
         
-        # With retry decorator, it should try 3 times
-        result = translator._translate_microsoft("Hello", "fr", None)
+        # With retry decorator, it should re-raise exception after 3 tries
+        with pytest.raises(Exception, match="Connection error"):
+            translator._translate_microsoft("Hello", "fr", None)
         
-        assert result is None
         assert mock_post.call_count == 3
 
 

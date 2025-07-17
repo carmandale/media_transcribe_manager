@@ -20,7 +20,7 @@ from concurrent.futures import TimeoutError
 
 from scribe.utils import (
     normalize_path, sanitize_filename, generate_file_id,
-    ensure_directory, ProgressTracker, SimpleWorkerPool
+    ensure_directory, ProgressTracker, SimpleWorkerPool, WorkerPoolError
 )
 
 
@@ -279,15 +279,10 @@ class TestSimpleWorkerPool:
         pool = SimpleWorkerPool(max_workers=2)
         
         inputs = [1, 2, 3, 4, 5]
-        results = pool.map(faulty_function, inputs)
         
-        # Should handle errors gracefully
-        assert len(results) == 5
-        assert results[0] == 2
-        assert results[1] == 4
-        assert results[2] is None or isinstance(results[2], Exception)
-        assert results[3] == 8
-        assert results[4] == 10
+        # Should now raise WorkerPoolError instead of returning partial results
+        with pytest.raises(WorkerPoolError, match="Failed to process 1 items"):
+            pool.map(faulty_function, inputs)
         
         pool.shutdown()
     
@@ -301,13 +296,10 @@ class TestSimpleWorkerPool:
         pool = SimpleWorkerPool(max_workers=2, timeout=0.5)
         
         inputs = [0.1, 0.2, 2.0, 0.1]  # Third item will timeout
-        results = pool.map(slow_function, inputs)
         
-        # First, second, and fourth should succeed
-        assert results[0] == 0.1
-        assert results[1] == 0.2
-        assert results[2] is None or isinstance(results[2], TimeoutError)
-        assert results[3] == 0.1
+        # Should now raise WorkerPoolError instead of returning partial results
+        with pytest.raises(WorkerPoolError, match="Failed to process"):
+            pool.map(slow_function, inputs)
         
         pool.shutdown()
     
