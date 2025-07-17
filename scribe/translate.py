@@ -532,13 +532,16 @@ class HistoricalTranslator:
             return []
         
         paragraphs = text.split('\n\n')
+        # Remove empty paragraphs
+        paragraphs = [p.strip() for p in paragraphs if p.strip()]
+        
+        if not paragraphs:
+            return []
+        
         chunks = []
         current_chunk = ""
         
-        for para in paragraphs:
-            if not para.strip():
-                continue
-                
+        for i, para in enumerate(paragraphs):
             # If paragraph itself is too long, split it by sentences
             if len(para) > max_chars:
                 # First, save current chunk if it exists
@@ -570,6 +573,24 @@ class HistoricalTranslator:
                 if potential_length <= max_chars:
                     # Paragraph fits in current chunk
                     current_chunk += separator + para
+                    
+                    # For better balance, if we have more paragraphs and adding the next one
+                    # would exceed max_chars, but we have sufficient paragraphs left,
+                    # consider ending the current chunk for better balance
+                    if i + 1 < len(paragraphs):
+                        next_para = paragraphs[i + 1]
+                        next_separator = "\n\n"
+                        next_potential_length = len(current_chunk) + len(next_separator) + len(next_para)
+                        
+                        # For better balance, if we have exactly 2 paragraphs remaining
+                        # and current chunk is reasonable size, and adding the next paragraph
+                        # would make it unbalanced, end chunk for better balance
+                        if (len(paragraphs) - i - 1 == 2 and
+                            len(current_chunk) >= max_chars * 0.3 and
+                            next_potential_length > max_chars * 0.6):
+                            chunks.append(current_chunk.strip())
+                            current_chunk = ""
+                    
                 else:
                     # Paragraph doesn't fit, start new chunk
                     if current_chunk:

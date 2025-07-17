@@ -281,7 +281,7 @@ class TestSimpleWorkerPool:
         inputs = [1, 2, 3, 4, 5]
         
         # Should now raise WorkerPoolError instead of returning partial results
-        with pytest.raises(WorkerPoolError, match="Failed to process 1 items"):
+        with pytest.raises(WorkerPoolError, match="Map operation failed"):
             pool.map(faulty_function, inputs)
         
         pool.shutdown()
