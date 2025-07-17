@@ -20,7 +20,8 @@ from concurrent.futures import TimeoutError
 
 from scribe.utils import (
     normalize_path, sanitize_filename, generate_file_id,
-    ensure_directory, ProgressTracker, SimpleWorkerPool, WorkerPoolError
+    ensure_directory, ProgressTracker, SimpleWorkerPool, WorkerPoolError,
+    calculate_checksum, get_file_info, find_transcript_file, chunk_list, safe_execute
 )
 
 
@@ -397,6 +398,493 @@ class TestUtilityHelpers:
             assert call_count == 3
         except ImportError:
             pytest.skip("retry_with_backoff not available")
+
+
+class TestChecksumCalculation:
+    """Test checksum calculation functionality."""
+    
+    @pytest.mark.unit
+    def test_calculate_checksum_basic(self, temp_dir):
+        """Test basic checksum calculation with SHA256."""
+        test_file = temp_dir / "test.txt"
+        test_content = b"Hello, World!"
+        test_file.write_bytes(test_content)
+        
+        checksum = calculate_checksum(str(test_file))
+        
+        # Verify it's SHA256 hash (64 hex characters)
+        assert len(checksum) == 64
+        assert all(c in '0123456789abcdef' for c in checksum)
+        
+        # Verify it's consistent
+        checksum2 = calculate_checksum(str(test_file))
+        assert checksum == checksum2
+    
+    @pytest.mark.unit
+    def test_calculate_checksum_different_algorithms(self, temp_dir):
+        """Test checksum calculation with different algorithms."""
+        test_file = temp_dir / "test.txt"
+        test_content = b"Test content for hashing"
+        test_file.write_bytes(test_content)
+        
+        # Test SHA256
+        sha256_checksum = calculate_checksum(str(test_file), 'sha256')
+        assert len(sha256_checksum) == 64
+        
+        # Test SHA1
+        sha1_checksum = calculate_checksum(str(test_file), 'sha1')
+        assert len(sha1_checksum) == 40
+        
+        # Test MD5
+        md5_checksum = calculate_checksum(str(test_file), 'md5')
+        assert len(md5_checksum) == 32
+        
+        # They should all be different
+        assert sha256_checksum != sha1_checksum != md5_checksum
+    
+    @pytest.mark.unit
+    def test_calculate_checksum_large_file(self, temp_dir):
+        """Test checksum calculation with large file."""
+        test_file = temp_dir / "large_test.txt"
+        # Create a 1MB file
+        test_content = b"A" * (1024 * 1024)
+        test_file.write_bytes(test_content)
+        
+        checksum = calculate_checksum(str(test_file))
+        
+        # Should still work and be consistent
+        assert len(checksum) == 64
+        checksum2 = calculate_checksum(str(test_file))
+        assert checksum == checksum2
+    
+    @pytest.mark.unit
+    def test_calculate_checksum_empty_file(self, temp_dir):
+        """Test checksum calculation with empty file."""
+        test_file = temp_dir / "empty.txt"
+        test_file.write_bytes(b"")
+        
+        checksum = calculate_checksum(str(test_file))
+        
+        # Should work with empty file
+        assert len(checksum) == 64
+        # SHA256 of empty string
+        assert checksum == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+
+class TestFileInfo:
+    """Test file information retrieval."""
+    
+    @pytest.mark.unit
+    def test_get_file_info_existing_file(self, temp_dir):
+        """Test getting info for existing file."""
+        test_file = temp_dir / "test.mp4"
+        test_content = b"fake video content"
+        test_file.write_bytes(test_content)
+        
+        info = get_file_info(str(test_file))
+        
+        assert info['exists'] is True
+        assert info['size'] == len(test_content)
+        assert info['is_file'] is True
+        assert info['is_dir'] is False
+        assert info['extension'] == '.mp4'
+        assert info['stem'] == 'test'
+        assert 'modified' in info
+    
+    @pytest.mark.unit
+    def test_get_file_info_nonexistent_file(self, temp_dir):
+        """Test getting info for non-existent file."""
+        nonexistent_file = temp_dir / "does_not_exist.txt"
+        
+        info = get_file_info(str(nonexistent_file))
+        
+        assert info['exists'] is False
+        assert len(info) == 1  # Only 'exists' key
+    
+    @pytest.mark.unit
+    def test_get_file_info_directory(self, temp_dir):
+        """Test getting info for directory."""
+        test_dir = temp_dir / "subdir"
+        test_dir.mkdir()
+        
+        info = get_file_info(str(test_dir))
+        
+        assert info['exists'] is True
+        assert info['is_file'] is False
+        assert info['is_dir'] is True
+        assert info['extension'] == ''
+        assert info['stem'] == 'subdir'
+    
+    @pytest.mark.unit
+    def test_get_file_info_unicode_path(self, temp_dir):
+        """Test getting info for file with Unicode path."""
+        unicode_file = temp_dir / "тест_файл.txt"
+        unicode_file.write_text("content")
+        
+        info = get_file_info(str(unicode_file))
+        
+        assert info['exists'] is True
+        assert info['is_file'] is True
+        assert info['stem'] == 'тест_файл'
+        assert info['extension'] == '.txt'
+
+
+class TestTranscriptFileFinder:
+    """Test transcript file finding functionality."""
+    
+    @pytest.mark.unit
+    def test_find_transcript_file_basic(self, temp_dir):
+        """Test basic transcript file finding."""
+        file_id = "test123"
+        output_dir = temp_dir / "output"
+        output_dir.mkdir()
+        
+        # Create preferred transcript file
+        transcript_file = output_dir / f"{file_id}.txt"
+        transcript_file.write_text("transcript content")
+        
+        found_file = find_transcript_file(output_dir, file_id)
+        
+        assert found_file == transcript_file
+        assert found_file.exists()
+    
+    @pytest.mark.unit
+    def test_find_transcript_file_priority_order(self, temp_dir):
+        """Test transcript file finding respects priority order."""
+        file_id = "test456"
+        output_dir = temp_dir / "output"
+        output_dir.mkdir()
+        
+        # Create multiple transcript files
+        orig_srt = output_dir / f"{file_id}.orig.srt"
+        orig_srt.write_text("original srt content")
+        
+        en_txt = output_dir / f"{file_id}.en.txt"
+        en_txt.write_text("english text content")
+        
+        txt_file = output_dir / f"{file_id}.txt"
+        txt_file.write_text("main transcript content")
+        
+        # Should prefer .txt over others
+        found_file = find_transcript_file(output_dir, file_id)
+        assert found_file == txt_file
+    
+    @pytest.mark.unit
+    def test_find_transcript_file_fallback_order(self, temp_dir):
+        """Test transcript file finding fallback order."""
+        file_id = "test789"
+        output_dir = temp_dir / "output"
+        output_dir.mkdir()
+        
+        # Only create .en.txt (lowest priority)
+        en_txt = output_dir / f"{file_id}.en.txt"
+        en_txt.write_text("english text content")
+        
+        found_file = find_transcript_file(output_dir, file_id)
+        assert found_file == en_txt
+        
+        # Add .orig.srt (higher priority)
+        orig_srt = output_dir / f"{file_id}.orig.srt"
+        orig_srt.write_text("original srt content")
+        
+        found_file = find_transcript_file(output_dir, file_id)
+        assert found_file == orig_srt
+    
+    @pytest.mark.unit
+    def test_find_transcript_file_not_found(self, temp_dir):
+        """Test transcript file finding when no files exist."""
+        file_id = "nonexistent"
+        output_dir = temp_dir / "output"
+        output_dir.mkdir()
+        
+        found_file = find_transcript_file(output_dir, file_id)
+        assert found_file is None
+
+
+class TestListChunking:
+    """Test list chunking functionality."""
+    
+    @pytest.mark.unit
+    def test_chunk_list_basic(self):
+        """Test basic list chunking."""
+        items = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        chunks = chunk_list(items, 3)
+        
+        expected = [[1, 2, 3], [4, 5, 6], [7, 8, 9], [10]]
+        assert chunks == expected
+    
+    @pytest.mark.unit
+    def test_chunk_list_exact_division(self):
+        """Test chunking with exact division."""
+        items = [1, 2, 3, 4, 5, 6]
+        chunks = chunk_list(items, 2)
+        
+        expected = [[1, 2], [3, 4], [5, 6]]
+        assert chunks == expected
+    
+    @pytest.mark.unit
+    def test_chunk_list_empty(self):
+        """Test chunking empty list."""
+        items = []
+        chunks = chunk_list(items, 3)
+        
+        assert chunks == []
+    
+    @pytest.mark.unit
+    def test_chunk_list_single_item(self):
+        """Test chunking single item list."""
+        items = [42]
+        chunks = chunk_list(items, 3)
+        
+        assert chunks == [[42]]
+    
+    @pytest.mark.unit
+    def test_chunk_list_chunk_size_larger_than_list(self):
+        """Test chunking with chunk size larger than list."""
+        items = [1, 2, 3]
+        chunks = chunk_list(items, 10)
+        
+        assert chunks == [[1, 2, 3]]
+    
+    @pytest.mark.unit
+    def test_chunk_list_chunk_size_one(self):
+        """Test chunking with chunk size of 1."""
+        items = [1, 2, 3]
+        chunks = chunk_list(items, 1)
+        
+        expected = [[1], [2], [3]]
+        assert chunks == expected
+
+
+class TestSafeExecute:
+    """Test safe function execution."""
+    
+    @pytest.mark.unit
+    def test_safe_execute_success(self):
+        """Test safe execution with successful function."""
+        def add(a, b):
+            return a + b
+        
+        success, result = safe_execute(add, 2, 3)
+        
+        assert success is True
+        assert result == 5
+    
+    @pytest.mark.unit
+    def test_safe_execute_with_exception(self):
+        """Test safe execution with function that raises exception."""
+        def divide(a, b):
+            return a / b
+        
+        success, result = safe_execute(divide, 10, 0)
+        
+        assert success is False
+        assert isinstance(result, ZeroDivisionError)
+    
+    @pytest.mark.unit
+    def test_safe_execute_with_kwargs(self):
+        """Test safe execution with keyword arguments."""
+        def greet(name, greeting="Hello"):
+            return f"{greeting}, {name}!"
+        
+        success, result = safe_execute(greet, "World", greeting="Hi")
+        
+        assert success is True
+        assert result == "Hi, World!"
+    
+    @pytest.mark.unit
+    def test_safe_execute_no_args(self):
+        """Test safe execution with no arguments."""
+        def get_answer():
+            return 42
+        
+        success, result = safe_execute(get_answer)
+        
+        assert success is True
+        assert result == 42
+    
+    @pytest.mark.unit
+    def test_safe_execute_different_exceptions(self):
+        """Test safe execution with different exception types."""
+        def value_error_func():
+            raise ValueError("Test error")
+        
+        def type_error_func():
+            raise TypeError("Type error")
+        
+        success1, result1 = safe_execute(value_error_func)
+        success2, result2 = safe_execute(type_error_func)
+        
+        assert success1 is False
+        assert isinstance(result1, ValueError)
+        assert success2 is False
+        assert isinstance(result2, TypeError)
+
+
+class TestProgressTrackerStats:
+    """Test ProgressTracker statistics functionality."""
+    
+    @pytest.mark.unit
+    def test_progress_tracker_get_stats_basic(self):
+        """Test basic progress tracker statistics."""
+        tracker = ProgressTracker(total=100, description="Test")
+        
+        stats = tracker.get_stats()
+        
+        assert stats['total'] == 100
+        assert stats['processed'] == 0
+        assert stats['completed'] == 0
+        assert stats['failed'] == 0
+        assert stats['remaining'] == 100
+    
+    @pytest.mark.unit
+    def test_progress_tracker_get_stats_with_updates(self):
+        """Test progress tracker statistics with updates."""
+        tracker = ProgressTracker(total=50, description="Test")
+        
+        # Update with successes and failures
+        tracker.update(10, success=True)
+        tracker.update(5, success=False)
+        
+        stats = tracker.get_stats()
+        
+        assert stats['total'] == 50
+        assert stats['processed'] == 15
+        assert stats['completed'] == 10
+        assert stats['failed'] == 5
+        assert stats['remaining'] == 35
+    
+    @pytest.mark.unit
+    def test_progress_tracker_get_stats_no_total(self):
+        """Test progress tracker statistics with no total."""
+        tracker = ProgressTracker(description="Test")
+        
+        tracker.update(25, success=True)
+        tracker.update(10, success=False)
+        
+        stats = tracker.get_stats()
+        
+        assert stats['total'] is None
+        assert stats['processed'] == 35
+        assert stats['completed'] == 25
+        assert stats['failed'] == 10
+        assert stats['remaining'] == 0  # No total means no remaining
+
+
+class TestWorkerPoolProcessBatch:
+    """Test SimpleWorkerPool process_batch method."""
+    
+    @pytest.mark.unit
+    def test_process_batch_basic(self):
+        """Test basic batch processing."""
+        def double(x):
+            return x * 2
+        
+        pool = SimpleWorkerPool(max_workers=2)
+        items = [1, 2, 3, 4, 5]
+        
+        result = pool.process_batch(double, items)
+        
+        assert result['total'] == 5
+        assert result['completed'] == 5
+        assert result['failed'] == 0
+        assert len(result['results']) == 5
+        
+        # Check that all items were processed
+        for item in items:
+            assert str(item) in result['results']
+            assert result['results'][str(item)] == item * 2
+        
+        pool.shutdown()
+    
+    @pytest.mark.unit
+    def test_process_batch_with_callback(self):
+        """Test batch processing with callback."""
+        def square(x):
+            return x * x
+        
+        callback_results = []
+        
+        def callback(item, result, error):
+            callback_results.append((item, result, error))
+        
+        pool = SimpleWorkerPool(max_workers=2)
+        items = [1, 2, 3]
+        
+        result = pool.process_batch(square, items, callback=callback)
+        
+        assert result['total'] == 3
+        assert result['completed'] == 3
+        assert result['failed'] == 0
+        assert len(callback_results) == 3
+        
+        # Check callback was called for each item
+        for item, res, err in callback_results:
+            assert item in items
+            assert res == item * item
+            assert err is None
+        
+        pool.shutdown()
+    
+    @pytest.mark.unit
+    def test_process_batch_with_errors(self):
+        """Test batch processing with some errors."""
+        def problematic_func(x):
+            if x == 3:
+                raise ValueError("Error on 3")
+            return x * 2
+        
+        pool = SimpleWorkerPool(max_workers=2)
+        items = [1, 2, 3, 4, 5]
+        
+        result = pool.process_batch(problematic_func, items)
+        
+        assert result['total'] == 5
+        assert result['completed'] == 4
+        assert result['failed'] == 1
+        assert result['results']['3'] is None  # Failed item
+        assert result['results']['1'] == 2  # Successful items
+        
+        pool.shutdown()
+    
+    @pytest.mark.unit
+    def test_process_batch_empty_items(self):
+        """Test batch processing with empty items."""
+        def identity(x):
+            return x
+        
+        pool = SimpleWorkerPool(max_workers=2)
+        items = []
+        
+        result = pool.process_batch(identity, items)
+        
+        assert result['total'] == 0
+        assert result['completed'] == 0
+        assert result['failed'] == 0
+        assert result['results'] == {}
+        
+        pool.shutdown()
+    
+    @pytest.mark.unit
+    def test_process_batch_with_timeout(self):
+        """Test batch processing with timeout."""
+        def slow_func(x):
+            import time
+            if x == 2:
+                time.sleep(5)  # This will timeout
+            return x
+        
+        pool = SimpleWorkerPool(max_workers=2)
+        items = [1, 2, 3]
+        
+        result = pool.process_batch(slow_func, items, timeout=1.0)
+        
+        assert result['total'] == 3
+        assert result['completed'] == 2  # 1 and 3 should succeed
+        assert result['failed'] == 1  # 2 should timeout
+        assert result['results']['2'] is None  # Timeout item
+        
+        pool.shutdown()
 
 
 class TestIntegration:
