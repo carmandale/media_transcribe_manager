@@ -575,6 +575,46 @@ class TestConvenienceFunctions:
         assert result == "Translated text"
         mock_translator_class.assert_called_once_with({'api_key': 'test'})
         mock_instance.translate.assert_called_once_with("Hello", "de", "en", "deepl")
+    
+    @pytest.mark.unit
+    @patch('scribe.translate.HistoricalTranslator')
+    def test_translate_text_function_minimal_params(self, mock_translator_class):
+        """Test translate_text convenience function with minimal parameters."""
+        mock_instance = Mock()
+        mock_instance.translate.return_value = "Translated text"
+        mock_translator_class.return_value = mock_instance
+        
+        result = translate_text("Hello", "de")
+        
+        assert result == "Translated text"
+        mock_translator_class.assert_called_once_with(None)
+        mock_instance.translate.assert_called_once_with("Hello", "de", None, None)
+    
+    @pytest.mark.unit
+    @pytest.mark.hebrew
+    def test_validate_hebrew_function(self):
+        """Test standalone validate_hebrew function."""
+        # Test valid Hebrew
+        assert validate_hebrew("שלום עולם")
+        assert validate_hebrew("Mixed שלום text")
+        
+        # Test invalid (no Hebrew)
+        assert not validate_hebrew("Hello world")
+        assert not validate_hebrew("")
+        assert not validate_hebrew("123456")
+    
+    @pytest.mark.unit
+    @pytest.mark.hebrew
+    def test_validate_hebrew_function_edge_cases(self):
+        """Test validate_hebrew function with edge cases."""
+        # Test None input
+        assert not validate_hebrew(None)
+        
+        # Test Unicode edge cases
+        assert validate_hebrew("\u0590")  # First Hebrew character
+        assert validate_hebrew("\u05FF")  # Last Hebrew character
+        assert not validate_hebrew("\u058F")  # Before Hebrew range
+        assert not validate_hebrew("\u0600")  # After Hebrew range
 
 
 class TestIntegration:
@@ -637,3 +677,847 @@ class TestIntegration:
         assert mock_post.call_count > 1
         assert result is not None
         assert "Translated chunk" in result
+
+
+class TestBatchTranslation:
+    """Test batch translation functionality."""
+    
+    @pytest.mark.unit
+    def test_batch_translate_empty_list(self):
+        """Test batch translation with empty list."""
+        translator = HistoricalTranslator()
+        result = translator.batch_translate([], "de")
+        assert result == []
+    
+    @pytest.mark.unit
+    def test_batch_translate_single_text(self):
+        """Test batch translation with single text falls back to regular translate."""
+        translator = HistoricalTranslator()
+        translator.providers = {'deepl': Mock()}
+        
+        with patch.object(translator, 'translate', return_value="Translated") as mock_translate:
+            result = translator.batch_translate(["Hello"], "de")
+            
+            assert result == ["Translated"]
+            mock_translate.assert_called_once_with("Hello", "de", None, None)
+    
+    @pytest.mark.unit
+    def test_batch_translate_hebrew_routing(self):
+        """Test batch translation routes Hebrew to proper provider."""
+        translator = HistoricalTranslator()
+        translator.providers = {'deepl': Mock(), 'openai': True}
+        
+        with patch.object(translator, '_batch_translate_openai', return_value=["תרגום1", "תרגום2"]) as mock_openai:
+            result = translator.batch_translate(["Text 1", "Text 2"], "he")
+            
+            assert result == ["תרגום1", "תרגום2"]
+            mock_openai.assert_called_once()
+    
+    @pytest.mark.unit
+    def test_batch_translate_provider_not_available(self):
+        """Test batch translation when provider not available."""
+        translator = HistoricalTranslator()
+        translator.providers = {'deepl': Mock()}
+        
+        result = translator.batch_translate(["Text 1", "Text 2"], "fr", provider="openai")
+        
+        assert result == ['', '']  # Empty strings for each input
+    
+    @pytest.mark.unit
+    def test_batch_translate_fallback_to_individual(self):
+        """Test batch translation falls back to individual translation on error."""
+        translator = HistoricalTranslator()
+        translator.providers = {'deepl': Mock()}
+        
+        with patch.object(translator, '_batch_translate_deepl', side_effect=Exception("Batch failed")), \
+             patch.object(translator, 'translate', side_effect=["Trans1", "Trans2"]) as mock_translate:
+            
+            result = translator.batch_translate(["Text 1", "Text 2"], "de")
+            
+            assert result == ["Trans1", "Trans2"]
+            assert mock_translate.call_count == 2
+    
+    @pytest.mark.unit
+    def test_batch_translate_individual_fallback_failure(self):
+        """Test batch translation when individual fallback also fails."""
+        translator = HistoricalTranslator()
+        translator.providers = {'deepl': Mock()}
+        
+        with patch.object(translator, '_batch_translate_deepl', side_effect=Exception("Batch failed")), \
+             patch.object(translator, 'translate', side_effect=["Trans1", None]) as mock_translate:
+            
+            result = translator.batch_translate(["Text 1", "Text 2"], "de")
+            
+            assert result == ["Trans1", ""]  # Empty string for failed translation
+            assert mock_translate.call_count == 2
+    
+    @pytest.mark.unit
+    def test_batch_translate_deepl_success(self):
+        """Test successful DeepL batch translation."""
+        translator = HistoricalTranslator()
+        mock_deepl = Mock()
+        mock_result1 = Mock()
+        mock_result1.text = "Hallo"
+        mock_result2 = Mock()
+        mock_result2.text = "Welt"
+        mock_deepl.translate_text.return_value = [mock_result1, mock_result2]
+        
+        translator.providers['deepl'] = mock_deepl
+        
+        result = translator._batch_translate_deepl(["Hello", "World"], "de", None)
+        
+        assert result == ["Hallo", "Welt"]
+        mock_deepl.translate_text.assert_called_once_with(
+            texts=["Hello", "World"],
+            target_lang="de",
+            source_lang=None
+        )
+    
+    @pytest.mark.unit
+    @patch('scribe.translate.requests.post')
+    def test_batch_translate_microsoft_success(self, mock_post):
+        """Test successful Microsoft batch translation."""
+        translator = HistoricalTranslator()
+        translator.providers['microsoft'] = {
+            'api_key': 'test_key',
+            'location': 'global'
+        }
+        
+        # Mock API response
+        mock_response = Mock()
+        mock_response.json.return_value = [
+            {'translations': [{'text': 'Bonjour'}]},
+            {'translations': [{'text': 'Monde'}]}
+        ]
+        mock_post.return_value = mock_response
+        
+        result = translator._batch_translate_microsoft(["Hello", "World"], "fr", None)
+        
+        assert result == ["Bonjour", "Monde"]
+        
+        # Verify API call structure
+        mock_post.assert_called_once()
+        call_args = mock_post.call_args
+        assert call_args[1]['json'] == [{'text': 'Hello'}, {'text': 'World'}]
+        assert call_args[1]['params']['to'] == 'fr'
+    
+    @pytest.mark.unit
+    @patch('scribe.translate.requests.post')
+    def test_batch_translate_microsoft_partial_failure(self, mock_post):
+        """Test Microsoft batch translation with partial failures."""
+        translator = HistoricalTranslator()
+        translator.providers['microsoft'] = {
+            'api_key': 'test_key',
+            'location': 'global'
+        }
+        
+        # Mock API response with missing translation
+        mock_response = Mock()
+        mock_response.json.return_value = [
+            {'translations': [{'text': 'Bonjour'}]},
+            {}  # Missing translations key
+        ]
+        mock_post.return_value = mock_response
+        
+        result = translator._batch_translate_microsoft(["Hello", "World"], "fr", None)
+        
+        assert result == ["Bonjour", ""]  # Empty string for failed translation
+    
+    @pytest.mark.unit
+    def test_batch_translate_openai_success(self):
+        """Test successful OpenAI batch translation."""
+        translator = HistoricalTranslator()
+        translator.providers['openai'] = True
+        
+        mock_client = Mock()
+        mock_response = Mock()
+        mock_response.choices = [Mock(message=Mock(content="Ciao\n<<<SEP>>>\nMondo"))]
+        mock_client.chat.completions.create.return_value = mock_response
+        
+        translator.openai_client = mock_client
+        
+        result = translator._batch_translate_openai(["Hello", "World"], "it", None)
+        
+        assert result == ["Ciao", "Mondo"]
+        
+        # Verify API call
+        create_call = mock_client.chat.completions.create
+        create_call.assert_called_once()
+        call_args = create_call.call_args[1]
+        assert "Italian" in call_args['messages'][0]['content']
+        assert "Hello\n<<<SEP>>>\nWorld" in call_args['messages'][1]['content']
+    
+    @pytest.mark.unit
+    def test_batch_translate_openai_mismatch_count(self):
+        """Test OpenAI batch translation with count mismatch fallback."""
+        translator = HistoricalTranslator()
+        translator.providers['openai'] = True
+        
+        mock_client = Mock()
+        mock_response = Mock()
+        mock_response.choices = [Mock(message=Mock(content="Only one translation"))]
+        mock_client.chat.completions.create.return_value = mock_response
+        
+        translator.openai_client = mock_client
+        
+        with patch.object(translator, 'translate', side_effect=["Trans1", "Trans2"]) as mock_translate:
+            result = translator._batch_translate_openai(["Hello", "World"], "it", None)
+            
+            assert result == ["Trans1", "Trans2"]
+            assert mock_translate.call_count == 2
+    
+    @pytest.mark.unit
+    def test_batch_translate_openai_api_error(self):
+        """Test OpenAI batch translation with API error fallback."""
+        translator = HistoricalTranslator()
+        translator.providers['openai'] = True
+        
+        mock_client = Mock()
+        mock_client.chat.completions.create.side_effect = Exception("API Error")
+        
+        translator.openai_client = mock_client
+        
+        with patch.object(translator, 'translate', side_effect=["Trans1", "Trans2"]) as mock_translate:
+            result = translator._batch_translate_openai(["Hello", "World"], "it", None)
+            
+            assert result == ["Trans1", "Trans2"]
+            assert mock_translate.call_count == 2
+
+
+class TestProviderMethods:
+    """Test provider-specific translation methods with comprehensive scenarios."""
+    
+    @pytest.mark.unit
+    @patch('scribe.translate.requests.post')
+    def test_call_microsoft_api_success(self, mock_post):
+        """Test successful Microsoft API call."""
+        translator = HistoricalTranslator()
+        translator.providers['microsoft'] = {
+            'api_key': 'test_key',
+            'location': 'westus'
+        }
+        
+        # Mock successful response
+        mock_response = Mock()
+        mock_response.json.return_value = [
+            {'translations': [{'text': 'Bonjour le monde'}]}
+        ]
+        mock_post.return_value = mock_response
+        
+        result = translator._call_microsoft_api("Hello world", "fr", "en")
+        
+        assert result == "Bonjour le monde"
+        
+        # Verify API call parameters
+        mock_post.assert_called_once()
+        call_args = mock_post.call_args
+        assert call_args[1]['headers']['Ocp-Apim-Subscription-Key'] == 'test_key'
+        assert call_args[1]['headers']['Ocp-Apim-Subscription-Region'] == 'westus'
+        assert call_args[1]['params']['to'] == 'fr'
+        assert call_args[1]['params']['from'] == 'en'
+        assert call_args[1]['json'] == [{'text': 'Hello world'}]
+    
+    @pytest.mark.unit
+    @patch('scribe.translate.requests.post')
+    def test_call_microsoft_api_empty_response(self, mock_post):
+        """Test Microsoft API call with empty response."""
+        translator = HistoricalTranslator()
+        translator.providers['microsoft'] = {
+            'api_key': 'test_key',
+            'location': 'global'
+        }
+        
+        # Mock empty response
+        mock_response = Mock()
+        mock_response.json.return_value = []
+        mock_post.return_value = mock_response
+        
+        result = translator._call_microsoft_api("Hello world", "fr", None)
+        
+        assert result is None
+    
+    @pytest.mark.unit
+    @patch('scribe.translate.requests.post')
+    def test_call_microsoft_api_malformed_response(self, mock_post):
+        """Test Microsoft API call with malformed response."""
+        translator = HistoricalTranslator()
+        translator.providers['microsoft'] = {
+            'api_key': 'test_key',
+            'location': 'global'
+        }
+        
+        # Mock malformed response
+        mock_response = Mock()
+        mock_response.json.return_value = [
+            {'error': 'Invalid request'}
+        ]
+        mock_post.return_value = mock_response
+        
+        result = translator._call_microsoft_api("Hello world", "fr", None)
+        
+        assert result is None
+    
+    @pytest.mark.unit
+    def test_call_openai_api_success(self):
+        """Test successful OpenAI API call."""
+        translator = HistoricalTranslator()
+        translator.providers['openai'] = True
+        
+        mock_client = Mock()
+        mock_response = Mock()
+        mock_response.choices = [Mock(message=Mock(content="  Bonjour le monde  "))]
+        mock_client.chat.completions.create.return_value = mock_response
+        
+        translator.openai_client = mock_client
+        translator.openai_model = 'gpt-4'
+        
+        result = translator._call_openai_api("You are a translator", "Hello world")
+        
+        assert result == "Bonjour le monde"  # Should be stripped
+        
+        # Verify API call
+        create_call = mock_client.chat.completions.create
+        create_call.assert_called_once()
+        call_args = create_call.call_args[1]
+        assert call_args['model'] == 'gpt-4'
+        assert call_args['temperature'] == 0.3
+        assert call_args['messages'][0]['content'] == "You are a translator"
+        assert call_args['messages'][1]['content'] == "Hello world"
+    
+    @pytest.mark.unit
+    def test_call_openai_api_no_client(self):
+        """Test OpenAI API call without initialized client."""
+        translator = HistoricalTranslator()
+        translator.providers['openai'] = True
+        translator.openai_client = None
+        
+        with pytest.raises(ValueError, match="OpenAI client not initialized"):
+            translator._call_openai_api("System prompt", "Hello world")
+    
+    @pytest.mark.unit
+    def test_translate_microsoft_chunking(self):
+        """Test Microsoft translation with text chunking."""
+        translator = HistoricalTranslator()
+        translator.providers['microsoft'] = {
+            'api_key': 'test_key',
+            'location': 'global'
+        }
+        
+        # Create text over 10k characters
+        long_text = "This is a test sentence. " * 500  # ~12.5k chars
+        
+        with patch.object(translator, '_call_microsoft_api', return_value="Translated chunk") as mock_api:
+            result = translator._translate_microsoft(long_text, "fr", None)
+            
+            # Should have made multiple API calls
+            assert mock_api.call_count > 1
+            assert result == "Translated chunk\n\nTranslated chunk"
+    
+    @pytest.mark.unit
+    def test_translate_microsoft_chunk_failure(self):
+        """Test Microsoft translation when chunk translation fails."""
+        translator = HistoricalTranslator()
+        translator.providers['microsoft'] = {
+            'api_key': 'test_key',
+            'location': 'global'
+        }
+        
+        # Create text over 10k characters
+        long_text = "This is a test sentence. " * 500  # ~12.5k chars
+        
+        with patch.object(translator, '_call_microsoft_api', return_value=None) as mock_api:
+            result = translator._translate_microsoft(long_text, "fr", None)
+            
+            # Should return None when chunk fails
+            assert result is None
+            assert mock_api.call_count == 1  # Should stop at first failure
+    
+    @pytest.mark.unit
+    def test_translate_openai_chunking(self):
+        """Test OpenAI translation with text chunking."""
+        translator = HistoricalTranslator()
+        translator.providers['openai'] = True
+        
+        # Create text over 30k characters
+        long_text = "This is a test sentence. " * 1500  # ~37.5k chars
+        
+        with patch.object(translator, '_call_openai_api', return_value="Translated chunk") as mock_api:
+            result = translator._translate_openai(long_text, "fr", None)
+            
+            # Should have made multiple API calls
+            assert mock_api.call_count > 1
+            assert result == "Translated chunk\n\nTranslated chunk"
+    
+    @pytest.mark.unit
+    def test_translate_openai_chunk_failure(self):
+        """Test OpenAI translation when chunk translation fails."""
+        translator = HistoricalTranslator()
+        translator.providers['openai'] = True
+        
+        # Create text over 30k characters
+        long_text = "This is a test sentence. " * 1500  # ~37.5k chars
+        
+        with patch.object(translator, '_call_openai_api', return_value=None) as mock_api:
+            result = translator._translate_openai(long_text, "fr", None)
+            
+            # Should return None when chunk fails
+            assert result is None
+            assert mock_api.call_count == 1  # Should stop at first failure
+    
+    @pytest.mark.unit
+    def test_translate_openai_api_exception(self):
+        """Test OpenAI translation with API exception."""
+        translator = HistoricalTranslator()
+        translator.providers['openai'] = True
+        
+        with patch.object(translator, '_call_openai_api', side_effect=Exception("API Error")):
+            result = translator._translate_openai("Hello world", "fr", None)
+            
+            assert result is None
+
+
+class TestTextChunkingAdvanced:
+    """Test advanced text chunking scenarios."""
+    
+    @pytest.mark.unit
+    def test_split_text_empty_input(self):
+        """Test text splitting with empty input."""
+        translator = HistoricalTranslator()
+        
+        assert translator._split_text_into_chunks("") == []
+        assert translator._split_text_into_chunks(None) == []
+    
+    @pytest.mark.unit
+    def test_split_text_single_short_paragraph(self):
+        """Test splitting single short paragraph."""
+        translator = HistoricalTranslator()
+        
+        text = "This is a short paragraph."
+        chunks = translator._split_text_into_chunks(text, max_chars=100)
+        
+        assert len(chunks) == 1
+        assert chunks[0] == "This is a short paragraph."
+    
+    @pytest.mark.unit
+    def test_split_text_balance_remaining_paragraphs(self):
+        """Test balanced splitting of remaining paragraphs."""
+        translator = HistoricalTranslator()
+        
+        # Create 4 paragraphs of moderate length
+        paragraphs = [f"Paragraph {i} with some content." for i in range(1, 5)]
+        text = "\n\n".join(paragraphs)
+        
+        chunks = translator._split_text_into_chunks(text, max_chars=70)
+        
+        # Should create balanced chunks
+        assert len(chunks) == 2
+        assert "Paragraph 1" in chunks[0] and "Paragraph 2" in chunks[0]
+        assert "Paragraph 3" in chunks[1] and "Paragraph 4" in chunks[1]
+    
+    @pytest.mark.unit
+    def test_split_text_very_long_paragraph_sentence_split(self):
+        """Test splitting very long paragraph by sentences."""
+        translator = HistoricalTranslator()
+        
+        # Create a very long paragraph with sentences
+        sentences = [f"This is sentence {i}." for i in range(1, 20)]
+        long_paragraph = " ".join(sentences)
+        
+        chunks = translator._split_text_into_chunks(long_paragraph, max_chars=100)
+        
+        assert len(chunks) > 1
+        assert all(len(chunk) <= 100 for chunk in chunks)
+        assert all("sentence" in chunk for chunk in chunks)
+    
+    @pytest.mark.unit
+    def test_split_text_whitespace_handling(self):
+        """Test text splitting with various whitespace scenarios."""
+        translator = HistoricalTranslator()
+        
+        # Text with extra whitespace
+        text = "Para 1.\n\n\n\nPara 2.\n\n   \n\nPara 3."
+        chunks = translator._split_text_into_chunks(text, max_chars=20)
+        
+        assert len(chunks) == 3
+        assert all(chunk.strip() for chunk in chunks)  # No empty or whitespace-only chunks
+    
+    @pytest.mark.unit
+    def test_split_text_optimal_balancing(self):
+        """Test optimal balancing when remaining text can be split evenly."""
+        translator = HistoricalTranslator()
+        
+        # Create text that can be split into exactly 2 balanced chunks
+        text = "\n\n".join([f"Short para {i}." for i in range(1, 5)])
+        
+        chunks = translator._split_text_into_chunks(text, max_chars=100)
+        
+        assert len(chunks) == 2
+        # Both chunks should be reasonably balanced
+        assert abs(len(chunks[0]) - len(chunks[1])) < 20
+    
+    @pytest.mark.unit
+    def test_split_text_sentence_boundary_preservation(self):
+        """Test that sentence boundaries are preserved in splits."""
+        translator = HistoricalTranslator()
+        
+        # Long text with clear sentence boundaries
+        text = "First sentence. Second sentence! Third sentence? Fourth sentence."
+        chunks = translator._split_text_into_chunks(text, max_chars=30)
+        
+        assert len(chunks) > 1
+        # Each chunk should end with proper punctuation
+        for chunk in chunks:
+            assert chunk.strip().endswith(('.', '!', '?'))
+    
+    @pytest.mark.unit
+    def test_split_text_no_sentences(self):
+        """Test splitting text with no sentence boundaries."""
+        translator = HistoricalTranslator()
+        
+        # Text without sentence boundaries
+        text = "This is a very long text without any sentence boundaries that should be split based on word boundaries when no other option is available"
+        chunks = translator._split_text_into_chunks(text, max_chars=50)
+        
+        # Should still split somehow
+        assert len(chunks) >= 1
+        assert all(len(chunk) <= 50 for chunk in chunks)
+
+
+class TestLanguageNormalizationAdvanced:
+    """Test advanced language normalization scenarios."""
+    
+    @pytest.mark.unit
+    def test_normalize_language_code_case_insensitive(self):
+        """Test language normalization is case insensitive."""
+        translator = HistoricalTranslator()
+        
+        # Test various cases
+        assert translator._normalize_language_code('EN', 'deepl') == 'EN-US'
+        assert translator._normalize_language_code('En', 'deepl') == 'EN-US'
+        assert translator._normalize_language_code('eN', 'deepl') == 'EN-US'
+        
+        assert translator._normalize_language_code('HEB', 'microsoft') == 'he'
+        assert translator._normalize_language_code('Heb', 'microsoft') == 'he'
+    
+    @pytest.mark.unit
+    def test_normalize_language_code_unknown_provider(self):
+        """Test language normalization with unknown provider."""
+        translator = HistoricalTranslator()
+        
+        # Should return original language code
+        assert translator._normalize_language_code('en', 'unknown') == 'en'
+        assert translator._normalize_language_code('DE', 'unknown') == 'DE'
+    
+    @pytest.mark.unit
+    def test_normalize_language_code_empty_input(self):
+        """Test language normalization with empty input."""
+        translator = HistoricalTranslator()
+        
+        assert translator._normalize_language_code('', 'deepl') == ''
+        assert translator._normalize_language_code(None, 'deepl') is None
+    
+    @pytest.mark.unit
+    def test_normalize_language_code_unmapped_language(self):
+        """Test normalization of languages not in mapping."""
+        translator = HistoricalTranslator()
+        
+        # DeepL should uppercase unmapped languages
+        assert translator._normalize_language_code('ja', 'deepl') == 'JA'
+        assert translator._normalize_language_code('ru', 'deepl') == 'RU'
+        
+        # Microsoft/OpenAI should keep unmapped languages as-is
+        assert translator._normalize_language_code('ja', 'microsoft') == 'ja'
+        assert translator._normalize_language_code('ru', 'openai') == 'ru'
+
+
+class TestValidationAdvanced:
+    """Test advanced validation scenarios."""
+    
+    @pytest.mark.unit
+    @pytest.mark.hebrew
+    def test_validate_hebrew_mixed_content(self):
+        """Test Hebrew validation with mixed content."""
+        translator = HistoricalTranslator()
+        
+        # Mixed Hebrew and English
+        assert translator.validate_hebrew_translation("Hello שלום World עולם")
+        
+        # Mixed Hebrew and numbers
+        assert translator.validate_hebrew_translation("123 שלום 456")
+        
+        # Mixed Hebrew and punctuation
+        assert translator.validate_hebrew_translation("שלום! עולם?")
+    
+    @pytest.mark.unit
+    @pytest.mark.hebrew
+    def test_validate_hebrew_edge_cases(self):
+        """Test Hebrew validation edge cases."""
+        translator = HistoricalTranslator()
+        
+        # Empty string
+        assert not translator.validate_hebrew_translation("")
+        
+        # None
+        assert not translator.validate_hebrew_translation(None)
+        
+        # Only punctuation
+        assert not translator.validate_hebrew_translation("!@#$%^&*()")
+        
+        # Only numbers
+        assert not translator.validate_hebrew_translation("123456789")
+        
+        # Only spaces
+        assert not translator.validate_hebrew_translation("   ")
+    
+    @pytest.mark.unit
+    @pytest.mark.hebrew
+    def test_validate_hebrew_unicode_ranges(self):
+        """Test Hebrew validation with different Hebrew Unicode ranges."""
+        translator = HistoricalTranslator()
+        
+        # Basic Hebrew block (U+0590-U+05FF)
+        assert translator.validate_hebrew_translation("\u0590\u05FF")  # Edge characters
+        assert translator.validate_hebrew_translation("\u05D0\u05E9")  # Aleph and Shin
+        
+        # Hebrew characters at boundaries
+        assert translator.validate_hebrew_translation("\u0590")  # First Hebrew character
+        assert translator.validate_hebrew_translation("\u05FF")  # Last Hebrew character
+        
+        # Just outside Hebrew range
+        assert not translator.validate_hebrew_translation("\u058F")  # Before Hebrew
+        assert not translator.validate_hebrew_translation("\u0600")  # After Hebrew
+    
+    @pytest.mark.unit
+    def test_is_same_language_case_insensitive(self):
+        """Test language comparison is case insensitive."""
+        translator = HistoricalTranslator()
+        
+        assert translator.is_same_language('EN', 'en')
+        assert translator.is_same_language('En', 'eN')
+        assert translator.is_same_language('ENGLISH', 'english')
+        assert translator.is_same_language('HEB', 'heb')
+        assert translator.is_same_language('Hebrew', 'HEBREW')
+    
+    @pytest.mark.unit
+    def test_is_same_language_equivalence_groups(self):
+        """Test language equivalence groups work correctly."""
+        translator = HistoricalTranslator()
+        
+        # English group
+        assert translator.is_same_language('en', 'eng')
+        assert translator.is_same_language('eng', 'english')
+        assert translator.is_same_language('en', 'english')
+        
+        # German group
+        assert translator.is_same_language('de', 'deu')
+        assert translator.is_same_language('deu', 'ger')
+        assert translator.is_same_language('de', 'german')
+        
+        # Hebrew group
+        assert translator.is_same_language('he', 'heb')
+        assert translator.is_same_language('heb', 'hebrew')
+        assert translator.is_same_language('he', 'hebrew')
+    
+    @pytest.mark.unit
+    def test_is_same_language_unknown_languages(self):
+        """Test language comparison with unknown languages."""
+        translator = HistoricalTranslator()
+        
+        # Same unknown language
+        assert translator.is_same_language('ja', 'ja')
+        assert translator.is_same_language('ru', 'ru')
+        
+        # Different unknown languages
+        assert not translator.is_same_language('ja', 'ru')
+        assert not translator.is_same_language('fr', 'es')
+        
+        # Known vs unknown
+        assert not translator.is_same_language('en', 'ja')
+        assert not translator.is_same_language('fr', 'english')
+
+
+class TestErrorHandlingAdvanced:
+    """Test advanced error handling scenarios."""
+    
+    @pytest.mark.unit
+    @patch('scribe.translate.requests.post')
+    def test_microsoft_api_http_error(self, mock_post):
+        """Test Microsoft API HTTP error handling."""
+        translator = HistoricalTranslator()
+        translator.providers['microsoft'] = {
+            'api_key': 'test_key',
+            'location': 'global'
+        }
+        
+        # Mock HTTP error
+        mock_response = Mock()
+        mock_response.raise_for_status.side_effect = Exception("HTTP 403 Forbidden")
+        mock_post.return_value = mock_response
+        
+        # Should raise exception due to retry decorator
+        with pytest.raises(Exception, match="HTTP 403 Forbidden"):
+            translator._call_microsoft_api("Hello", "fr", None)
+    
+    @pytest.mark.unit
+    @patch('scribe.translate.requests.post')
+    def test_microsoft_api_network_error(self, mock_post):
+        """Test Microsoft API network error handling."""
+        translator = HistoricalTranslator()
+        translator.providers['microsoft'] = {
+            'api_key': 'test_key',
+            'location': 'global'
+        }
+        
+        # Mock network error
+        mock_post.side_effect = Exception("Network error")
+        
+        # Should raise exception after retries
+        with pytest.raises(Exception, match="Network error"):
+            translator._call_microsoft_api("Hello", "fr", None)
+        
+        # Should have made 3 attempts due to retry decorator
+        assert mock_post.call_count == 3
+    
+    @pytest.mark.unit
+    def test_openai_api_model_error(self):
+        """Test OpenAI API model error handling."""
+        translator = HistoricalTranslator()
+        translator.providers['openai'] = True
+        
+        mock_client = Mock()
+        mock_client.chat.completions.create.side_effect = Exception("Model not found")
+        
+        translator.openai_client = mock_client
+        
+        # Should raise exception after retries
+        with pytest.raises(Exception, match="Model not found"):
+            translator._call_openai_api("System prompt", "Hello world")
+        
+        # Should have made 3 attempts due to retry decorator
+        assert mock_client.chat.completions.create.call_count == 3
+    
+    @pytest.mark.unit
+    def test_translate_with_no_providers(self):
+        """Test translation when no providers are available."""
+        translator = HistoricalTranslator()
+        translator.providers = {}  # No providers
+        
+        result = translator.translate("Hello", "de")
+        
+        assert result is None
+    
+    @pytest.mark.unit
+    def test_batch_translate_with_no_providers(self):
+        """Test batch translation when no providers are available."""
+        translator = HistoricalTranslator()
+        translator.providers = {}  # No providers
+        
+        result = translator.batch_translate(["Hello", "World"], "de")
+        
+        assert result == ['', '']  # Empty strings for each input
+    
+    @pytest.mark.unit
+    def test_hebrew_no_capable_provider_batch(self):
+        """Test Hebrew batch translation with no capable provider."""
+        translator = HistoricalTranslator()
+        translator.providers = {'deepl': Mock()}  # Only DeepL, no Hebrew support
+        
+        result = translator.batch_translate(["Hello", "World"], "he")
+        
+        assert result == ['', '']  # Empty strings for each input
+    
+    @pytest.mark.unit
+    def test_translate_with_invalid_language_code(self):
+        """Test translation with invalid language code."""
+        translator = HistoricalTranslator()
+        translator.providers = {'deepl': Mock()}
+        
+        with patch.object(translator, '_translate_deepl', return_value="Translated") as mock_deepl:
+            result = translator.translate("Hello", "invalid_lang")
+            
+            # Should still attempt translation
+            assert result == "Translated"
+            mock_deepl.assert_called_once()
+
+
+class TestRetryDecoratorAdvanced:
+    """Test advanced retry decorator scenarios."""
+    
+    @pytest.mark.unit
+    @patch('time.sleep')
+    def test_retry_specific_exception_types(self, mock_sleep):
+        """Test retry only catches specified exception types."""
+        mock_func = Mock(side_effect=[ValueError("value error"), "success"])
+        
+        @retry(tries=3, delay=0.01, exceptions=(ValueError,))
+        def test_func():
+            return mock_func()
+        
+        result = test_func()
+        assert result == "success"
+        assert mock_func.call_count == 2
+    
+    @pytest.mark.unit
+    @patch('time.sleep')
+    def test_retry_unhandled_exception(self, mock_sleep):
+        """Test retry doesn't catch unhandled exception types."""
+        mock_func = Mock(side_effect=RuntimeError("runtime error"))
+        
+        @retry(tries=3, delay=0.01, exceptions=(ValueError,))
+        def test_func():
+            return mock_func()
+        
+        with pytest.raises(RuntimeError, match="runtime error"):
+            test_func()
+        
+        # Should not retry for unhandled exception
+        assert mock_func.call_count == 1
+    
+    @pytest.mark.unit
+    @patch('time.sleep')
+    def test_retry_return_on_failure_none(self, mock_sleep):
+        """Test retry returns None on failure when return_on_failure=None."""
+        mock_func = Mock(side_effect=Exception("persistent failure"))
+        
+        @retry(tries=2, delay=0.01, return_on_failure=None)
+        def test_func():
+            return mock_func()
+        
+        # Should re-raise the exception, not return None
+        with pytest.raises(Exception, match="persistent failure"):
+            test_func()
+        
+        assert mock_func.call_count == 2
+    
+    @pytest.mark.unit
+    @patch('time.sleep')
+    def test_retry_return_on_failure_custom(self, mock_sleep):
+        """Test retry with custom return value on failure."""
+        mock_func = Mock(side_effect=Exception("persistent failure"))
+        
+        @retry(tries=2, delay=0.01, return_on_failure="default_value")
+        def test_func():
+            return mock_func()
+        
+        # Should re-raise the exception regardless of return_on_failure
+        with pytest.raises(Exception, match="persistent failure"):
+            test_func()
+        
+        assert mock_func.call_count == 2
+    
+    @pytest.mark.unit
+    @patch('time.sleep')
+    def test_retry_backoff_progression(self, mock_sleep):
+        """Test retry backoff progression works correctly."""
+        mock_func = Mock(side_effect=[Exception("fail"), Exception("fail"), Exception("fail")])
+        
+        @retry(tries=3, delay=0.5, backoff=3)
+        def test_func():
+            return mock_func()
+        
+        with pytest.raises(Exception, match="fail"):
+            test_func()
+        
+        # Check sleep progression: 0.5, 1.5 (0.5 * 3)
+        assert mock_sleep.call_count == 2
+        mock_sleep.assert_has_calls([call(0.5), call(1.5)])
