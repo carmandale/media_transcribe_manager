@@ -574,6 +574,20 @@ class HistoricalTranslator:
             potential_length = len(current_chunk) + len(separator) + len(para)
             
             if potential_length <= max_chars:
+                # Before adding, check if we should balance remaining content
+                remaining_paras = paragraphs[i:]
+                if len(remaining_paras) > 1 and current_chunk:
+                    # Calculate total remaining size including current para
+                    total_remaining = sum(len(p) + 2 for p in remaining_paras) - 2
+                    current_size = len(current_chunk)
+                    
+                    # If remaining content could form a better balanced chunk, split now
+                    if total_remaining > max_chars * 0.5 and current_size > max_chars * 0.5:
+                        chunks.append(current_chunk.strip())
+                        current_chunk = para
+                        i += 1
+                        continue
+                
                 # Paragraph fits in current chunk
                 current_chunk += separator + para
                 i += 1
@@ -587,7 +601,7 @@ class HistoricalTranslator:
                 remaining_text = '\n\n'.join(remaining_paras)
                 
                 # If remaining text is short enough, try to split it evenly
-                if len(remaining_text) <= max_chars * 2:
+                if len(remaining_text) <= max_chars * 2 and len(remaining_paras) > 1:
                     # Try to find a good split point
                     mid_point = len(remaining_paras) // 2
                     first_half = '\n\n'.join(remaining_paras[:mid_point])
@@ -596,6 +610,7 @@ class HistoricalTranslator:
                     if len(first_half) <= max_chars and len(second_half) <= max_chars:
                         chunks.append(first_half)
                         chunks.append(second_half)
+                        current_chunk = ""  # Clear to prevent duplicate append after loop
                         break
                 
                 # Default behavior: start new chunk with current paragraph

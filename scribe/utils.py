@@ -61,7 +61,14 @@ def sanitize_filename(filename: str) -> str:
         return "unnamed"
     
     # Split the filename and extension
-    base_name, extension = os.path.splitext(filename.strip())
+    filename = filename.strip()
+    
+    # Special case: handle filenames that are just an extension (e.g., ".mp4")
+    if filename.startswith('.') and filename.count('.') == 1:
+        base_name = ""
+        extension = filename
+    else:
+        base_name, extension = os.path.splitext(filename)
     
     # Convert to lowercase
     base_name = base_name.lower()

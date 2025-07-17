@@ -540,7 +540,7 @@ class Database:
             query += " WHERE file_id = ?"
             params.append(file_id)
         
-        query += " ORDER BY timestamp DESC"
+        query += " ORDER BY timestamp DESC, error_id DESC"
         
         conn = self._get_connection()
         cursor = conn.execute(query, params)
