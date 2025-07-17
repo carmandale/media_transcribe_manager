@@ -532,13 +532,19 @@ class HistoricalTranslator:
             return []
         
         paragraphs = text.split('\n\n')
+        paragraphs = [p.strip() for p in paragraphs if p.strip()]
+        
+        if not paragraphs:
+            return []
+        
+        # Try to create balanced chunks
         chunks = []
         current_chunk = ""
         
-        for para in paragraphs:
-            if not para.strip():
-                continue
-                
+        i = 0
+        while i < len(paragraphs):
+            para = paragraphs[i]
+            
             # If paragraph itself is too long, split it by sentences
             if len(para) > max_chars:
                 # First, save current chunk if it exists
@@ -560,21 +566,41 @@ class HistoricalTranslator:
                         current_chunk = sentence
                     else:
                         current_chunk += " " + sentence if current_chunk else sentence
+                i += 1
+                continue
             
-            # Normal paragraph handling - try to group with current chunk
+            # Normal paragraph handling - try to create balanced groupings
+            separator = "\n\n" if current_chunk else ""
+            potential_length = len(current_chunk) + len(separator) + len(para)
+            
+            if potential_length <= max_chars:
+                # Paragraph fits in current chunk
+                current_chunk += separator + para
+                i += 1
             else:
-                # Calculate space needed to add this paragraph
-                separator = "\n\n" if current_chunk else ""
-                potential_length = len(current_chunk) + len(separator) + len(para)
+                # Paragraph doesn't fit, try to balance remaining paragraphs
+                if current_chunk:
+                    chunks.append(current_chunk.strip())
                 
-                if potential_length <= max_chars:
-                    # Paragraph fits in current chunk
-                    current_chunk += separator + para
-                else:
-                    # Paragraph doesn't fit, start new chunk
-                    if current_chunk:
-                        chunks.append(current_chunk.strip())
-                    current_chunk = para
+                # Look ahead to see if we can balance remaining paragraphs
+                remaining_paras = paragraphs[i:]
+                remaining_text = '\n\n'.join(remaining_paras)
+                
+                # If remaining text is short enough, try to split it evenly
+                if len(remaining_text) <= max_chars * 2:
+                    # Try to find a good split point
+                    mid_point = len(remaining_paras) // 2
+                    first_half = '\n\n'.join(remaining_paras[:mid_point])
+                    second_half = '\n\n'.join(remaining_paras[mid_point:])
+                    
+                    if len(first_half) <= max_chars and len(second_half) <= max_chars:
+                        chunks.append(first_half)
+                        chunks.append(second_half)
+                        break
+                
+                # Default behavior: start new chunk with current paragraph
+                current_chunk = para
+                i += 1
         
         # Add final chunk if it exists
         if current_chunk:
