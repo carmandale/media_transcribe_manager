@@ -217,49 +217,6 @@ class Database:
         logger.debug(f"Added file {file_id}: {file_path}")
         return file_id
     
-    def add_file_simple(self, file_path: Union[str, Path]) -> Optional[str]:
-        """
-        Simple wrapper to add a file with just a path.
-        Extracts necessary information from the file path.
-        
-        Args:
-            file_path: Path to the media file
-            
-        Returns:
-            file_id if added successfully, None if already exists
-        """
-        file_path = Path(file_path).resolve()
-        
-        # Check if file already exists
-        existing = self.get_file_by_path(file_path)
-        if existing:
-            return None
-            
-        # Extract safe filename
-        filename = file_path.name
-        # Simple sanitization - replace spaces and special chars with underscores
-        safe_filename = filename.lower()
-        safe_filename = ''.join(c if c.isalnum() or c in '._-' else '_' for c in safe_filename)
-        
-        # Determine media type from extension
-        extension = file_path.suffix.lower()
-        video_extensions = {'.mp4', '.avi', '.mov', '.mkv', '.webm'}
-        media_type = 'video' if extension in video_extensions else 'audio'
-        
-        # Get file size
-        try:
-            file_size = file_path.stat().st_size
-        except OSError:
-            file_size = None
-            
-        # Add the file
-        return self.add_file(
-            file_path=str(file_path),
-            safe_filename=safe_filename,
-            media_type=media_type,
-            file_size=file_size
-        )
-    
     def get_file_by_path(self, file_path: Union[str, Path]) -> Optional[Dict[str, Any]]:
         """Get file record by original path."""
         file_path = str(Path(file_path).resolve())
@@ -477,17 +434,23 @@ class Database:
     
     def get_stuck_files(self, timeout_minutes: int = 30) -> List[Dict[str, Any]]:
         """Get files that have been in-progress for too long."""
+        from datetime import datetime, timedelta
+        
+        # Calculate cutoff time in Python and format as ISO string
+        cutoff_time = datetime.now() - timedelta(minutes=timeout_minutes)
+        cutoff_iso = cutoff_time.isoformat()
+        
         query = """
             SELECT m.*, p.*
             FROM media_files m
             JOIN processing_status p ON m.file_id = p.file_id
             WHERE p.status = 'in-progress'
-              AND p.last_updated < datetime('now', ? || ' minutes')
+              AND p.last_updated < ?
             ORDER BY p.last_updated ASC
         """
         
         conn = self._get_connection()
-        cursor = conn.execute(query, (-timeout_minutes,))
+        cursor = conn.execute(query, (cutoff_iso,))
         results = []
         for row in cursor.fetchall():
             try:
@@ -577,7 +540,7 @@ class Database:
             query += " WHERE file_id = ?"
             params.append(file_id)
         
-        query += " ORDER BY timestamp ASC"
+        query += " ORDER BY timestamp DESC"
         
         conn = self._get_connection()
         cursor = conn.execute(query, params)

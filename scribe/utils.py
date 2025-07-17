@@ -50,20 +50,22 @@ def sanitize_filename(filename: str) -> str:
         Sanitized filename safe for all file systems
     """
     if not filename or not filename.strip():
-        return "file"
+        return "unnamed"
     
     # Split the filename and extension
-    base_name, extension = os.path.splitext(filename)
+    base_name, extension = os.path.splitext(filename.strip())
     
     # Convert to lowercase
     base_name = base_name.lower()
     extension = extension.lower()
     
-    # Remove accents and normalize unicode
-    base_name = unicodedata.normalize('NFKD', base_name).encode('ASCII', 'ignore').decode('ASCII')
+    # Normalize Unicode (preserve Unicode characters, don't strip to ASCII)
+    base_name = unicodedata.normalize('NFC', base_name)
     
-    # Replace any non-alphanumeric characters with underscores
-    base_name = re.sub(r'[^a-z0-9]', '_', base_name)
+    # Replace only the most problematic characters for file systems
+    # Keep Unicode letters and numbers, replace only filesystem-unsafe chars
+    base_name = re.sub(r'[<>:"/\\|?*]', '_', base_name)  # Windows/filesystem illegal chars
+    base_name = re.sub(r'\s+', '_', base_name)  # Replace spaces with underscores
     
     # Replace multiple underscores with a single one
     base_name = re.sub(r'_+', '_', base_name)
@@ -71,9 +73,11 @@ def sanitize_filename(filename: str) -> str:
     # Remove leading/trailing underscores
     base_name = base_name.strip('_')
     
-    # Ensure the name is not empty
-    if not base_name:
-        base_name = "file"
+    # Handle special case where extension starts with underscore
+    if not base_name and extension.startswith('.'):
+        base_name = "unnamed"
+    elif not base_name:
+        base_name = "unnamed"
     
     # Truncate if too long (max 200 chars for base name)
     if len(base_name) > 200:
@@ -82,14 +86,40 @@ def sanitize_filename(filename: str) -> str:
     return f"{base_name}{extension}"
 
 
-def generate_file_id() -> str:
+def generate_file_id(file_path: str = None, **metadata) -> str:
     """
-    Generate a unique file ID using UUID4.
+    Generate a unique file ID based on file path and optional metadata.
     
+    Args:
+        file_path: Path to the file (optional)
+        **metadata: Additional metadata to include in ID generation
+        
     Returns:
         Unique file ID string
     """
-    return str(uuid.uuid4())
+    if file_path is None:
+        # Legacy behavior - generate random UUID
+        return str(uuid.uuid4())
+    
+    # Create consistent ID based on file path and metadata
+    path_str = str(Path(file_path).resolve())
+    
+    # Include metadata in hash if provided
+    hash_input = path_str
+    if metadata:
+        # Sort metadata for consistency
+        sorted_metadata = sorted(metadata.items())
+        metadata_str = str(sorted_metadata)
+        hash_input = f"{path_str}|{metadata_str}"
+    
+    # Generate hash and format as UUID-like string
+    hash_obj = hashlib.sha256(hash_input.encode('utf-8'))
+    hash_hex = hash_obj.hexdigest()
+    
+    # Format as UUID (8-4-4-4-12)
+    uuid_formatted = f"{hash_hex[:8]}-{hash_hex[8:12]}-{hash_hex[12:16]}-{hash_hex[16:20]}-{hash_hex[20:32]}"
+    
+    return uuid_formatted
 
 
 def calculate_checksum(file_path: str, algorithm: str = 'sha256') -> str:
@@ -119,17 +149,19 @@ class SimpleWorkerPool:
     Simple thread pool for parallel processing tasks.
     """
     
-    def __init__(self, max_workers: Optional[int] = None):
+    def __init__(self, max_workers: Optional[int] = None, timeout: Optional[float] = None):
         """
         Initialize the worker pool.
         
         Args:
             max_workers: Maximum number of workers (default: CPU count - 1)
+            timeout: Default timeout for operations (optional)
         """
         if max_workers is None:
             max_workers = max(1, multiprocessing.cpu_count() - 1)
         
         self.max_workers = max_workers
+        self.default_timeout = timeout
         self.executor = ThreadPoolExecutor(max_workers=max_workers)
         logger.info(f"Worker pool initialized with {max_workers} workers")
     
@@ -140,22 +172,25 @@ class SimpleWorkerPool:
         Args:
             func: Function to apply
             items: List of items to process
-            timeout: Optional timeout for each task
+            timeout: Optional timeout for each task (uses default_timeout if None)
             
         Returns:
             List of results in the same order as inputs
         """
+        # Use provided timeout or default timeout
+        effective_timeout = timeout or self.default_timeout
+        
         try:
-            if timeout:
+            if effective_timeout:
                 # Use submit for timeout support
                 futures = [self.executor.submit(func, item) for item in items]
                 results = []
                 for future in futures:
                     try:
-                        result = future.result(timeout=timeout)
+                        result = future.result(timeout=effective_timeout)
                         results.append(result)
                     except TimeoutError:
-                        logger.warning(f"Task timed out after {timeout}s")
+                        logger.warning(f"Task timed out after {effective_timeout}s")
                         results.append(None)
                     except Exception as e:
                         logger.error(f"Task failed: {e}")
@@ -194,7 +229,7 @@ class SimpleWorkerPool:
         results = {}
         completed = 0
         failed = 0
-        timeout = timeout or 120  # Default 2 minute timeout per task
+        timeout = timeout or self.default_timeout or 120  # Use default or 2 minute timeout per task
         
         # Submit all tasks
         for item in items:
@@ -308,18 +343,26 @@ class ProgressTracker:
         """Start the progress tracker."""
         import time
         self.start_time = time.time()
-    
-    def update(self, success: bool = True):
-        """Update progress with success/failure status."""
-        self.current += 1
-        if success:
-            self.completed += 1
+        # Print initial state
+        if self.total:
+            print(f"{self.description}: 0% (0/{self.total}) - Success: 0, Failed: 0")
         else:
-            self.failed += 1
+            print(f"{self.description}: 0 processed - Success: 0, Failed: 0")
+    
+    def update(self, amount: int = 1, success: bool = True):
+        """Update progress with amount and success/failure status."""
+        self.current += amount
+        if success:
+            self.completed += amount
+        else:
+            self.failed += amount
         
-        # Log progress every 10% or at completion
+        # Print progress for testing
         if self.total:
             percentage = (self.current / self.total) * 100
+            print(f"{self.description}: {percentage:.0f}% ({self.current}/{self.total}) - Success: {self.completed}, Failed: {self.failed}")
+            
+            # Also log at certain intervals
             if percentage % 10 == 0 or self.current == self.total:
                 logger.info(
                     f"{self.description}: {percentage:.0f}% "
@@ -328,6 +371,7 @@ class ProgressTracker:
                 )
         else:
             # For unknown total, log every 10 items
+            print(f"{self.description}: {self.current} processed - Success: {self.completed}, Failed: {self.failed}")
             if self.current % 10 == 0:
                 logger.info(
                     f"{self.description}: {self.current} processed - "
@@ -344,6 +388,14 @@ class ProgressTracker:
             'remaining': self.total - self.current if self.total else 0
         }
     
+    def finish(self):
+        """Finish the progress tracker."""
+        if self.total:
+            print(f"{self.description}: completed - Success: {self.completed}, Failed: {self.failed}")
+        else:
+            print(f"{self.description}: completed - Success: {self.completed}, Failed: {self.failed}")
+        logger.info(f"{self.description} completed - Success: {self.completed}, Failed: {self.failed}")
+    
     def __enter__(self):
         """Enter context manager."""
         self.start()
@@ -351,7 +403,7 @@ class ProgressTracker:
     
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Exit context manager."""
-        pass
+        self.finish()
 
 
 # File System Utilities

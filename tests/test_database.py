@@ -275,13 +275,13 @@ class TestStatusManagement:
             file_id,
             transcription_status='completed',
             translation_en_status='in-progress',
-            translation_de_status='pending'
+            translation_de_status='not_started'
         )
         
         status = db.get_status(file_id)
         assert status['transcription_status'] == 'completed'
         assert status['translation_en_status'] == 'in-progress'
-        assert status['translation_de_status'] == 'pending'
+        assert status['translation_de_status'] == 'not_started'
         
         db.close()
     
@@ -645,7 +645,7 @@ class TestThreadSafety:
         assert len(all_files) == num_threads * files_per_thread
         
         # Verify no duplicate IDs
-        all_ids = [f['file_id'] for thread_results in results for f in thread_results]
+        all_ids = [file_id for thread_results in results for file_id in thread_results]
         assert len(all_ids) == len(set(all_ids))
         
         db.close()
