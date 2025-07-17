@@ -44,7 +44,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-def retry(tries=3, delay=1, backoff=2, exceptions=(Exception,)):
+def retry(tries=3, delay=1, backoff=2, exceptions=(Exception,), return_on_failure=None):
     """
     Retry decorator with exponential backoff.
     
@@ -53,27 +53,35 @@ def retry(tries=3, delay=1, backoff=2, exceptions=(Exception,)):
         delay: Initial delay between retries in seconds
         backoff: Multiplier for delay after each attempt
         exceptions: Tuple of exceptions to catch
+        return_on_failure: Value to return on failure (None), or 'raise' to re-raise exception
     """
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
             attempt = 0
             current_delay = delay
+            last_exception = None
             
             while attempt < tries:
                 try:
                     return func(*args, **kwargs)
                 except exceptions as e:
+                    last_exception = e
                     attempt += 1
                     if attempt >= tries:
                         logger.error(f"Max retries ({tries}) exceeded for {func.__name__}: {e}")
-                        return None
+                        if return_on_failure == 'raise':
+                            raise e
+                        return return_on_failure
                     
                     logger.warning(f"Attempt {attempt} failed: {e}. Retrying in {current_delay}s...")
                     time.sleep(current_delay)
                     current_delay *= backoff
                     
-            return None
+            # Fallback (should not reach here)
+            if return_on_failure == 'raise' and last_exception:
+                raise last_exception
+            return return_on_failure
         return wrapper
     return decorator
 
@@ -266,7 +274,15 @@ class HistoricalTranslator:
             logger.error(f"Batch translation error with {provider}: {e}")
             # Fall back to individual translation
             logger.warning("Falling back to individual translation")
-            return [self.translate(text, target_language, source_language, provider) or '' for text in texts]
+            fallback_results = []
+            for text in texts:
+                try:
+                    result = self.translate(text, target_language, source_language, provider)
+                    fallback_results.append(result or '')
+                except Exception as individual_error:
+                    logger.error(f"Individual translation also failed: {individual_error}")
+                    fallback_results.append('')
+            return fallback_results
     
     def _batch_translate_deepl(self, texts: List[str], target_lang: str, source_lang: Optional[str]) -> List[str]:
         """Batch translate using DeepL."""

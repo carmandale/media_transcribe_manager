@@ -51,8 +51,44 @@ class Pipeline:
     
     def __init__(self, config: Optional[PipelineConfig] = None):
         self.config = config or PipelineConfig()
+        self._validate_config()
         self.db = Database()
         ensure_directory(self.config.output_dir)
+    
+    def _validate_config(self):
+        """Validate pipeline configuration and fix invalid values."""
+        # Ensure worker counts are positive
+        if self.config.transcription_workers <= 0:
+            logger.warning(f"Invalid transcription_workers ({self.config.transcription_workers}), using 1")
+            self.config.transcription_workers = 1
+        
+        if self.config.translation_workers <= 0:
+            logger.warning(f"Invalid translation_workers ({self.config.translation_workers}), using 1")
+            self.config.translation_workers = 1
+        
+        # Ensure batch size is positive
+        if self.config.batch_size <= 0:
+            logger.warning(f"Invalid batch_size ({self.config.batch_size}), using 10")
+            self.config.batch_size = 10
+        
+        # Ensure evaluation sample size is positive
+        if self.config.evaluation_sample_size <= 0:
+            logger.warning(f"Invalid evaluation_sample_size ({self.config.evaluation_sample_size}), using 10")
+            self.config.evaluation_sample_size = 10
+        
+        # Validate languages list
+        if not self.config.languages:
+            logger.warning("Empty languages list, using default ['en']")
+            self.config.languages = ['en']
+        
+        # Validate paths
+        if not self.config.input_dir:
+            self.config.input_dir = Path("input")
+        if not self.config.output_dir:
+            self.config.output_dir = Path("output")
+        
+        logger.info(f"Pipeline config validated: workers={self.config.transcription_workers}/{self.config.translation_workers}, "
+                   f"batch_size={self.config.batch_size}, languages={self.config.languages}")
         
     def scan_input_files(self) -> List[Path]:
         """Scan input directory for media files"""
