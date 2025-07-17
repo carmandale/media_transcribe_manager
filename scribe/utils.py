@@ -236,8 +236,10 @@ class SimpleWorkerPool:
             future = self.executor.submit(func, item)
             futures[future] = item
         
-        # Process results as they complete with timeout
-        for future in as_completed(futures, timeout=timeout * len(items)):
+        # Process results as they complete with overall timeout
+        # Use reasonable overall timeout - don't multiply by number of items
+        overall_timeout = min(timeout * 3, 300)  # Max 5 minutes total or 3x per-task timeout
+        for future in as_completed(futures, timeout=overall_timeout):
             item = futures[future]
             
             try:
