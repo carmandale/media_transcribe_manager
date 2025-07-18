@@ -467,8 +467,9 @@ class HistoricalTranslator:
                 translations = []
                 for chunk in chunks:
                     result = self._call_openai_api(system_prompt, chunk)
-                    if result:
-                        translations.append(result)
+                    if not result:
+                        return None
+                    translations.append(result)
                 return "\n\n".join(translations)
             
             return self._call_openai_api(system_prompt, text)

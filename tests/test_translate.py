@@ -1044,9 +1044,9 @@ class TestProviderMethods:
         with patch.object(translator, '_call_openai_api', return_value="Translated chunk") as mock_api:
             result = translator._translate_openai(long_text, "fr", None)
             
-            # Should have made multiple API calls
-            assert mock_api.call_count > 1
-            assert result == "Translated chunk\n\nTranslated chunk"
+            # Should have made multiple API calls (improved chunking creates 3 chunks with max_chars=15000)
+            assert mock_api.call_count == 3
+            assert result == "Translated chunk\n\nTranslated chunk\n\nTranslated chunk"
     
     @pytest.mark.unit
     def test_translate_openai_chunk_failure(self):
