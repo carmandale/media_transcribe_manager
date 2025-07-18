@@ -17,6 +17,20 @@ from unittest.mock import Mock, AsyncMock, patch
 import pytest
 import sqlite3
 
+# Load environment variables from .env file for tests
+try:
+    from dotenv import load_dotenv
+    # Load from project root .env file
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    env_path = os.path.join(project_root, '.env')
+    if os.path.exists(env_path):
+        load_dotenv(env_path)
+        print(f"✅ Loaded environment variables from {env_path}")
+    else:
+        print(f"⚠️  No .env file found at {env_path}")
+except ImportError:
+    print("⚠️  python-dotenv not available, skipping .env file loading")
+
 # Add the project root to Python path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -291,4 +305,3 @@ def pytest_unconfigure(config):
     test_output = Path("test_output")
     if test_output.exists() and not any(test_output.iterdir()):
         test_output.rmdir()
-
