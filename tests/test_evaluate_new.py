@@ -237,24 +237,29 @@ class TestHistoricalEvaluator(unittest.TestCase):
     
     def test_get_score_general_evaluation(self):
         """Test get_score method for general evaluation."""
+        # Calculate expected score using weights
+        expected_score = (8.5 * 0.4) + (7.0 * 0.3) + (6.0 * 0.15) + (8.0 * 0.15)
+        expected_score = expected_score  # 7.6
+        
         result = {
             'scores': {
                 'content_accuracy': 8.5,
                 'speech_pattern_fidelity': 7.0,
                 'cultural_context': 6.0,
                 'overall_historical_reliability': 8.0
-            }
+            },
+            'composite_score': expected_score
         }
-        
-        # Calculate expected score using weights
-        expected_score = (8.5 * 0.4) + (7.0 * 0.3) + (6.0 * 0.15) + (8.0 * 0.15)
-        expected_score = expected_score  # 7.6
         
         score = self.evaluator.get_score(result)
         self.assertAlmostEqual(score, expected_score, places=2)
     
     def test_get_score_hebrew_evaluation(self):
         """Test get_score method for Hebrew evaluation."""
+        # Calculate expected score using Hebrew weights
+        expected_score = (9.0 * 0.3) + (8.0 * 0.25) + (7.5 * 0.2) + (8.5 * 0.15) + (9.0 * 0.1)
+        expected_score = expected_score  # 8.375
+        
         result = {
             'scores': {
                 'content_accuracy': 9.0,
@@ -262,12 +267,9 @@ class TestHistoricalEvaluator(unittest.TestCase):
                 'hebrew_language_quality': 7.5,
                 'cultural_context': 8.5,
                 'historical_authenticity': 9.0
-            }
+            },
+            'composite_score': expected_score
         }
-        
-        # Calculate expected score using Hebrew weights
-        expected_score = (9.0 * 0.3) + (8.0 * 0.25) + (7.5 * 0.2) + (8.5 * 0.15) + (9.0 * 0.1)
-        expected_score = expected_score  # 8.375
         
         score = self.evaluator.get_score(result)
         self.assertAlmostEqual(score, expected_score, places=2)
@@ -425,9 +427,11 @@ class TestHistoricalEvaluator(unittest.TestCase):
         result = evaluator.evaluate("Original text", "[HEBREW TRANSLATION]", language="he", enhanced=True)
         
         self.assertIsNotNone(result)
-        self.assertIn('validation_failed', result)
-        self.assertIn('validation_issues', result)
-        self.assertIn('TRANSLATION_PLACEHOLDER_DETECTED', result['validation_issues'])
+        self.assertEqual(result['composite_score'], 0.0)  # Should be 0 for failed validation
+        self.assertIn('issues', result)
+        self.assertIn('hebrew_validation', result)
+        self.assertIn('TRANSLATION_PLACEHOLDER_DETECTED', result['issues'])
+        self.assertFalse(result['hebrew_validation']['is_valid'])  # Validation should fail
     
     def test_evaluate_no_openai_client(self):
         """Test evaluation without OpenAI client."""
@@ -546,8 +550,8 @@ class TestModuleFunctions(unittest.TestCase):
         
         self.assertEqual(score, 8.5)
         self.assertEqual(details, mock_result)
-        mock_evaluator_class.assert_called_once_with("gpt-4")
-        mock_evaluator.evaluate.assert_called_once_with("Original", "Translation", "auto", False)
+        mock_evaluator_class.assert_called_once_with(model="gpt-4")
+        mock_evaluator.evaluate.assert_called_once_with("Original", "Translation", language="auto", enhanced=False)
     
     @patch('scribe.evaluate.HistoricalEvaluator')
     def test_evaluate_translation_with_params(self, mock_evaluator_class):
@@ -567,8 +571,8 @@ class TestModuleFunctions(unittest.TestCase):
         )
         
         self.assertEqual(score, 9.0)
-        mock_evaluator_class.assert_called_once_with("gpt-4-1106-preview")
-        mock_evaluator.evaluate.assert_called_once_with("Original", "Translation", "he", True)
+        mock_evaluator_class.assert_called_once_with(model="gpt-4-1106-preview")
+        mock_evaluator.evaluate.assert_called_once_with("Original", "Translation", language="he", enhanced=True)
     
     @patch('scribe.evaluate.HistoricalEvaluator')
     def test_evaluate_translation_failure(self, mock_evaluator_class):
@@ -595,13 +599,12 @@ class TestModuleFunctions(unittest.TestCase):
         
         self.assertEqual(score, 7.5)
         self.assertEqual(details, mock_result)
-        mock_evaluator_class.assert_called_once_with("gpt-4")
+        mock_evaluator_class.assert_called_once_with(model="gpt-4")
         mock_evaluator.evaluate_file.assert_called_once_with(
             Path("original.txt"), 
             Path("translation.txt"),
-            2500,
-            "auto",
-            False
+            language="auto",
+            enhanced=False
         )
     
     @patch('scribe.evaluate.HistoricalEvaluator')
@@ -622,13 +625,12 @@ class TestModuleFunctions(unittest.TestCase):
         )
         
         self.assertEqual(score, 8.0)
-        mock_evaluator_class.assert_called_once_with("gpt-4-1106-preview")
+        mock_evaluator_class.assert_called_once_with(model="gpt-4-1106-preview")
         mock_evaluator.evaluate_file.assert_called_once_with(
             Path("original.txt"), 
             Path("translation.txt"),
-            2500,
-            "he",
-            True
+            language="he",
+            enhanced=True
         )
     
     @patch('scribe.evaluate.HistoricalEvaluator')
