@@ -126,6 +126,8 @@ class TestDatabaseAuditor(unittest.TestCase):
     
     def tearDown(self):
         """Clean up test environment."""
+        if hasattr(self, 'auditor'):
+            self.auditor.close()
         shutil.rmtree(self.test_dir)
     
     def _create_test_database(self):
@@ -356,6 +358,8 @@ class TestDatabaseAuditorIntegration(unittest.TestCase):
     
     def tearDown(self):
         """Clean up test environment."""
+        if hasattr(self, 'auditor'):
+            self.auditor.close()
         shutil.rmtree(self.test_dir)
     
     def _create_comprehensive_test_database(self):
