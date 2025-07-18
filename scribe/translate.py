@@ -537,7 +537,6 @@ class HistoricalTranslator:
         if not paragraphs:
             return []
         
-        # Try to create balanced chunks
         chunks = []
         current_chunk = ""
         
@@ -554,66 +553,109 @@ class HistoricalTranslator:
                 
                 # Split long paragraph by sentences
                 sentences = re.split(r'(?<=[.!?])\s+', para)
-                for sentence in sentences:
-                    sentence = sentence.strip()
-                    if not sentence:
-                        continue
-                    
-                    # If adding this sentence would exceed max_chars
-                    if len(current_chunk) + len(sentence) + 1 > max_chars:
-                        if current_chunk:
-                            chunks.append(current_chunk.strip())
-                        current_chunk = sentence
-                    else:
-                        current_chunk += " " + sentence if current_chunk else sentence
+                if not sentences or (len(sentences) == 1 and len(sentences[0]) > max_chars):
+                    # No sentence boundaries or single very long sentence - split by words
+                    words = para.split()
+                    temp_chunk = ""
+                    for word in words:
+                        if len(temp_chunk) + len(word) + 1 > max_chars:
+                            if temp_chunk:
+                                chunks.append(temp_chunk.strip())
+                                temp_chunk = word
+                            else:
+                                # Single word longer than max_chars - just add it
+                                chunks.append(word)
+                        else:
+                            temp_chunk += " " + word if temp_chunk else word
+                    if temp_chunk:
+                        current_chunk = temp_chunk
+                else:
+                    # Split by sentences
+                    for sentence in sentences:
+                        sentence = sentence.strip()
+                        if not sentence:
+                            continue
+                        
+                        # If adding this sentence would exceed max_chars
+                        if len(current_chunk) + len(sentence) + 1 > max_chars:
+                            if current_chunk:
+                                chunks.append(current_chunk.strip())
+                            current_chunk = sentence
+                        else:
+                            current_chunk += " " + sentence if current_chunk else sentence
                 i += 1
                 continue
             
-            # Normal paragraph handling - try to create balanced groupings
+            # Normal paragraph handling
             separator = "\n\n" if current_chunk else ""
             potential_length = len(current_chunk) + len(separator) + len(para)
             
             if potential_length <= max_chars:
-                # Before adding, check if we should balance remaining content
-                remaining_paras = paragraphs[i:]
-                if len(remaining_paras) > 1 and current_chunk:
-                    # Calculate total remaining size including current para
-                    total_remaining = sum(len(p) + 2 for p in remaining_paras) - 2
-                    current_size = len(current_chunk)
-                    
-                    # If remaining content could form a better balanced chunk, split now
-                    if total_remaining > max_chars * 0.5 and current_size > max_chars * 0.5:
+                # Strategy: Be conservative when max_chars is small, balance when there's room
+                if max_chars <= 25:
+                    # Small max_chars: be conservative but allow reasonable combinations
+                    if current_chunk and len(para) > max_chars * 0.3:
                         chunks.append(current_chunk.strip())
                         current_chunk = para
                         i += 1
-                        continue
-                
-                # Paragraph fits in current chunk
-                current_chunk += separator + para
-                i += 1
+                    else:
+                        current_chunk += separator + para
+                        i += 1
+                else:
+                    # Larger max_chars: try to balance efficiently
+                    remaining_paras = paragraphs[i:]  # Include current paragraph
+                    if len(remaining_paras) >= 2 and current_chunk:  # Need multiple paragraphs to balance
+                        total_remaining = sum(len(p) + 2 for p in remaining_paras) - 2
+                        total_with_current = len(current_chunk) + 2 + total_remaining
+                        
+                        # If total content can be split into 2 balanced chunks
+                        if total_with_current <= max_chars * 1.8:
+                            # Find the best split point
+                            best_balance = float('inf')
+                            best_split_idx = None
+                            
+                            for split_idx in range(1, len(remaining_paras)):
+                                first_part = current_chunk + '\n\n' + '\n\n'.join(remaining_paras[:split_idx])
+                                second_part = '\n\n'.join(remaining_paras[split_idx:])
+                                
+                                if len(first_part) <= max_chars and len(second_part) <= max_chars:
+                                    balance = abs(len(first_part) - len(second_part))
+                                    if balance < best_balance:
+                                        best_balance = balance
+                                        best_split_idx = split_idx
+                            
+                            # If we found a good split and it's at the current position
+                            if best_split_idx == 1:
+                                current_chunk += separator + para
+                                chunks.append(current_chunk.strip())
+                                current_chunk = ""
+                                i += 1
+                                continue
+                    
+                    # Special case: if this is the last paragraph and it fits, combine it
+                    if i == len(paragraphs) - 1 and current_chunk:
+                        # Last paragraph - combine if it fits reasonably
+                        if potential_length <= max_chars * 0.9:
+                            current_chunk += separator + para
+                            i += 1
+                        else:
+                            chunks.append(current_chunk.strip())
+                            current_chunk = para
+                            i += 1
+                    # Be conservative for larger paragraphs - prefer separate chunks
+                    elif current_chunk and len(para) > max_chars * 0.4:
+                        # Current paragraph is substantial, start new chunk
+                        chunks.append(current_chunk.strip())
+                        current_chunk = para
+                        i += 1
+                    else:
+                        # Default: add paragraph to current chunk
+                        current_chunk += separator + para
+                        i += 1
             else:
-                # Paragraph doesn't fit, try to balance remaining paragraphs
+                # Paragraph doesn't fit, start new chunk
                 if current_chunk:
                     chunks.append(current_chunk.strip())
-                
-                # Look ahead to see if we can balance remaining paragraphs
-                remaining_paras = paragraphs[i:]
-                remaining_text = '\n\n'.join(remaining_paras)
-                
-                # If remaining text is short enough, try to split it evenly
-                if len(remaining_text) <= max_chars * 2 and len(remaining_paras) > 1:
-                    # Try to find a good split point
-                    mid_point = len(remaining_paras) // 2
-                    first_half = '\n\n'.join(remaining_paras[:mid_point])
-                    second_half = '\n\n'.join(remaining_paras[mid_point:])
-                    
-                    if len(first_half) <= max_chars and len(second_half) <= max_chars:
-                        chunks.append(first_half)
-                        chunks.append(second_half)
-                        current_chunk = ""  # Clear to prevent duplicate append after loop
-                        break
-                
-                # Default behavior: start new chunk with current paragraph
                 current_chunk = para
                 i += 1
         
