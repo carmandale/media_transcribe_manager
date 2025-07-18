@@ -1,11 +1,23 @@
 # Scribe - Historical Interview Preservation System
 
-A clean, modern system for preserving historical interviews through accurate transcription and translation.
+A comprehensive system for preserving historical interviews through accurate transcription, multi-language translation, and accessible digital presentation.
 
-## 🎉 Current Status: 100% Complete
-- **728 files** fully transcribed and translated into English, German, and Hebrew
-- All translations preserve authentic speech patterns and historical context
-- Enhanced async processing with retry logic and timeout handling
+## 🎯 System Overview
+
+Scribe consists of **two integrated components**:
+- **Core Processing Engine** (`scribe/`): Python-based transcription and translation pipeline
+- **Scribe Viewer Web Application** (`scribe-viewer/`): Modern web interface for research and quality control
+
+## 📊 Current Status
+- **728 files** processed through transcription and translation pipeline
+- **Multi-language support**: English, German, and Hebrew with specialized handling
+- **Web viewer**: Modern React interface with video synchronization (in development)
+- **Production readiness**: Currently stabilizing for production deployment
+
+## 📚 Documentation
+- **[Project Vision](PROJECT_VISION.md)**: Mission, goals, and system overview
+- **[Architecture Guide](ARCHITECTURE.md)**: Technical design and component relationships  
+- **[Development Guide](DEVELOPMENT_GUIDE.md)**: Setup instructions and workflows for developers
 
 ## Documentation
 
