@@ -511,7 +511,7 @@ class TestTranscriber(unittest.TestCase):
         """Test single file transcription with API error."""
         # Mock ElevenLabs client with error
         mock_client = Mock()
-        mock_client.speech_to_text.transcribe.side_effect = Exception("API Error")
+        mock_client.speech_to_text.convert.side_effect = Exception("API Error")
         
         transcriber = Transcriber(self.config)
         transcriber.client = mock_client
@@ -531,21 +531,31 @@ class TestTranscriber(unittest.TestCase):
         # Mock responses for two segments
         mock_response1 = Mock()
         mock_response1.text = "Segment 1 text."
-        mock_response1.language = "en"
-        mock_response1.confidence = 0.95
-        mock_response1.words = [{"word": "Segment", "start": 0.0, "end": 0.5}]
-        mock_response1.segments = [{"text": "Segment 1 text.", "start": 0.0, "end": 5.0}]
+        mock_response1.language_code = "en"
+        mock_response1.language_probability = 0.95
+        # Create proper mock word objects
+        mock_word1 = Mock()
+        mock_word1.text = "Segment"
+        mock_word1.start = 0.0
+        mock_word1.end = 0.5
+        mock_word1.speaker = None
+        mock_response1.words = [mock_word1]
         mock_response1.speakers = []
         
         mock_response2 = Mock()
         mock_response2.text = "Segment 2 text."
-        mock_response2.language = "en"
-        mock_response2.confidence = 0.90
-        mock_response2.words = [{"word": "Segment", "start": 300.0, "end": 300.5}]
-        mock_response2.segments = [{"text": "Segment 2 text.", "start": 300.0, "end": 305.0}]
+        mock_response2.language_code = "en"
+        mock_response2.language_probability = 0.90
+        # Create proper mock word objects
+        mock_word2 = Mock()
+        mock_word2.text = "Segment"
+        mock_word2.start = 300.0
+        mock_word2.end = 300.5
+        mock_word2.speaker = None
+        mock_response2.words = [mock_word2]
         mock_response2.speakers = []
         
-        mock_client.speech_to_text.transcribe.side_effect = [mock_response1, mock_response2]
+        mock_client.speech_to_text.convert.side_effect = [mock_response1, mock_response2]
         
         transcriber = Transcriber(self.config)
         transcriber.client = mock_client
@@ -568,7 +578,7 @@ class TestTranscriber(unittest.TestCase):
         self.assertEqual(len(result.segments), 2)
         
         # Verify API calls
-        self.assertEqual(mock_client.speech_to_text.transcribe.call_count, 2)
+        self.assertEqual(mock_client.speech_to_text.convert.call_count, 2)
     
     def test_parse_response_complete(self):
         """Test parsing complete response."""
@@ -676,8 +686,8 @@ class TestTranscriber(unittest.TestCase):
     def test_save_results_with_srt(self):
         """Test saving results with SRT subtitles."""
         words = [
-            {"word": "Hello", "start": 0.0, "end": 0.5},
-            {"word": "world", "start": 0.5, "end": 1.0}
+            {"text": "Hello", "start": 0.0, "end": 0.5},
+            {"text": "world", "start": 0.5, "end": 1.0}
         ]
         
         result = TranscriptionResult(

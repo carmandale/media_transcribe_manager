@@ -444,6 +444,7 @@ class Transcriber:
                 'text': result.text,
                 'language': result.language,
                 'confidence': result.confidence,
+                'duration': result.duration,
                 'words': result.words,
                 'speakers': result.speakers,
                 'segments': result.segments,
