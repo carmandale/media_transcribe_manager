@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 from datetime import datetime
 import logging
+import pytest
 
 # Set up logging to see what's happening
 logging.basicConfig(
@@ -16,6 +17,37 @@ logging.basicConfig(
 )
 
 from scribe.srt_translator import SRTTranslator
+
+
+@pytest.fixture
+def srt_path(tmp_path):
+    """Create a mock SRT file for testing."""
+    srt_file = tmp_path / "test.srt"
+    srt_content = """1
+00:00:01,000 --> 00:00:03,000
+Hello world
+
+2
+00:00:04,000 --> 00:00:06,000
+This is a test
+"""
+    srt_file.write_text(srt_content)
+    return str(srt_file)
+
+
+@pytest.fixture
+def target_lang():
+    """Target language for translation."""
+    return "es"
+
+
+@pytest.fixture
+def output_dir(tmp_path):
+    """Output directory for translated files."""
+    output_path = tmp_path / "output"
+    output_path.mkdir()
+    return str(output_path)
+
 
 def test_single_file(srt_path, target_lang, output_dir):
     """Test translation of a single SRT file."""
@@ -43,7 +75,7 @@ def test_single_file(srt_path, target_lang, output_dir):
     
     # Translate
     file_id = Path(srt_path).parent.name
-    output_file = output_dir / f"{file_id}_test_{target_lang}.srt"
+    output_file = Path(output_dir) / f"{file_id}_test_{target_lang}.srt"
     
     print(f"\nTranslating to {target_lang.upper()}...")
     start_time = datetime.now()
