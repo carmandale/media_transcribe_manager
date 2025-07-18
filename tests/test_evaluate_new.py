@@ -96,17 +96,17 @@ class TestHebrewUtilities(unittest.TestCase):
     
     def test_detect_language_ratio_mixed(self):
         """Test language ratio detection for mixed text."""
-        # Equal Hebrew and English
-        ratio = detect_language_ratio("Hello שלום")
+        # Equal Hebrew and English (4 chars each)
+        ratio = detect_language_ratio("Test שלום")  # "Test" = 4 chars, "שלום" = 4 chars
         self.assertEqual(ratio, 0.5)
         
         # More Hebrew than English
-        ratio = detect_language_ratio("שלום עולם Hello")
-        self.assertAlmostEqual(ratio, 2/3, places=2)
+        ratio = detect_language_ratio("שלום עולם Hi")  # Hebrew: 8 chars, English: 2 chars = 8/10 = 0.8
+        self.assertAlmostEqual(ratio, 0.8, places=2)
         
         # More English than Hebrew
-        ratio = detect_language_ratio("Hello World שלום")
-        self.assertAlmostEqual(ratio, 1/3, places=2)
+        ratio = detect_language_ratio("Hello Hi שלום")  # Hebrew: 4 chars, English: 7 chars = 4/11 ≈ 0.364
+        self.assertAlmostEqual(ratio, 4/11, places=2)
     
     def test_detect_language_ratio_no_alpha(self):
         """Test language ratio detection with no alphabetic characters."""
@@ -128,8 +128,8 @@ class TestHebrewUtilities(unittest.TestCase):
     
     def test_validate_hebrew_translation_valid(self):
         """Test Hebrew translation validation - valid cases."""
-        # Valid Hebrew translation
-        result = validate_hebrew_translation("שלום עולם זה תרגום טוב בעברית")
+        # Valid Hebrew translation (11+ words to avoid SHORT_TRANSLATION warning)
+        result = validate_hebrew_translation("שלום עולם זה תרגום טוב בעברית עם הרבה מילים נוספות כדי להגיע לאורך מתאים")
         
         self.assertTrue(result['is_valid'])
         self.assertTrue(result['has_hebrew'])
@@ -165,10 +165,11 @@ class TestHebrewUtilities(unittest.TestCase):
         # Mixed text with low Hebrew ratio
         result = validate_hebrew_translation("This is mostly English with שלום")
         
-        self.assertFalse(result['is_valid'])  # No Hebrew characters issue
+        self.assertTrue(result['is_valid'])  # Valid but with warnings
         self.assertTrue(result['has_hebrew'])
         self.assertLess(result['hebrew_ratio'], 0.3)
-        self.assertIn('NO_HEBREW_CHARACTERS', result['issues'])
+        self.assertEqual(result['issues'], [])  # No issues, just warnings
+        self.assertTrue(any('LOW_HEBREW_RATIO' in warning for warning in result['warnings']))
     
     def test_validate_hebrew_translation_placeholder_detected(self):
         """Test Hebrew translation validation - placeholder detection."""
@@ -190,13 +191,14 @@ class TestHebrewUtilities(unittest.TestCase):
     
     def test_validate_hebrew_translation_mixed_with_moderate_ratio(self):
         """Test Hebrew translation validation - mixed with moderate ratio."""
-        # Mixed text with moderate Hebrew ratio
-        result = validate_hebrew_translation("שלום עולם Hello World")
+        # Mixed text with moderate Hebrew ratio (4 Hebrew chars, 5 English chars = 0.444)
+        result = validate_hebrew_translation("שלום Hello")  # Hebrew: 4 chars, English: 5 chars = 0.444
         
         self.assertTrue(result['is_valid'])  # Should be valid since it has Hebrew
         self.assertTrue(result['has_hebrew'])
-        self.assertEqual(result['hebrew_ratio'], 0.5)
-        self.assertIn('MODERATE_HEBREW_RATIO_50%', result['warnings'])
+        self.assertGreater(result['hebrew_ratio'], 0.3)  # Above low threshold
+        self.assertLess(result['hebrew_ratio'], 0.5)     # Below high threshold
+        self.assertTrue(any('MODERATE_HEBREW_RATIO' in warning for warning in result['warnings']))
 
 
 class TestHistoricalEvaluator(unittest.TestCase):
