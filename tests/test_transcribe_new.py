@@ -484,12 +484,12 @@ class TestTranscriber(unittest.TestCase):
         mock_client = Mock()
         mock_response = Mock()
         mock_response.text = "Test transcription"
-        mock_response.language = "en"
-        mock_response.confidence = 0.95
+        mock_response.language_code = "en"
+        mock_response.language_probability = 0.95
         mock_response.words = []
         mock_response.segments = []
         mock_response.speakers = []
-        mock_client.speech_to_text.transcribe.return_value = mock_response
+        mock_client.speech_to_text.convert.return_value = mock_response
         
         transcriber = Transcriber(self.config)
         transcriber.client = mock_client
@@ -505,7 +505,7 @@ class TestTranscriber(unittest.TestCase):
         self.assertEqual(result.confidence, 0.95)
         
         # Verify API call
-        mock_client.speech_to_text.transcribe.assert_called_once()
+        mock_client.speech_to_text.convert.assert_called_once()
     
     def test_transcribe_single_api_error(self):
         """Test single file transcription with API error."""
@@ -575,11 +575,21 @@ class TestTranscriber(unittest.TestCase):
         # Mock complete response
         mock_response = Mock()
         mock_response.text = "Test transcription"
-        mock_response.language = "en"
-        mock_response.confidence = 0.95
-        mock_response.words = [{"word": "Test", "start": 0.0, "end": 0.5}]
-        mock_response.segments = [{"text": "Test transcription", "start": 0.0, "end": 2.0}]
-        mock_response.speakers = [{"speaker": "Speaker 1", "segments": [0]}]
+        mock_response.language_code = "en"
+        mock_response.language_probability = 0.95
+        # Create mock word objects
+        mock_word = Mock()
+        mock_word.text = "Test"
+        mock_word.start = 0.0
+        mock_word.end = 0.5
+        mock_word.speaker = None
+        mock_response.words = [mock_word]
+        
+        # Create mock speaker objects  
+        mock_speaker = Mock()
+        mock_speaker.id = "speaker_1"
+        mock_speaker.name = "Speaker 1"
+        mock_response.speakers = [mock_speaker]
         
         transcriber = Transcriber(self.config)
         result = transcriber._parse_response(mock_response)
@@ -589,19 +599,21 @@ class TestTranscriber(unittest.TestCase):
         self.assertEqual(result.language, "en")
         self.assertEqual(result.confidence, 0.95)
         self.assertEqual(len(result.words), 1)
-        self.assertEqual(len(result.segments), 1)
+        self.assertEqual(result.words[0]['text'], "Test")
+        self.assertEqual(result.words[0]['start'], 0.0)
+        self.assertEqual(result.words[0]['end'], 0.5)
         self.assertEqual(len(result.speakers), 1)
+        self.assertEqual(result.speakers[0]['id'], "speaker_1")
+        self.assertEqual(result.speakers[0]['name'], "Speaker 1")
     
     def test_parse_response_minimal(self):
         """Test parsing minimal response."""
-        # Mock minimal response
-        mock_response = Mock()
-        mock_response.text = "Test transcription"
-        mock_response.language = None
-        mock_response.confidence = None
-        mock_response.words = None
-        mock_response.segments = None
-        mock_response.speakers = None
+        # Create minimal response object (not Mock to avoid hasattr issues)
+        class MinimalResponse:
+            def __init__(self):
+                self.text = "Test transcription"
+        
+        mock_response = MinimalResponse()
         
         transcriber = Transcriber(self.config)
         result = transcriber._parse_response(mock_response)
