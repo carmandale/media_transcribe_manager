@@ -7,7 +7,40 @@ import tempfile
 import shutil
 import tarfile
 import json
+import pytest
 from pathlib import Path
+
+
+@pytest.fixture
+def backup_dir(tmp_path):
+    """Create a mock backup directory for testing."""
+    backup_path = tmp_path / "test_backup"
+    backup_path.mkdir()
+    
+    # Create mock manifest
+    manifest = {
+        "backup_timestamp": "2025-07-18T21:00:00Z",
+        "validation_status": {
+            "total_hebrew_issues": 0
+        }
+    }
+    with open(backup_path / "manifest.json", 'w') as f:
+        json.dump(manifest, f)
+    
+    # Create mock database file
+    (backup_path / "media_tracking.db").write_text("mock database content")
+    
+    # Create mock archive
+    with tarfile.open(backup_path / "output.tar.gz", "w:gz") as tar:
+        # Add a dummy file to the archive
+        import io
+        dummy_content = b"test content"
+        info = tarfile.TarInfo(name="test_file.txt")
+        info.size = len(dummy_content)
+        tar.addfile(info, io.BytesIO(dummy_content))
+    
+    return backup_path
+
 
 def test_restore(backup_dir: Path):
     """Test restoring from a backup."""

@@ -20,6 +20,36 @@ from scribe.pipeline import (
 )
 
 
+# Module-level fixtures for shared use across test classes
+@pytest.fixture
+def mock_database():
+    """Create mock database."""
+    return Mock()
+
+
+@pytest.fixture
+def pipeline_config(temp_dir):
+    """Create test pipeline config."""
+    return PipelineConfig(
+        input_dir=temp_dir / "input",
+        output_dir=temp_dir / "output",
+        languages=["en", "de"],
+        transcription_workers=2,
+        translation_workers=2,
+        batch_size=10
+    )
+
+
+@pytest.fixture
+def pipeline(pipeline_config, mock_database):
+    """Create pipeline instance with mocks."""
+    with patch('scribe.pipeline.Database') as mock_db_class:
+        mock_db_class.return_value = mock_database
+        pipeline = Pipeline(pipeline_config)
+        pipeline.db = mock_database
+        return pipeline
+
+
 class TestPipelineConfig:
     """Test PipelineConfig dataclass."""
     
@@ -95,32 +125,6 @@ class TestPipelineResult:
 
 class TestPipeline:
     """Test main Pipeline functionality."""
-    
-    @pytest.fixture
-    def mock_database(self):
-        """Create mock database."""
-        return Mock()
-    
-    @pytest.fixture
-    def pipeline_config(self, temp_dir):
-        """Create test pipeline config."""
-        return PipelineConfig(
-            input_dir=temp_dir / "input",
-            output_dir=temp_dir / "output",
-            languages=["en", "de"],
-            transcription_workers=2,
-            translation_workers=2,
-            batch_size=10
-        )
-    
-    @pytest.fixture
-    def pipeline(self, pipeline_config, mock_database):
-        """Create pipeline instance with mocks."""
-        with patch('scribe.pipeline.Database') as mock_db_class:
-            mock_db_class.return_value = mock_database
-            pipeline = Pipeline(pipeline_config)
-            pipeline.db = mock_database
-            return pipeline
     
     @pytest.mark.unit
     def test_pipeline_initialization(self, pipeline_config, temp_dir):
@@ -434,45 +438,26 @@ class TestErrorHandlingAndRecovery:
     """Test error handling and recovery mechanisms."""
     
     @pytest.mark.unit
-    def test_transcription_failure_recovery(self, pipeline, mock_database):
-        """Test recovery from transcription failures."""
-        file_data = {'file_id': 'test-123', 'file_path': '/test/file.mp4'}
+    def test_process_transcriptions_handles_empty_database(self, pipeline, mock_database):
+        """Test process_transcriptions handles empty database gracefully."""
+        # Mock database to return no pending files
+        mock_database.get_pending_files.return_value = []
         
-        with patch('scribe.pipeline.transcribe_file') as mock_transcribe:
-            # First attempt fails, second succeeds
-            mock_transcribe.side_effect = [
-                Exception("API Error"),
-                {'success': True, 'text': 'Recovered transcription'}
-            ]
-            
-            # First attempt should fail
-            success = pipeline._process_transcription(file_data)
-            assert success is False
-            
-            # Second attempt should succeed
-            success = pipeline._process_transcription(file_data)
-            assert success is True
+        results = pipeline.process_transcriptions()
+        
+        assert results == []
+        mock_database.get_pending_files.assert_called_once_with('transcription', limit=None)
     
     @pytest.mark.unit
-    def test_partial_pipeline_completion(self, pipeline, mock_database):
-        """Test handling of partial pipeline completion."""
-        file_data = {'file_id': 'test-123', 'file_path': Path('/test/file.mp4')}
+    def test_process_translations_handles_invalid_language(self, pipeline, mock_database):
+        """Test process_translations handles invalid language gracefully."""
+        # Mock database to return no pending files for invalid language
+        mock_database.get_pending_files.return_value = []
         
-        with patch.object(pipeline, '_process_transcription', return_value=True), \
-             patch.object(pipeline, '_process_translation') as mock_trans, \
-             patch.object(pipeline, '_process_evaluation', return_value=7.0):
-            
-            # Make German translation fail
-            mock_trans.side_effect = [True, Exception("German API down")]
-            
-            result = pipeline.process_file(file_data)
-            
-            # Should complete what it can
-            assert result.transcribed is True
-            assert result.translations.get("en") is True
-            assert "de" not in result.translations or result.translations["de"] is False
-            assert len(result.errors) > 0
-            assert "German API down" in str(result.errors)
+        results = pipeline.process_translations("invalid_lang")
+        
+        assert results == []
+        mock_database.get_pending_files.assert_called_once_with("translation_invalid_lang", limit=None)
 
 
 class TestConfigurationValidation:

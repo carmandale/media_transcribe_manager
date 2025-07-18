@@ -484,3 +484,8 @@ class DatabaseAuditor:
             "dry_run": dry_run,
             "timestamp": datetime.now().isoformat()
         }
+    
+    def close(self):
+        """Close database connection."""
+        if hasattr(self, 'db') and self.db:
+            self.db.close()

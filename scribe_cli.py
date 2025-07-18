@@ -741,6 +741,8 @@ def db_audit(output: Optional[str]):
     except Exception as e:
         click.echo(f"✗ Audit failed: {e}", err=True)
         raise click.Abort()
+    finally:
+        auditor.close()
 
 
 @db.command('fix-status')
@@ -819,6 +821,8 @@ def db_fix_status(dry_run: bool, audit_file: Optional[str]):
     except Exception as e:
         click.echo(f"✗ Status fix failed: {e}", err=True)
         raise click.Abort()
+    finally:
+        auditor.close()
 
 
 @db.command('validate')
@@ -870,6 +874,8 @@ def db_validate():
     except Exception as e:
         click.echo(f"✗ Validation failed: {e}", err=True)
         raise click.Abort()
+    finally:
+        auditor.close()
 
 
 if __name__ == '__main__':
