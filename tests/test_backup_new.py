@@ -317,6 +317,10 @@ class TestBackupManager(unittest.TestCase):
             # Create first backup
             backup_dir1, _ = self.backup_manager.create_backup()
             
+            # Add small delay to ensure different timestamp
+            import time
+            time.sleep(1)
+            
             # Create second backup (should have different timestamp)
             backup_dir2, _ = self.backup_manager.create_backup()
             
