@@ -753,13 +753,41 @@ class TestIntegration:
         mock_response.text = "Full transcription of video"
         mock_response.language_code = "en"
         mock_response.language_probability = 0.99
-        mock_response.words = [
-            Mock(text="Full", start=0.0, end=0.3, speaker=1),
-            Mock(text="transcription", start=0.3, end=1.0, speaker=1),
-            Mock(text="of", start=1.0, end=1.2, speaker=1),
-            Mock(text="video", start=1.2, end=1.6, speaker=1)
-        ]
-        mock_response.speakers = [Mock(id=1)]
+        
+        # Create mock word objects with proper attributes
+        mock_word1 = Mock()
+        mock_word1.text = "Full"
+        mock_word1.start = 0.0
+        mock_word1.end = 0.3
+        mock_word1.speaker = 1
+        
+        mock_word2 = Mock()
+        mock_word2.text = "transcription"
+        mock_word2.start = 0.3
+        mock_word2.end = 1.0
+        mock_word2.speaker = 1
+        
+        mock_word3 = Mock()
+        mock_word3.text = "of"
+        mock_word3.start = 1.0
+        mock_word3.end = 1.2
+        mock_word3.speaker = 1
+        
+        mock_word4 = Mock()
+        mock_word4.text = "video"
+        mock_word4.start = 1.2
+        mock_word4.end = 1.6
+        mock_word4.speaker = 1
+        
+        mock_response.words = [mock_word1, mock_word2, mock_word3, mock_word4]
+        
+        # Create mock speaker object
+        mock_speaker = Mock()
+        mock_speaker.id = 1
+        mock_speaker.name = "Speaker 1"
+        mock_response.speakers = [mock_speaker]
+        
+        # Ensure dict() returns only JSON-serializable data
         mock_response.dict.return_value = {
             "text": "Full transcription of video",
             "language": "en",

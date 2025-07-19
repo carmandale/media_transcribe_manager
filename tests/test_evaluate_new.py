@@ -206,18 +206,29 @@ class TestHistoricalEvaluator(unittest.TestCase):
     
     def setUp(self):
         """Set up test fixtures."""
+        # Mock OpenAI client for all tests in this class
+        self.openai_patcher = patch('scribe.evaluate.openai')
+        self.mock_openai = self.openai_patcher.start()
+        self.mock_client = Mock()
+        self.mock_openai.OpenAI.return_value = self.mock_client
+        
         self.evaluator = HistoricalEvaluator()
+    
+    def tearDown(self):
+        """Clean up test fixtures."""
+        self.openai_patcher.stop()
     
     def test_evaluator_initialization_default(self):
         """Test evaluator initialization with default model."""
         evaluator = HistoricalEvaluator()
         self.assertEqual(evaluator.model, "gpt-4")
-        # Client initialization depends on openai being available
+        self.assertEqual(evaluator.client, self.mock_client)
     
     def test_evaluator_initialization_custom_model(self):
         """Test evaluator initialization with custom model."""
         evaluator = HistoricalEvaluator(model="gpt-4-1106-preview")
         self.assertEqual(evaluator.model, "gpt-4-1106-preview")
+        self.assertEqual(evaluator.client, self.mock_client)
     
     @patch('scribe.evaluate.openai')
     def test_evaluator_initialization_with_openai(self, mock_openai):
