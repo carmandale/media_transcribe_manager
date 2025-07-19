@@ -184,17 +184,17 @@ class TestAudioExtractor(unittest.TestCase):
         video_path = self.temp_path / "test_video.mp4"
         video_path.write_bytes(b"fake video content")
         
-        # Should raise exception
-        with self.assertRaises(subprocess.CalledProcessError):
+        # Should raise RuntimeError (not CalledProcessError)
+        with self.assertRaises(RuntimeError):
             AudioExtractor.extract_audio(video_path)
     
     @patch('subprocess.run')
     def test_get_duration_success(self, mock_run):
         """Test successful duration detection."""
-        # Mock ffprobe output
+        # Mock ffprobe output (just the duration number)
         mock_run.return_value = Mock(
             returncode=0,
-            stdout='{"format": {"duration": "120.5"}}',
+            stdout='120.5\n',
             stderr=""
         )
         
@@ -210,10 +210,11 @@ class TestAudioExtractor(unittest.TestCase):
         call_args = mock_run.call_args[0][0]
         self.assertEqual(call_args[0], 'ffprobe')
         self.assertIn('-v', call_args)
-        self.assertIn('quiet', call_args)
-        self.assertIn('-print_format', call_args)
-        self.assertIn('json', call_args)
-        self.assertIn('-show_format', call_args)
+        self.assertIn('error', call_args)
+        self.assertIn('-show_entries', call_args)
+        self.assertIn('format=duration', call_args)
+        self.assertIn('-of', call_args)
+        self.assertIn('default=noprint_wrappers=1:nokey=1', call_args)
         self.assertIn(str(media_path), call_args)
     
     @patch('subprocess.run')
@@ -225,26 +226,26 @@ class TestAudioExtractor(unittest.TestCase):
         media_path = self.temp_path / "test_media.mp4"
         media_path.write_bytes(b"fake media content")
         
-        # Should raise exception
-        with self.assertRaises(subprocess.CalledProcessError):
-            AudioExtractor.get_duration(media_path)
+        # Should return 0.0 (not raise exception)
+        duration = AudioExtractor.get_duration(media_path)
+        self.assertEqual(duration, 0.0)
     
     @patch('subprocess.run')
     def test_get_duration_invalid_json(self, mock_run):
         """Test duration detection with invalid JSON."""
-        # Mock ffprobe with invalid JSON
+        # Mock ffprobe with invalid output (not parseable as float)
         mock_run.return_value = Mock(
             returncode=0,
-            stdout='invalid json',
+            stdout='invalid_duration',
             stderr=""
         )
         
         media_path = self.temp_path / "test_media.mp4"
         media_path.write_bytes(b"fake media content")
         
-        # Should raise exception
-        with self.assertRaises(Exception):
-            AudioExtractor.get_duration(media_path)
+        # Should return 0.0 (not raise exception)
+        duration = AudioExtractor.get_duration(media_path)
+        self.assertEqual(duration, 0.0)
 
 
 class TestAudioSegmenter(unittest.TestCase):
@@ -748,11 +749,12 @@ class TestModuleFunctions(unittest.TestCase):
                 output_dir="/test/output"
             )
             
-            # Verify result
-            self.assertEqual(result['text'], "Test transcription")
-            self.assertEqual(result['language'], "en")
-            self.assertEqual(result['confidence'], 0.95)
-            self.assertEqual(result['duration'], 120.0)
+            # Verify result is a TranscriptionResult object
+            self.assertIsInstance(result, TranscriptionResult)
+            self.assertEqual(result.text, "Test transcription")
+            self.assertEqual(result.language, "en")
+            self.assertEqual(result.confidence, 0.95)
+            self.assertEqual(result.duration, 120.0)
             
             # Verify transcriber was called correctly
             mock_transcriber_class.assert_called_once()
@@ -786,25 +788,34 @@ class TestModuleFunctions(unittest.TestCase):
     @patch('scribe.transcribe.transcribe')
     def test_transcribe_file_function(self, mock_transcribe):
         """Test transcribe_file function."""
-        # Mock transcribe function
-        mock_transcribe.return_value = {
-            'text': 'Test transcription',
-            'language': 'en',
-            'confidence': 0.95,
-            'duration': 120.0
-        }
+        # Mock transcribe function to return a TranscriptionResult
+        mock_result = TranscriptionResult(
+            text='Test transcription',
+            language='en',
+            confidence=0.95,
+            duration=120.0
+        )
+        mock_result.output_path = "/test/output/file"
+        mock_result.words = ["Test", "transcription"]
+        mock_transcribe.return_value = mock_result
         
         with patch.dict(os.environ, {'ELEVENLABS_API_KEY': 'test_key'}):
             result = transcribe_file("/test/file.mp4", "/test/output")
             
-            # Verify result
+            # Verify result is a dict with expected keys
             self.assertEqual(result['text'], 'Test transcription')
+            self.assertEqual(result['file_path'], '/test/file.mp4')
+            self.assertEqual(result['output_path'], '/test/output/file')
+            self.assertEqual(result['language'], 'en')
+            self.assertEqual(result['duration'], 120.0)
+            self.assertEqual(result['words'], 2)
+            self.assertEqual(result['success'], True)
             
             # Verify transcribe was called
             mock_transcribe.assert_called_once_with(
-                file_path="/test/file.mp4",
-                api_key="test_key",
-                output_dir="/test/output"
+                "/test/file.mp4",
+                "test_key",
+                "/test/output"
             )
     
     @patch('scribe.transcribe.transcribe')
@@ -820,11 +831,11 @@ class TestModuleFunctions(unittest.TestCase):
         mock_transcribe.side_effect = Exception("Transcription error")
         
         with patch.dict(os.environ, {'ELEVENLABS_API_KEY': 'test_key'}):
-            result = transcribe_file("/test/file.mp4", "/test/output")
+            # Should raise exception (no error handling in function)
+            with self.assertRaises(Exception) as context:
+                transcribe_file("/test/file.mp4", "/test/output")
             
-            # Should return error result
-            self.assertIn('error', result)
-            self.assertEqual(result['success'], False)
+            self.assertEqual(str(context.exception), "Transcription error")
 
 
 if __name__ == "__main__":

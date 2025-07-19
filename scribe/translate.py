@@ -687,6 +687,8 @@ class HistoricalTranslator:
         Returns:
             True if text contains Hebrew characters
         """
+        if not text:
+            return False
         return any('\u0590' <= c <= '\u05FF' for c in text)
     
     def is_same_language(self, lang1: str, lang2: str) -> bool:
@@ -745,4 +747,6 @@ def translate_text(text: str,
 
 def validate_hebrew(text: str) -> bool:
     """Check if text contains Hebrew characters."""
+    if not text:
+        return False
     return any('\u0590' <= c <= '\u05FF' for c in text)
