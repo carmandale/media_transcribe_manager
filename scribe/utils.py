@@ -278,33 +278,45 @@ class SimpleWorkerPool:
         # Process results as they complete with overall timeout
         # Use reasonable overall timeout - don't multiply by number of items
         overall_timeout = min(timeout * 3, 300)  # Max 5 minutes total or 3x per-task timeout
-        for future in as_completed(futures, timeout=overall_timeout):
-            item = futures[future]
-            
-            try:
-                # Individual task timeout
-                result = future.result(timeout=timeout)
-                results[str(item)] = result
-                completed += 1
+        
+        try:
+            for future in as_completed(futures, timeout=overall_timeout):
+                item = futures[future]
                 
-                if callback:
-                    callback(item, result, None)
+                try:
+                    # Individual task timeout
+                    result = future.result(timeout=timeout)
+                    results[str(item)] = result
+                    completed += 1
                     
-            except TimeoutError:
-                logger.warning(f"Task timed out for {item} after {timeout}s")
-                results[str(item)] = None
-                failed += 1
-                
-                if callback:
-                    callback(item, None, TimeoutError(f"Timeout after {timeout}s"))
+                    if callback:
+                        callback(item, result, None)
+                        
+                except TimeoutError:
+                    logger.warning(f"Task timed out for {item} after {timeout}s")
+                    results[str(item)] = None
+                    failed += 1
                     
-            except Exception as e:
-                logger.error(f"Task failed for {item}: {e}")
-                results[str(item)] = None
-                failed += 1
-                
-                if callback:
-                    callback(item, None, e)
+                    if callback:
+                        callback(item, None, TimeoutError(f"Timeout after {timeout}s"))
+                        
+                except Exception as e:
+                    logger.error(f"Task failed for {item}: {e}")
+                    results[str(item)] = None
+                    failed += 1
+                    
+                    if callback:
+                        callback(item, None, e)
+        
+        except TimeoutError:
+            # Handle overall timeout - mark remaining futures as failed
+            logger.warning(f"Overall timeout after {overall_timeout}s, marking remaining tasks as failed")
+            for future, item in futures.items():
+                if str(item) not in results:
+                    results[str(item)] = None
+                    failed += 1
+                    if callback:
+                        callback(item, None, TimeoutError(f"Overall timeout after {overall_timeout}s"))
         
         return {
             'total': len(items),
