@@ -622,7 +622,7 @@ class TestMainPublicAPIMethods:
         }
         
         # Mock worker pool
-        mock_pool = Mock()
+        mock_pool = MagicMock()
         mock_pool_class.return_value = mock_pool
         mock_pool.__enter__.return_value = mock_pool
         
@@ -660,7 +660,7 @@ class TestMainPublicAPIMethods:
         mock_transcribe.side_effect = Exception("API Error")
         
         # Mock worker pool
-        mock_pool = Mock()
+        mock_pool = MagicMock()
         mock_pool_class.return_value = mock_pool
         mock_pool.__enter__.return_value = mock_pool
         
@@ -669,7 +669,7 @@ class TestMainPublicAPIMethods:
         mock_pool.map.side_effect = mock_map
         
         # Mock tracker
-        mock_tracker = Mock()
+        mock_tracker = MagicMock()
         mock_tracker_class.return_value = mock_tracker
         
         results = pipeline.process_transcriptions()
@@ -710,19 +710,19 @@ class TestMainPublicAPIMethods:
         mock_translate.return_value = "English translation"
         
         # Mock worker pool
-        mock_pool = Mock()
+        mock_pool = MagicMock()
         mock_pool_class.return_value = mock_pool
         mock_pool.__enter__.return_value = mock_pool
         
         # Mock process_batch to return successful results
         mock_pool.process_batch.return_value = {
-            'results': {str(pending_files[0]): Mock(translations={'en': True}, errors=[])},
+            'results': {str(pending_files[0]): MagicMock(translations={'en': True}, errors=[])},
             'completed': 1,
             'failed': 0
         }
         
         # Mock tracker
-        mock_tracker = Mock()
+        mock_tracker = MagicMock()
         mock_tracker_class.return_value = mock_tracker
         
         results = pipeline.process_translations("en")
@@ -756,19 +756,19 @@ class TestMainPublicAPIMethods:
         mock_validate.return_value = True
         
         # Mock worker pool
-        mock_pool = Mock()
+        mock_pool = MagicMock()
         mock_pool_class.return_value = mock_pool
         mock_pool.__enter__.return_value = mock_pool
         
         # Mock process_batch to return successful results
         mock_pool.process_batch.return_value = {
-            'results': {str(pending_files[0]): Mock(translations={'he': True}, errors=[])},
+            'results': {str(pending_files[0]): MagicMock(translations={'he': True}, errors=[])},
             'completed': 1,
             'failed': 0
         }
         
         # Mock tracker
-        mock_tracker = Mock()
+        mock_tracker = MagicMock()
         mock_tracker_class.return_value = mock_tracker
         
         results = pipeline.process_translations("he")
@@ -897,19 +897,19 @@ class TestMainPublicAPIMethods:
         mock_translate_srt.return_value = True
         
         # Mock worker pool
-        mock_pool = Mock()
+        mock_pool = MagicMock()
         mock_pool_class.return_value = mock_pool
         mock_pool.__enter__.return_value = mock_pool
         
         # Mock process_batch to return successful results
         mock_pool.process_batch.return_value = {
-            'results': {str(pending_files[0]): Mock(translations={'en_srt': True}, errors=[])},
+            'results': {str(pending_files[0]): MagicMock(translations={'en_srt': True}, errors=[])},
             'completed': 1,
             'failed': 0
         }
         
         # Mock tracker
-        mock_tracker = Mock()
+        mock_tracker = MagicMock()
         mock_tracker_class.return_value = mock_tracker
         
         results = pipeline.translate_srt_files("en")
@@ -938,19 +938,19 @@ class TestMainPublicAPIMethods:
         mock_translate_srt.return_value = True
         
         # Mock worker pool
-        mock_pool = Mock()
+        mock_pool = MagicMock()
         mock_pool_class.return_value = mock_pool
         mock_pool.__enter__.return_value = mock_pool
         
         # Mock process_batch to return successful results
         mock_pool.process_batch.return_value = {
-            'results': {str(pending_files[0]): Mock(translations={'en_srt': True}, errors=[])},
+            'results': {str(pending_files[0]): MagicMock(translations={'en_srt': True}, errors=[])},
             'completed': 1,
             'failed': 0
         }
         
         # Mock tracker
-        mock_tracker = Mock()
+        mock_tracker = MagicMock()
         mock_tracker_class.return_value = mock_tracker
         
         results = pipeline.translate_srt_files("en")

@@ -15,7 +15,7 @@ from .database import Database
 from .transcribe import transcribe_file
 from .translate import translate_text, validate_hebrew
 from .evaluate import evaluate_translation
-from .utils import ensure_directory, ProgressTracker, SimpleWorkerPool
+from .utils import ensure_directory, ProgressTracker, SimpleWorkerPool, generate_file_id
 from .srt_translator import translate_srt_file
 
 logger = logging.getLogger(__name__)
@@ -512,7 +512,6 @@ def process_single_file(file_path: str, languages: Optional[List[str]] = None) -
     file_info = pipeline.db.add_file(file_path)
     if not file_info:
         # File already exists, get its info
-        from .utils import generate_file_id
         file_id = generate_file_id(Path(file_path))
         file_info = {'file_id': file_id, 'file_path': file_path}
     
