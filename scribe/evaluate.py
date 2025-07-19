@@ -435,8 +435,10 @@ Be sure to format your response as a strict JSON object with the exact structure
             # Truncate at sentence boundary
             end = text.rfind('.', 0, max_chars)
             if end == -1:
-                end = max_chars
+                # No sentence boundary found, truncate at max_chars
+                return text[:max_chars]
             
+            # Include the period
             return text[:end+1]
             
         except Exception as e:
