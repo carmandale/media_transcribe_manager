@@ -46,6 +46,12 @@ export interface Interview {
   assets: InterviewAssets;
   /** Available transcripts in different languages */
   transcripts: InterviewTranscript[];
+  /** Admin metadata for tracking changes */
+  adminMetadata?: {
+    lastModified: string;
+    modifiedBy: string;
+    version: number;
+  };
 }
 
 // Search-related types
@@ -137,4 +143,3 @@ export interface PaginationInfo {
   /** Number of results per page */
   resultsPerPage: number;
 }
-
