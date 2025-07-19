@@ -289,7 +289,9 @@ class TestAudioSegmenter(unittest.TestCase):
         mock_run.return_value = Mock(returncode=0, stdout="", stderr="")
         
         audio_path = self.temp_path / "test_audio.mp3"
-        audio_path.write_bytes(b"fake audio content")
+        # Create a file larger than 25MB to trigger splitting
+        large_content = b"fake audio content" * (1024 * 1024 * 2)  # ~34MB
+        audio_path.write_bytes(large_content)
         
         segments = AudioSegmenter.split_audio(audio_path, max_size_mb=25, max_segment_duration=600)
         
@@ -302,17 +304,17 @@ class TestAudioSegmenter(unittest.TestCase):
         self.assertEqual(mock_run.call_count, 2)
     
     @patch('subprocess.run')
-    @patch('os.path.getsize')
     @patch('scribe.transcribe.AudioExtractor.get_duration')
-    def test_split_audio_file_size_split(self, mock_get_duration, mock_get_size, mock_run):
+    def test_split_audio_file_size_split(self, mock_get_duration, mock_run):
         """Test audio splitting by file size."""
-        # Mock file size larger than max size
+        # Mock duration shorter than max segment duration
         mock_get_duration.return_value = 300.0  # 5 minutes
-        mock_get_size.return_value = 30 * 1024 * 1024  # 30MB
         mock_run.return_value = Mock(returncode=0, stdout="", stderr="")
         
         audio_path = self.temp_path / "test_audio.mp3"
-        audio_path.write_bytes(b"fake audio content")
+        # Create a file larger than 25MB to trigger splitting by file size
+        large_content = b"fake audio content" * (1024 * 1024 * 2)  # ~34MB
+        audio_path.write_bytes(large_content)
         
         segments = AudioSegmenter.split_audio(audio_path, max_size_mb=25, max_segment_duration=600)
         
@@ -331,7 +333,9 @@ class TestAudioSegmenter(unittest.TestCase):
         mock_run.side_effect = subprocess.CalledProcessError(1, 'ffmpeg', stderr="ffmpeg error")
         
         audio_path = self.temp_path / "test_audio.mp3"
-        audio_path.write_bytes(b"fake audio content")
+        # Create a file larger than 25MB to trigger splitting
+        large_content = b"fake audio content" * (1024 * 1024 * 2)  # ~34MB
+        audio_path.write_bytes(large_content)
         
         # Should raise exception
         with self.assertRaises(subprocess.CalledProcessError):

@@ -127,14 +127,14 @@ class AudioSegmenter:
     
     @staticmethod
     def split_audio(audio_path: Path, max_size_mb: int = 25, 
-                   max_duration: int = 600) -> List[Tuple[Path, float]]:
+                   max_segment_duration: int = 600) -> List[Tuple[Path, float]]:
         """
         Split audio file into segments if needed.
         
         Args:
             audio_path: Path to audio file
             max_size_mb: Maximum segment size in MB
-            max_duration: Maximum segment duration in seconds
+            max_segment_duration: Maximum segment duration in seconds
             
         Returns:
             List of (segment_path, start_time) tuples
@@ -154,8 +154,8 @@ class AudioSegmenter:
         segment_duration = duration / num_segments
         
         # Cap segment duration
-        if segment_duration > max_duration:
-            num_segments = int(duration / max_duration) + 1
+        if segment_duration > max_segment_duration:
+            num_segments = int(duration / max_segment_duration) + 1
             segment_duration = duration / num_segments
         
         # Create temporary directory for segments
