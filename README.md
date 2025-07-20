@@ -8,6 +8,8 @@ Scribe consists of **two integrated components**:
 - **Core Processing Engine** (`scribe/`): Python-based transcription and translation pipeline
 - **Scribe Viewer Web Application** (`scribe-viewer/`): Modern web interface for research and quality control
 
+**Quick Launch**: Run `./start.sh` to start the entire system with the web viewer interface.
+
 ## 📊 Current Status
 - **728 files** processed through transcription and translation pipeline
 - **Multi-language support**: English, German, and Hebrew with specialized handling
@@ -40,6 +42,18 @@ The system emphasizes preserving authentic speech patterns, including hesitation
 
 ## Quick Start
 
+### Option 1: Launch Scribe Viewer (Web Interface)
+```bash
+# Start the web viewer with all checks
+./start.sh
+```
+This will:
+- Check all prerequisites (Python, Node.js, database)
+- Install dependencies if needed
+- Launch the Scribe Viewer at http://localhost:3000
+- Open your browser automatically
+
+### Option 2: Command Line Processing
 ```bash
 # Install dependencies (requires uv)
 uv pip install -r requirements.txt
