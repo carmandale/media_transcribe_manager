@@ -8,6 +8,7 @@ import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { Interview } from '@/lib/types';
 import { getSearchEngine } from '@/lib/search';
+import { withAdminAuth } from '@/lib/auth';
 
 const MANIFEST_PATH = join(process.cwd(), 'public', 'manifest.json');
 
@@ -23,7 +24,7 @@ async function loadManifest(): Promise<Interview[]> {
 }
 
 // POST /api/admin/reindex - Rebuild search indexes
-export async function POST(request: NextRequest) {
+export const POST = withAdminAuth(async (request: NextRequest) => {
   try {
     const startTime = Date.now();
     
@@ -72,10 +73,10 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // GET /api/admin/reindex - Get current index status
-export async function GET(request: NextRequest) {
+export const GET = withAdminAuth(async (request: NextRequest) => {
   try {
     const interviews = await loadManifest();
     
@@ -123,5 +124,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
-
+});

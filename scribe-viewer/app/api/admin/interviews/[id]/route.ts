@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { Interview } from '@/lib/types';
+import { withAdminAuth, getAuthenticatedUser } from '@/lib/auth';
 
 const MANIFEST_PATH = join(process.cwd(), 'public', 'manifest.json');
 const MANIFEST_MIN_PATH = join(process.cwd(), 'public', 'manifest.min.json');
@@ -73,10 +74,10 @@ function isValidDate(dateString: string): boolean {
 }
 
 // GET /api/admin/interviews/[id] - Get specific interview
-export async function GET(
+export const GET = withAdminAuth(async (
   request: NextRequest,
   { params }: { params: { id: string } }
-) {
+) => {
   try {
     const interviews = await loadManifest();
     const interview = interviews.find(i => i.id === params.id);
@@ -109,13 +110,13 @@ export async function GET(
       { status: 500 }
     );
   }
-}
+});
 
 // PUT /api/admin/interviews/[id] - Update specific interview
-export async function PUT(
+export const PUT = withAdminAuth(async (
   request: NextRequest,
   { params }: { params: { id: string } }
-) {
+) => {
   try {
     const body = await request.json();
     const validationErrors = validateInterviewData(body);
@@ -152,7 +153,7 @@ export async function PUT(
       transcripts: body.transcripts || existingInterview.transcripts,
       adminMetadata: {
         lastModified: new Date().toISOString(),
-        modifiedBy: 'admin', // TODO: Get from auth context
+        modifiedBy: getAuthenticatedUser(request).id,
         version: (existingInterview.adminMetadata?.version || 1) + 1,
       }
     };
@@ -173,13 +174,13 @@ export async function PUT(
       { status: 500 }
     );
   }
-}
+});
 
 // DELETE /api/admin/interviews/[id] - Delete specific interview
-export async function DELETE(
+export const DELETE = withAdminAuth(async (
   request: NextRequest,
   { params }: { params: { id: string } }
-) {
+) => {
   try {
     const interviews = await loadManifest();
     const interviewIndex = interviews.findIndex(i => i.id === params.id);
@@ -209,4 +210,4 @@ export async function DELETE(
       { status: 500 }
     );
   }
-}
+});

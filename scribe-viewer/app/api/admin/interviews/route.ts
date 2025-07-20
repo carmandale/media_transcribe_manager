@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { Interview } from '@/lib/types';
+import { withAdminAuth, getAuthenticatedUser } from '@/lib/auth';
 
 const MANIFEST_PATH = join(process.cwd(), 'public', 'manifest.json');
 const MANIFEST_MIN_PATH = join(process.cwd(), 'public', 'manifest.min.json');
@@ -73,7 +74,7 @@ function isValidDate(dateString: string): boolean {
 }
 
 // GET /api/admin/interviews - List all interviews with admin metadata
-export async function GET(request: NextRequest) {
+export const GET = withAdminAuth(async (request: NextRequest) => {
   try {
     const interviews = await loadManifest();
     
@@ -99,10 +100,10 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // POST /api/admin/interviews - Create new interview
-export async function POST(request: NextRequest) {
+export const POST = withAdminAuth(async (request: NextRequest) => {
   try {
     const body = await request.json();
     const validationErrors = validateInterviewData(body);
@@ -134,7 +135,7 @@ export async function POST(request: NextRequest) {
       transcripts: body.transcripts || [],
       adminMetadata: {
         lastModified: new Date().toISOString(),
-        modifiedBy: 'admin', // TODO: Get from auth context
+        modifiedBy: getAuthenticatedUser(request).id,
         version: 1,
       }
     };
@@ -155,4 +156,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

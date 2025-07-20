@@ -95,7 +95,12 @@ export default function AdminPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Admin Panel</h1>
+        <div>
+          <h1 className="text-3xl font-bold">Admin Panel</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Manage interviews and search functionality. Add/Edit features coming soon.
+          </p>
+        </div>
         <div className="flex gap-2">
           <Button onClick={loadInterviews} variant="outline">
             <RefreshCw className="h-4 w-4 mr-2" />
@@ -109,7 +114,7 @@ export default function AdminPage() {
             )}
             Reindex Search
           </Button>
-          <Button>
+          <Button disabled title="Coming Soon - Add Interview functionality">
             <Plus className="h-4 w-4 mr-2" />
             Add Interview
           </Button>
@@ -163,7 +168,12 @@ export default function AdminPage() {
                   </div>
                   
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      disabled 
+                      title="Coming Soon - Edit Interview functionality"
+                    >
                       <Edit className="h-4 w-4" />
                     </Button>
                     <Button 
