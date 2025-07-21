@@ -56,8 +56,23 @@ export class SearchEngine {
   /**
    * Perform a search across all interviews
    */
-  search(options: SearchOptions): SearchResult[] {
-    const opts = { ...DEFAULT_SEARCH_OPTIONS, ...options };
+  search(query: string): SearchResult[];
+  search(options: SearchOptions): SearchResult[];
+  search(query: string, options: Partial<SearchOptions>): SearchResult[];
+  search(queryOrOptions: string | SearchOptions, options?: Partial<SearchOptions>): SearchResult[] {
+    let opts: Required<SearchOptions>;
+    
+    if (typeof queryOrOptions === 'string') {
+      // Legacy API: search(query, options)
+      opts = { 
+        ...DEFAULT_SEARCH_OPTIONS, 
+        query: queryOrOptions,
+        ...options 
+      };
+    } else {
+      // New API: search(options)
+      opts = { ...DEFAULT_SEARCH_OPTIONS, ...queryOrOptions };
+    }
     
     if (!opts.query.trim()) {
       return this.getAllInterviews(opts);
@@ -83,8 +98,8 @@ export class SearchEngine {
     let results = this.interviews.map(interview => ({
       interview,
       score: 0,
-      snippet: this.generateSnippet(interview.metadata.summary || 'No summary available', ''),
-      context: interview.metadata.summary || 'No summary available',
+      snippet: this.generateSnippet(interview.metadata?.summary || 'No summary available', ''),
+      context: interview.metadata?.summary || 'No summary available',
       matchedField: 'summary',
     }));
 
@@ -140,8 +155,8 @@ export class SearchEngine {
   } {
     if (!match) {
       return {
-        snippet: interview.metadata.summary || 'No summary available',
-        context: interview.metadata.summary || 'No summary available',
+        snippet: interview.metadata?.summary || 'No summary available',
+        context: interview.metadata?.summary || 'No summary available',
         matchedField: 'summary',
       };
     }
@@ -273,7 +288,7 @@ export class SearchEngine {
     if (options.dateRange) {
       const { start, end } = options.dateRange;
       filtered = filtered.filter(result => {
-        const interviewDate = result.interview.metadata.date;
+        const interviewDate = result.interview.metadata?.date;
         if (!interviewDate) return false;
         return interviewDate >= start && interviewDate <= end;
       });
@@ -282,7 +297,8 @@ export class SearchEngine {
     // Filter by interviewees
     if (options.interviewees.length > 0) {
       filtered = filtered.filter(result => {
-        const interviewee = result.interview.metadata.interviewee.toLowerCase();
+        const interviewee = result.interview.metadata?.interviewee?.toLowerCase();
+        if (!interviewee) return false;
         return options.interviewees.some(name => 
           interviewee.includes(name.toLowerCase())
         );
@@ -406,4 +422,3 @@ export function searchInterviews(
   const engine = getSearchEngine(interviews);
   return engine.search({ query, ...options });
 }
-

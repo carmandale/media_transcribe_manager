@@ -76,7 +76,7 @@ describe('Edge Case and Error Handling Tests', () => {
       // Should handle gracefully
       const results = searchEngine.search('Valid');
       expect(results.length).toBeGreaterThan(0);
-      expect(results[0].item.metadata.interviewee).toBe('Valid Person');
+      expect(results[0].interview.metadata.interviewee).toBe('Valid Person');
     });
 
     test('should handle extremely long search queries', () => {
@@ -230,7 +230,7 @@ describe('Edge Case and Error Handling Tests', () => {
       
       // Filter by non-existent interviewee
       const results = searchEngine.search('', {
-        filters: { interviewee: 'Non-existent Person' },
+        interviewees: ['Non-existent Person'],
       });
       
       expect(results).toEqual([]);
@@ -456,8 +456,7 @@ describe('Edge Case and Error Handling Tests', () => {
       // Search should work with updated data
       results = searchEngine.search('New');
       expect(results.length).toBe(1);
-      expect(results[0].item.metadata.interviewee).toBe('New Person');
+      expect(results[0].interview.metadata.interviewee).toBe('New Person');
     });
   });
 });
-
