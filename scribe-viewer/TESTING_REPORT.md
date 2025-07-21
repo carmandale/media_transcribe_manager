@@ -2,11 +2,11 @@
 
 ## Summary
 
-- **Test Run Date**: 2025-07-20T10:48:02.401Z
+- **Test Run Date**: 2025-07-20T14:46:12.929Z
 - **Total Test Suites**: 4
 - **Passed**: 0
 - **Failed**: 4
-- **Total Duration**: 5.36 seconds
+- **Total Duration**: 10.18 seconds
 
 ## Test Suite Results
 
@@ -14,7 +14,7 @@
 ### Unit Tests
 
 - **Status**: ❌ FAILED
-- **Duration**: 2.93 seconds
+- **Duration**: 3.87 seconds
 - **Description**: Basic unit tests for components and utilities
 - **Command**: `npm run test -- --passWithNoTests`
 
@@ -36,23 +36,6 @@ Command failed: npm run test -- --passWithNoTests
 
   Configuration Documentation:
   https://jestjs.io/docs/configuration
-
-FAIL tests/security/admin-auth.test.ts
-  ● Test suite failed to run
-
-    ReferenceError: Request is not defined
-
-       6 | import { NextRequest } from 'next/server';
-       7 | import { withAdminAuth, getAuthenticatedUser } from '@/lib/auth';
-    >  8 |
-         | ^
-       9 | // Mock Next.js request for testing
-      10 | function createMockRequest(options: {
-      11 |   headers?: Record<string, string>;
-
-      at Object.Request (node_modules/.pnpm/next@15.2.4_@babel+core@7.28.0_@playwright+test@1.54.1_react-dom@19.1.0_react@19.1.0__react@19.1.0/node_modules/next/src/server/web/spec-extension/request.ts:14:34)
-      at Object.<anonymous> (node_modules/.pnpm/next@15.2.4_@babel+core@7.28.0_@playwright+test@1.54.1_react-dom@19.1.0_react@19.1.0__react@19.1.0/node_modules/next/server.js:2:16)
-      at Object.<anonymous> (tests/security/admin-auth.test.ts:8:17)
 
 FAIL tests/integration/search-integration.test.ts
   ● Console
@@ -370,6 +353,23 @@ FAIL tests/edge-cases/error-handling.test.ts
 
       at Object.toBe (tests/edge-cases/error-handling.test.ts:458:30)
 
+FAIL tests/security/admin-auth.test.ts
+  ● Test suite failed to run
+
+    ReferenceError: Request is not defined
+
+       6 | import { NextRequest } from 'next/server';
+       7 | import { withAdminAuth, getAuthenticatedUser } from '@/lib/auth';
+    >  8 |
+         | ^
+       9 | // Mock Next.js request for testing
+      10 | function createMockRequest(options: {
+      11 |   headers?: Record<string, string>;
+
+      at Object.Request (node_modules/.pnpm/next@15.2.4_@babel+core@7.28.0_@playwright+test@1.54.1_react-dom@19.1.0_react@19.1.0__react@19.1.0/node_modules/next/src/server/web/spec-extension/request.ts:14:34)
+      at Object.<anonymous> (node_modules/.pnpm/next@15.2.4_@babel+core@7.28.0_@playwright+test@1.54.1_react-dom@19.1.0_react@19.1.0__react@19.1.0/node_modules/next/server.js:2:16)
+      at Object.<anonymous> (tests/security/admin-auth.test.ts:8:17)
+
 FAIL tests/e2e/search-workflow.spec.ts
   ● Test suite failed to run
 
@@ -393,7 +393,7 @@ FAIL tests/e2e/search-workflow.spec.ts
 Test Suites: 4 failed, 4 total
 Tests:       14 failed, 25 passed, 39 total
 Snapshots:   0 total
-Time:        1.556 s
+Time:        2.629 s
 Ran all test suites.
 
 ```
@@ -403,7 +403,7 @@ Ran all test suites.
 ### Integration Tests
 
 - **Status**: ❌ FAILED
-- **Duration**: 0.82 seconds
+- **Duration**: 2.15 seconds
 - **Description**: Search functionality with real data validation
 - **Command**: `npm run test:integration`
 
@@ -429,35 +429,35 @@ Command failed: npm run test:integration
 FAIL tests/integration/search-integration.test.ts
   Search Integration Tests
     Real Data Validation
-      ✓ should load real interview data successfully (2 ms)
-      ✓ should have valid interview structure
-      ✓ should contain German historical interviews
+      ✓ should load real interview data successfully (3 ms)
+      ✓ should have valid interview structure (1 ms)
+      ✓ should contain German historical interviews (1 ms)
     Search Engine Performance
-      ✓ should initialize search engine with real data (1 ms)
-      ✕ should return filter options from real data
+      ✓ should initialize search engine with real data
+      ✕ should return filter options from real data (2 ms)
       ✕ should perform fast searches on large dataset (1 ms)
     Search Functionality with Real Data
       ✕ should find German locations
       ✕ should find German names
-      ✕ should handle date searches (1 ms)
-      ✕ should return empty results for non-existent terms
+      ✕ should handle date searches
+      ✕ should return empty results for non-existent terms (1 ms)
       ✓ should handle fuzzy matching
-      ✕ should respect search limits (1 ms)
-      ✓ should include snippets when requested (2 ms)
+      ✕ should respect search limits
+      ✓ should include snippets when requested (18 ms)
     Filter Functionality
-      ✕ should filter by interviewee
+      ✕ should filter by interviewee (1 ms)
       ✕ should combine search query with filters
     Performance with Large Dataset
-      ✓ should handle multiple concurrent searches (1 ms)
-      ✓ should maintain performance with large result sets
+      ✓ should handle multiple concurrent searches (4 ms)
+      ✓ should maintain performance with large result sets (1 ms)
     Data Quality Validation
-      ✓ should have consistent data structure across all interviews
+      ✓ should have consistent data structure across all interviews (1 ms)
       ✓ should have meaningful interviewee names
-      ✓ should have valid UUIDs for interview IDs
+      ✓ should have valid UUIDs for interview IDs (1 ms)
     Search Result Quality
       ✕ should return relevant results for location searches
-      ✓ should rank results by relevance (1 ms)
-      ✓ should handle complex search queries (2 ms)
+      ✓ should rank results by relevance (2 ms)
+      ✓ should handle complex search queries (3 ms)
 
   ● Search Integration Tests › Search Engine Performance › should return filter options from real data
 
@@ -628,7 +628,7 @@ FAIL tests/integration/search-integration.test.ts
 Test Suites: 1 failed, 1 total
 Tests:       10 failed, 13 passed, 23 total
 Snapshots:   0 total
-Time:        0.297 s, estimated 1 s
+Time:        0.857 s, estimated 1 s
 Ran all test suites matching /tests\/integration/i.
 
 ```
@@ -638,7 +638,7 @@ Ran all test suites matching /tests\/integration/i.
 ### Security Tests
 
 - **Status**: ❌ FAILED
-- **Duration**: 0.79 seconds
+- **Duration**: 2.07 seconds
 - **Description**: Admin authentication and security measures
 - **Command**: `npm run test:security`
 
@@ -681,7 +681,7 @@ FAIL tests/security/admin-auth.test.ts
 Test Suites: 1 failed, 1 total
 Tests:       0 total
 Snapshots:   0 total
-Time:        0.284 s
+Time:        0.794 s
 Ran all test suites matching /tests\/security/i.
 
 ```
@@ -691,7 +691,7 @@ Ran all test suites matching /tests\/security/i.
 ### Edge Case Tests
 
 - **Status**: ❌ FAILED
-- **Duration**: 0.82 seconds
+- **Duration**: 2.09 seconds
 - **Description**: Error handling and malformed data scenarios
 - **Command**: `npm run test -- --testPathPattern=edge-cases`
 
@@ -717,27 +717,27 @@ Command failed: npm run test -- --testPathPattern=edge-cases
 FAIL tests/edge-cases/error-handling.test.ts
   Edge Case and Error Handling Tests
     Malformed Data Handling
-      ✓ should handle empty interview array (1 ms)
-      ✕ should handle interviews with missing metadata
+      ✓ should handle empty interview array (3 ms)
+      ✕ should handle interviews with missing metadata (1 ms)
       ✕ should handle interviews with null/undefined fields (1 ms)
-      ✓ should handle extremely long search queries (1 ms)
+      ✓ should handle extremely long search queries (2 ms)
       ✓ should handle special characters in search queries (1 ms)
     Search Engine Robustness
-      ✓ should handle concurrent searches without conflicts
-      ✓ should maintain performance with large datasets (1 ms)
-      ✓ should handle memory pressure gracefully (5 ms)
+      ✓ should handle concurrent searches without conflicts (2 ms)
+      ✓ should maintain performance with large datasets (5 ms)
+      ✓ should handle memory pressure gracefully (29 ms)
     Filter Edge Cases
-      ✕ should handle filters with no matching data (1 ms)
-      ✓ should handle invalid filter values
+      ✕ should handle filters with no matching data (4 ms)
+      ✓ should handle invalid filter values (1 ms)
     Search Options Edge Cases
       ✓ should handle invalid search options (1 ms)
-      ✓ should handle extremely large limit values
+      ✓ should handle extremely large limit values (1 ms)
     Data Corruption Scenarios
       ✓ should handle corrupted interview IDs
-      ✓ should handle mixed data types in metadata
+      ✓ should handle mixed data types in metadata (1 ms)
     Performance Edge Cases
-      ✓ should handle rapid successive searches (6 ms)
-      ✕ should handle search during data updates
+      ✓ should handle rapid successive searches (19 ms)
+      ✕ should handle search during data updates (2 ms)
 
   ● Edge Case and Error Handling Tests › Malformed Data Handling › should handle interviews with missing metadata
 
@@ -830,7 +830,7 @@ FAIL tests/edge-cases/error-handling.test.ts
 Test Suites: 1 failed, 1 total
 Tests:       4 failed, 12 passed, 16 total
 Snapshots:   0 total
-Time:        0.301 s, estimated 1 s
+Time:        0.854 s, estimated 1 s
 Ran all test suites matching /edge-cases/i.
 
 ```
@@ -841,15 +841,14 @@ Ran all test suites matching /edge-cases/i.
 ## Performance Testing
 
 
-**Status**: ❌ Failed
-**Error**: Development server not running
-**Recommendation**: Start development server with "npm run dev" before running performance tests
+**Status**: ✅ Completed
+**Details**: See performance test output above
 
 
 ## Recommendations
 
-- Fix failing unit tests - check test output for specific failures\n- Resolve integration test failures - ensure search engine works with real data\n- Fix security issues - ensure admin authentication is properly implemented\n- Improve error handling - ensure system gracefully handles malformed data\n- Address performance issues - start dev server and run performance tests\n- Fix end-to-end test failures - ensure user workflows work correctly
+- Fix failing unit tests - check test output for specific failures\n- Resolve integration test failures - ensure search engine works with real data\n- Fix security issues - ensure admin authentication is properly implemented\n- Improve error handling - ensure system gracefully handles malformed data\n- Fix end-to-end test failures - ensure user workflows work correctly
 
 ---
 
-*Report generated on 7/20/2025, 5:48:07 AM*
+*Report generated on 7/20/2025, 2:46:23 PM*
