@@ -1,0 +1,19 @@
+1
+00:00:00,000 --> 00:00:03,000
+[HE] Guten Tag, wie geht es Ihnen?
+
+2
+00:00:03,500 --> 00:00:06,000
+[HE] Mir geht es gut, danke.
+
+3
+00:00:06,500 --> 00:00:09,000
+[HE] Hello, how are you today?
+
+4
+00:00:09,500 --> 00:00:12,000
+[HE] Ich bin sehr glücklich.
+
+5
+00:00:12,500 --> 00:00:15,000
+[HE] Thank you for coming.
