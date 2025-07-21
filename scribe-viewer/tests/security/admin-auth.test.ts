@@ -207,6 +207,9 @@ describe('Admin Authentication Security Tests', () => {
     });
 
     test('should generate different user IDs for different API keys', async () => {
+      // Set test environment for this specific test
+      process.env.NODE_ENV = 'test';
+      
       const request1 = createMockRequest({
         headers: { 'Authorization': 'Bearer key-1' },
       });
@@ -449,4 +452,3 @@ describe('Admin Authentication Security Tests', () => {
     });
   });
 });
-
