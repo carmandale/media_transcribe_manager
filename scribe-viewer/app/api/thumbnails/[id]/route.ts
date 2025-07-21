@@ -27,10 +27,10 @@ interface ThumbnailParams {
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: ThumbnailParams }
+  { params }: { params: Promise<ThumbnailParams> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
     
     if (!id) {
       return NextResponse.json(
@@ -47,7 +47,7 @@ export async function GET(
     const quality = searchParams.get('quality') ? parseInt(searchParams.get('quality')!) : undefined;
 
     // Load interview manifest to get video path
-    const manifestPath = path.join(process.cwd(), 'public', 'interviews.json');
+    const manifestPath = path.join(process.cwd(), 'public', 'manifest.json');
     
     let interviews;
     try {
@@ -56,7 +56,11 @@ export async function GET(
     } catch (error) {
       console.error('Error loading interviews manifest:', error);
       return NextResponse.json(
-        { error: 'Could not load interviews data' },
+        { 
+          error: 'Could not load interviews data',
+          details: error instanceof Error ? error.message : 'Unknown error',
+          manifestPath: manifestPath
+        },
         { status: 500 }
       );
     }
@@ -200,4 +204,3 @@ export async function DELETE(
     );
   }
 }
-
