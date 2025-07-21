@@ -17,6 +17,8 @@ export interface InterviewAssets {
   video: string;
   /** Subtitle files by language code */
   subtitles: Record<string, string>;
+  /** Path to the thumbnail image (optional) */
+  thumbnail?: string;
 }
 
 export interface TranscriptCue {
