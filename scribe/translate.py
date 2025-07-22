@@ -292,7 +292,7 @@ class HistoricalTranslator:
         """Batch translate using DeepL."""
         # DeepL accepts multiple texts in a single request
         results = self.providers['deepl'].translate_text(
-            texts=texts,
+            text=texts,
             target_lang=target_lang,
             source_lang=source_lang
         )

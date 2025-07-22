@@ -54,13 +54,15 @@ class SRTTranslator:
         'en': {
             'words': {'the', 'and', 'of', 'to', 'in', 'is', 'was', 'that', 'have', 'has', 
                      'had', 'will', 'would', 'could', 'should', 'yes', 'no', 'okay', 
-                     'yeah', 'well', 'so', 'but', 'what'},
-            'pattern': re.compile(r'\b(the|and|of|to|in|is|was|that|have|has|had|will|would|could|should)\b', re.I)
+                     'yeah', 'well', 'so', 'but', 'what', 'how', 'are', 'you', 'hello',
+                     'today', 'name', 'your', 'my', 'this', 'with', 'for', 'on', 'at'},
+            'pattern': re.compile(r'\b(the|and|of|to|in|is|was|that|have|has|had|will|would|could|should|how|are|you|hello)\b', re.I)
         },
         'de': {
             'words': {'der', 'die', 'das', 'und', 'von', 'zu', 'ist', 'war', 'haben', 
-                     'hat', 'hatte', 'werden', 'wurde', 'ja', 'nein', 'aber', 'was', 'dass'},
-            'pattern': re.compile(r'\b(der|die|das|und|von|zu|ist|war|haben|hat|hatte|werden|wurde)\b', re.I)
+                     'hat', 'hatte', 'werden', 'wurde', 'ja', 'nein', 'aber', 'was', 'dass',
+                     'mein', 'meine', 'ich', 'wir', 'sie', 'er', 'es', 'wie', 'geht'},
+            'pattern': re.compile(r'\b(der|die|das|und|von|zu|ist|war|haben|hat|hatte|werden|wurde|mein|ich|wie|geht)\b', re.I)
         },
         'he': {
             'words': {'של', 'את', 'על', 'עם', 'הוא', 'היא', 'כן', 'לא', 'מה', 'זה'},
@@ -163,7 +165,10 @@ class SRTTranslator:
         # Clean text for detection
         clean_text = text.lower()
         
-        # Fast pattern matching for common languages
+        # Fast pattern matching for common languages - use scoring to handle overlaps
+        words = set(clean_text.split())
+        lang_scores = {}
+        
         for lang, data in self.LANGUAGE_PATTERNS.items():
             if lang == 'he':
                 # Hebrew detection by character range
@@ -172,17 +177,22 @@ class SRTTranslator:
                     return lang
             else:
                 # Word-based detection for other languages
-                words = set(clean_text.split())
-                if words & data['words']:
-                    self._detection_cache[text] = lang
-                    return lang
+                matches = words & data['words']
+                if matches:
+                    lang_scores[lang] = len(matches)
+        
+        # Return language with most matches
+        if lang_scores:
+            best_lang = max(lang_scores, key=lang_scores.get)
+            self._detection_cache[text] = best_lang
+            return best_lang
         
         # Try langdetect for ambiguous cases
         if HAS_LANGDETECT:
             try:
                 # Get probabilities for each language
                 langs = detect_langs(text)
-                if langs and langs[0].prob > 0.7:  # Confidence threshold
+                if langs and langs[0].prob > 0.4:  # Confidence threshold (lowered for short texts)
                     detected = langs[0].lang
                     # Map langdetect codes to our codes
                     lang_map = {'en': 'en', 'de': 'de', 'he': 'he', 'iw': 'he'}  # iw is old code for Hebrew
@@ -194,6 +204,39 @@ class SRTTranslator:
                 pass
         
         return None
+    
+    def _validate_segment_boundaries(self, original_segments: List[SRTSegment], translated_segments: List[SRTSegment]) -> bool:
+        """
+        Validate that translated segments maintain exact same boundaries as original.
+        
+        This is CRITICAL for subtitle files - any boundary violation breaks video synchronization.
+        
+        Args:
+            original_segments: Original SRT segments
+            translated_segments: Translated SRT segments
+            
+        Returns:
+            True if all boundaries are preserved, False if any violations found
+        """
+        if len(original_segments) != len(translated_segments):
+            logger.error(f"Segment count mismatch: {len(original_segments)} → {len(translated_segments)}")
+            return False
+        
+        for i, (orig, trans) in enumerate(zip(original_segments, translated_segments)):
+            if orig.index != trans.index:
+                logger.error(f"Index mismatch at position {i}: {orig.index} → {trans.index}")
+                return False
+            
+            if orig.start_time != trans.start_time:
+                logger.error(f"Start time mismatch in segment {orig.index}: {orig.start_time} → {trans.start_time}")
+                return False
+                
+            if orig.end_time != trans.end_time:
+                logger.error(f"End time mismatch in segment {orig.index}: {orig.end_time} → {trans.end_time}")
+                return False
+        
+        logger.info("✅ Segment boundary validation passed - all timing preserved")
+        return True
     
     def should_translate_segment(self, segment: SRTSegment, target_language: str) -> bool:
         """
@@ -382,6 +425,11 @@ class SRTTranslator:
         if unique_count > 0:
             api_call_reduction = total_segments / unique_count
             logger.info(f"  - API call reduction: {api_call_reduction:.1f}x")
+        
+        # CRITICAL: Validate segment boundaries before returning
+        if not self._validate_segment_boundaries(segments, translated_segments):
+            logger.error("CRITICAL: Segment boundary validation failed! Translation aborted.")
+            raise RuntimeError("Segment boundaries were violated during translation - this would break video synchronization")
         
         return translated_segments
     
