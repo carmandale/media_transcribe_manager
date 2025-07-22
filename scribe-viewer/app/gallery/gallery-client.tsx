@@ -1,11 +1,11 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Search, Filter, ExternalLink, Sparkles } from "lucide-react"
+import { Search, Filter, ExternalLink, Sparkles, ChevronLeft, ChevronRight } from "lucide-react"
 import { Interview, SearchResult } from "@/lib/types"
 import { getSearchEngine } from "@/lib/search"
 import InterviewCard from "@/components/InterviewCard"
@@ -14,6 +14,8 @@ interface GalleryClientProps {
   interviews: Interview[]
 }
 
+const ITEMS_PER_PAGE = 24 // Show 24 items per page (divisible by 1, 2, and 3 for responsive grid)
+
 export default function GalleryClient({ interviews }: GalleryClientProps) {
   const router = useRouter()
   const [searchQuery, setSearchQuery] = useState("")
@@ -21,12 +23,15 @@ export default function GalleryClient({ interviews }: GalleryClientProps) {
   const [sortBy, setSortBy] = useState("date")
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [isSearching, setIsSearching] = useState(false)
+  const [searchEngine, setSearchEngine] = useState<ReturnType<typeof getSearchEngine> | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
 
-  // Initialize search engine
-  const searchEngine = useMemo(() => {
-    if (interviews.length === 0) return null;
-    return getSearchEngine(interviews);
-  }, [interviews]);
+  // Lazy initialize search engine only when user starts searching
+  useEffect(() => {
+    if (searchQuery && !searchEngine && interviews.length > 0) {
+      setSearchEngine(getSearchEngine(interviews));
+    }
+  }, [searchQuery, searchEngine, interviews]);
 
   // Get available languages
   const availableLanguages = useMemo(() => {
@@ -81,10 +86,20 @@ export default function GalleryClient({ interviews }: GalleryClientProps) {
     return () => clearTimeout(timeoutId);
   }, [searchQuery, selectedLanguages, sortBy, searchEngine]);
 
-  // Get interviews to display
-  const displayInterviews = searchQuery || selectedLanguages.length > 0 
+  // Get interviews to display with pagination
+  const allInterviews = searchQuery || selectedLanguages.length > 0 
     ? searchResults.map(result => result.interview)
     : interviews;
+  
+  const totalPages = Math.ceil(allInterviews.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = startIndex + ITEMS_PER_PAGE;
+  const displayInterviews = allInterviews.slice(startIndex, endIndex);
+
+  // Reset to page 1 when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedLanguages, sortBy]);
 
   // Handle language filter toggle
   const toggleLanguage = (language: string) => {
@@ -188,7 +203,7 @@ export default function GalleryClient({ interviews }: GalleryClientProps) {
             <div className="text-sm text-muted-foreground">
               {searchQuery || selectedLanguages.length > 0 ? (
                 <>
-                  Showing {displayInterviews.length} of {interviews.length} interviews
+                  Showing {startIndex + 1}-{Math.min(endIndex, allInterviews.length)} of {allInterviews.length} results
                   {searchQuery && (
                     <span className="ml-2">
                       for "<strong>{searchQuery}</strong>"
@@ -196,7 +211,7 @@ export default function GalleryClient({ interviews }: GalleryClientProps) {
                   )}
                 </>
               ) : (
-                `${interviews.length} interviews available`
+                `Showing ${startIndex + 1}-${Math.min(endIndex, allInterviews.length)} of ${allInterviews.length} interviews`
               )}
             </div>
             
@@ -215,11 +230,90 @@ export default function GalleryClient({ interviews }: GalleryClientProps) {
 
         {/* Interview Grid */}
         {displayInterviews.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {displayInterviews.map((interview) => (
-              <InterviewCard key={interview.id} interview={interview} />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {displayInterviews.map((interview) => (
+                <InterviewCard key={interview.id} interview={interview} />
+              ))}
+            </div>
+            
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center gap-2 mt-8">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Previous
+                </Button>
+                
+                <div className="flex items-center gap-1">
+                  {/* Show first page */}
+                  {currentPage > 3 && (
+                    <>
+                      <Button
+                        variant={currentPage === 1 ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setCurrentPage(1)}
+                        className="w-10"
+                      >
+                        1
+                      </Button>
+                      {currentPage > 4 && <span className="px-1">...</span>}
+                    </>
+                  )}
+                  
+                  {/* Show pages around current */}
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    const page = currentPage > 3 ? currentPage - 2 + i : i + 1;
+                    if (page < 1 || page > totalPages) return null;
+                    if (page === 1 && currentPage > 3) return null;
+                    if (page === totalPages && currentPage < totalPages - 2) return null;
+                    
+                    return (
+                      <Button
+                        key={page}
+                        variant={currentPage === page ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setCurrentPage(page)}
+                        className="w-10"
+                      >
+                        {page}
+                      </Button>
+                    );
+                  })}
+                  
+                  {/* Show last page */}
+                  {currentPage < totalPages - 2 && (
+                    <>
+                      {currentPage < totalPages - 3 && <span className="px-1">...</span>}
+                      <Button
+                        variant={currentPage === totalPages ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setCurrentPage(totalPages)}
+                        className="w-10"
+                      >
+                        {totalPages}
+                      </Button>
+                    </>
+                  )}
+                </div>
+                
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+          </>
         ) : (
           <div className="text-center py-12">
             <Search className="h-12 w-12 text-muted-foreground mx-auto mb-4" />

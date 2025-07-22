@@ -25,6 +25,7 @@ export default function ViewerClient({ interview }: ViewerClientProps) {
   const [activeCueIndex, setActiveCueIndex] = useState(0)
   const [subtitlesEnabled, setSubtitlesEnabled] = useState(true)
   const [currentSubtitle, setCurrentSubtitle] = useState<string>("")  // For custom subtitle display
+  const [videoError, setVideoError] = useState<string | null>(null)
 
   // Get available languages
   const availableLanguages = interview.transcripts?.map(t => t.language) || []
@@ -33,6 +34,19 @@ export default function ViewerClient({ interview }: ViewerClientProps) {
   // Get current transcript
   // TEMPORARY: For English, we'll parse the orig.srt file instead
   const currentTranscript = interview.transcripts?.find(t => t.language === selectedLanguage)
+
+  // Use original video path from assets
+  const videoSrc = interview.assets.video
+
+  // Handle video error
+  const handleVideoError = () => {
+    const filename = interview.assets.video.split('/').pop() || ''
+    if (filename.includes('%') || filename.includes('&')) {
+      setVideoError('This video has special characters in its filename that prevent it from loading. Please contact support.')
+    } else {
+      setVideoError('Unable to load video. Please try again later.')
+    }
+  }
 
   useEffect(() => {
     const video = videoRef.current
@@ -161,20 +175,32 @@ export default function ViewerClient({ interview }: ViewerClientProps) {
       <div className="lg:col-span-2 space-y-4">
         <Card className="overflow-hidden">
           <div className="relative bg-black aspect-video">
-            <video
-              ref={videoRef}
-              className="w-full h-full"
-              src={interview.assets.video}
-              crossOrigin="anonymous"
-            />
-            
-            {/* Custom subtitle overlay */}
-            {subtitlesEnabled && currentSubtitle && (
-              <div className="absolute bottom-16 left-0 right-0 flex justify-center px-4 pointer-events-none">
-                <div className="bg-black/80 text-white px-4 py-2 rounded max-w-[80%] text-center">
-                  <p className="text-lg leading-relaxed">{currentSubtitle}</p>
+            {videoError ? (
+              <div className="absolute inset-0 flex items-center justify-center bg-gray-900 text-white">
+                <div className="text-center p-8">
+                  <p className="text-xl mb-4">⚠️ Video Loading Error</p>
+                  <p className="text-sm text-gray-300 max-w-md">{videoError}</p>
                 </div>
               </div>
+            ) : (
+              <>
+                <video
+                  ref={videoRef}
+                  className="w-full h-full"
+                  src={videoSrc}
+                  crossOrigin="anonymous"
+                  onError={handleVideoError}
+                />
+                
+                {/* Custom subtitle overlay */}
+                {subtitlesEnabled && currentSubtitle && (
+                  <div className="absolute bottom-16 left-0 right-0 flex justify-center px-4 pointer-events-none">
+                    <div className="bg-black/80 text-white px-4 py-2 rounded max-w-[80%] text-center">
+                      <p className="text-lg leading-relaxed">{currentSubtitle}</p>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
 

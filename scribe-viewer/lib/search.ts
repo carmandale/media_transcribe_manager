@@ -12,15 +12,11 @@ const FUSE_OPTIONS: Fuse.IFuseOptions<Interview> = {
   keys: [
     {
       name: 'metadata.interviewee',
-      weight: 0.4, // High weight for interviewee names
+      weight: 0.7, // Higher weight for interviewee names since we don't have transcripts
     },
     {
       name: 'metadata.summary',
       weight: 0.3, // Medium weight for summaries
-    },
-    {
-      name: 'transcripts.text',
-      weight: 0.3, // Medium weight for transcript content
     },
   ],
   // Search configuration

@@ -11,7 +11,7 @@ async function loadManifest(): Promise<Interview[]> {
     const fileContents = await fs.readFile(manifestPath, 'utf8')
     return JSON.parse(fileContents)
   } catch (error) {
-    console.error('Error loading manifest.json:', error)
+    console.error('Error loading manifest.min.json:', error)
     return []
   }
 }

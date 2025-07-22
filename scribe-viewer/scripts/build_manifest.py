@@ -219,14 +219,17 @@ def process_interview(file_record: Dict, project_root: Path) -> Optional[Dict]:
     media_dir = project_root / "scribe-viewer" / "public" / "media" / file_id
     media_dir.mkdir(parents=True, exist_ok=True)
     
-    symlink_path = media_dir / original_path.name
+    # Use safe filename for symlink (ID + extension)
+    file_extension = original_path.suffix
+    safe_filename = f"{file_id}{file_extension}"
+    symlink_path = media_dir / safe_filename
     
     if not symlink_path.exists():
         try:
             os.symlink(original_path.resolve(), symlink_path)
             logger.info(f"  ✓ Created symlink for video: {symlink_path}")
         except Exception as e:
-            logger.error(f"  ✗ Failed to create symlink for {original_path.name}: {e}")
+            logger.error(f"  ✗ Failed to create symlink for {safe_filename}: {e}")
             return None # Cannot proceed without the video
     # ---------------------------
 
@@ -235,7 +238,7 @@ def process_interview(file_record: Dict, project_root: Path) -> Optional[Dict]:
         'id': file_id,
         'metadata': metadata,
         'assets': {
-            'video': f"/media/{file_id}/{original_path.name}",
+            'video': f"/media/{file_id}/{safe_filename}",
             'subtitles': {}
         },
         'transcripts': []
@@ -340,7 +343,8 @@ def main():
     for entry in manifest:
         mini_entry = {
             "id": entry["id"],
-            "metadata": entry["metadata"]
+            "metadata": entry["metadata"],
+            "assets": entry["assets"]  # Include assets for thumbnails and video info
         }
         mini_manifest.append(mini_entry)
         

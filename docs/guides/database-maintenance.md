@@ -388,6 +388,50 @@ uv run python scribe_cli.py db fix-status
 uv run python scribe_cli.py status --detailed
 ```
 
+## Web Viewer Maintenance
+
+### Thumbnail Generation
+
+The Scribe Viewer displays thumbnails for video interviews in the gallery. These must be generated manually:
+
+```bash
+cd scribe-viewer
+node scripts/generate-thumbnails.js
+```
+
+**When to run:**
+- After adding new video interviews
+- After running `build_manifest.py`
+- Before deploying the web viewer
+- If thumbnails appear missing in the gallery
+
+**What it does:**
+- Reads all interviews from `public/manifest.json`
+- Generates 320x180 thumbnails for video files
+- Skips audio-only interviews (they show an audio icon)
+- Saves to `public/thumbnails/{interview-id}.jpg`
+
+**Requirements:**
+- FFmpeg must be installed (`ffmpeg -version`)
+- Manifest must be up-to-date (`python scripts/build_manifest.py`)
+- Video files must be accessible via symlinks
+
+### Manifest Generation
+
+The web viewer requires an up-to-date manifest:
+
+```bash
+# From main scribe directory
+python scripts/build_manifest.py
+
+# This creates scribe-viewer/public/manifest.json
+```
+
+Run this after:
+- Processing new interviews
+- Updating interview metadata
+- Before generating thumbnails
+
 ## Safety Considerations
 
 1. **Always backup first** before running fixes
