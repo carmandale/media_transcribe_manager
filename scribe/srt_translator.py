@@ -52,15 +52,17 @@ class SRTTranslator:
     # Enhanced language detection patterns
     LANGUAGE_PATTERNS = {
         'en': {
-            'words': {'the', 'and', 'of', 'to', 'in', 'is', 'was', 'that', 'have', 'has', 
-                     'had', 'will', 'would', 'could', 'should', 'yes', 'no', 'okay', 
-                     'yeah', 'well', 'so', 'but', 'what'},
-            'pattern': re.compile(r'\b(the|and|of|to|in|is|was|that|have|has|had|will|would|could|should)\b', re.I)
+            'words': {'the', 'and', 'of', 'to', 'a', 'is', 'was', 'that', 'have', 'has', 
+                     'had', 'will', 'would', 'could', 'should', 'yes', 'no', 
+                     'yeah', 'well', 'but', 'for', 'with', 'from', 'they', 'their'},
+            'pattern': re.compile(r'\b(the|and|of|to|a|is|was|that|have|has|had|will|would|could|should)\b', re.I)
         },
         'de': {
             'words': {'der', 'die', 'das', 'und', 'von', 'zu', 'ist', 'war', 'haben', 
-                     'hat', 'hatte', 'werden', 'wurde', 'ja', 'nein', 'aber', 'was', 'dass'},
-            'pattern': re.compile(r'\b(der|die|das|und|von|zu|ist|war|haben|hat|hatte|werden|wurde)\b', re.I)
+                     'hat', 'hatte', 'werden', 'wurde', 'ja', 'nein', 'aber', 'dass',
+                     'ich', 'wir', 'sie', 'es', 'kann', 'wenn', 'dann', 'noch', 'auch',
+                     'hier', 'bald', 'los', 'sage', 'kamen', 'kaserne', 'äh', 'ähm'},
+            'pattern': re.compile(r'\b(der|die|das|und|von|zu|ist|war|haben|hat|hatte|werden|wurde|ich|wir|sie|es)\b', re.I)
         },
         'he': {
             'words': {'של', 'את', 'על', 'עם', 'הוא', 'היא', 'כן', 'לא', 'מה', 'זה'},
@@ -141,6 +143,7 @@ class SRTTranslator:
     def detect_segment_language(self, segment: SRTSegment) -> Optional[str]:
         """
         Detect the language of a subtitle segment with caching.
+        Uses GPT-4o-mini for accurate detection instead of unreliable langdetect.
         
         Args:
             segment: SRTSegment to analyze
@@ -159,50 +162,67 @@ class SRTTranslator:
         # Skip very short texts or non-verbal sounds
         if len(text) < 3 or text in self.NON_VERBAL_SOUNDS:
             return None
-            
-        # Clean text for detection
-        clean_text = text.lower()
         
-        # First try langdetect for more accurate detection
-        if HAS_LANGDETECT and len(text) > 10:  # Need enough text for reliable detection
+        # First check for Hebrew characters (fast and reliable)
+        if self.LANGUAGE_PATTERNS['he']['pattern'].search(text):
+            self._detection_cache[text] = 'he'
+            return 'he'
+        
+        # Use GPT-4o-mini for accurate language detection
+        if self.translator and hasattr(self.translator, 'openai_client') and self.translator.openai_client:
             try:
-                # Get probabilities for each language
-                langs = detect_langs(text)
-                if langs and langs[0].prob > 0.7:  # Confidence threshold
-                    detected = langs[0].lang
-                    # Map langdetect codes to our codes
-                    lang_map = {'en': 'en', 'de': 'de', 'he': 'he', 'iw': 'he'}  # iw is old code for Hebrew
-                    result = lang_map.get(detected)
-                    if result:
-                        self._detection_cache[text] = result
-                        return result
-            except LangDetectException:
-                pass
+                prompt = f"What language is this text? Reply with only: English, German, or Hebrew.\n\nText: {text}"
+                
+                response = self.translator.openai_client.chat.completions.create(
+                    model='gpt-4o-mini',
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0,
+                    max_tokens=10
+                )
+                
+                result = response.choices[0].message.content.strip().lower()
+                lang_map = {'english': 'en', 'german': 'de', 'hebrew': 'he'}
+                detected = lang_map.get(result)
+                
+                if detected:
+                    self._detection_cache[text] = detected
+                    return detected
+                    
+            except Exception as e:
+                logger.warning(f"GPT language detection failed: {e}")
         
-        # Fall back to pattern matching for short texts or when langdetect fails
-        # Count matches for each language to avoid false positives
-        match_scores = {}
+        # Fallback: improved pattern matching as last resort
+        clean_text = text.lower()
+        words = set(clean_text.split())
         
-        for lang, data in self.LANGUAGE_PATTERNS.items():
-            if lang == 'he':
-                # Hebrew detection by character range
-                if data['pattern'].search(text):
-                    match_scores[lang] = 1.0
-            else:
-                # Word-based detection for other languages
-                words = set(clean_text.split())
-                matching_words = words & data['words']
-                if matching_words:
-                    # Score based on proportion of matching words
-                    match_scores[lang] = len(matching_words) / len(words) if words else 0
+        # Expanded strong indicators for better coverage
+        strong_english = {'the', 'and', 'of', 'to', 'that', 'is', 'was', 'have', 'has', 
+                         'been', 'were', 'are', 'will', 'would', 'could', 'should',
+                         'their', 'there', 'they', 'them', 'this', 'these', 'those',
+                         'what', 'when', 'where', 'which', 'who', 'why', 'how',
+                         'because', 'with', 'from', 'about', 'into', 'through'}
         
-        # Return language with highest score
-        if match_scores:
-            best_lang = max(match_scores.items(), key=lambda x: x[1])
-            if best_lang[1] > 0:  # Only if we have some match
-                self._detection_cache[text] = best_lang[0]
-                return best_lang[0]
+        strong_german = {'der', 'die', 'das', 'ich', 'ist', 'war', 'haben', 'nicht',
+                        'ein', 'eine', 'einer', 'einen', 'einem', 'eines',
+                        'und', 'oder', 'aber', 'denn', 'weil', 'wenn', 'als',
+                        'mit', 'von', 'zu', 'aus', 'bei', 'nach', 'für',
+                        'wird', 'wurde', 'wurden', 'werden', 'wir', 'sie', 'er',
+                        'kann', 'muss', 'soll', 'darf', 'will', 'möchte',
+                        'mein', 'dein', 'sein', 'ihr', 'unser', 'euer'}
         
+        # Count matches for better accuracy
+        english_matches = len(words & strong_english)
+        german_matches = len(words & strong_german)
+        
+        # Decision based on stronger signal
+        if english_matches > german_matches and english_matches > 0:
+            self._detection_cache[text] = 'en'
+            return 'en'
+        elif german_matches > english_matches and german_matches > 0:
+            self._detection_cache[text] = 'de'
+            return 'de'
+        
+        # If still unclear, default to None (will be preserved)
         return None
     
     def should_translate_segment(self, segment: SRTSegment, target_language: str) -> bool:
