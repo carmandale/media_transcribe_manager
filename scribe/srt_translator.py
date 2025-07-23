@@ -163,22 +163,8 @@ class SRTTranslator:
         # Clean text for detection
         clean_text = text.lower()
         
-        # Fast pattern matching for common languages
-        for lang, data in self.LANGUAGE_PATTERNS.items():
-            if lang == 'he':
-                # Hebrew detection by character range
-                if data['pattern'].search(text):
-                    self._detection_cache[text] = lang
-                    return lang
-            else:
-                # Word-based detection for other languages
-                words = set(clean_text.split())
-                if words & data['words']:
-                    self._detection_cache[text] = lang
-                    return lang
-        
-        # Try langdetect for ambiguous cases
-        if HAS_LANGDETECT:
+        # First try langdetect for more accurate detection
+        if HAS_LANGDETECT and len(text) > 10:  # Need enough text for reliable detection
             try:
                 # Get probabilities for each language
                 langs = detect_langs(text)
@@ -192,6 +178,30 @@ class SRTTranslator:
                         return result
             except LangDetectException:
                 pass
+        
+        # Fall back to pattern matching for short texts or when langdetect fails
+        # Count matches for each language to avoid false positives
+        match_scores = {}
+        
+        for lang, data in self.LANGUAGE_PATTERNS.items():
+            if lang == 'he':
+                # Hebrew detection by character range
+                if data['pattern'].search(text):
+                    match_scores[lang] = 1.0
+            else:
+                # Word-based detection for other languages
+                words = set(clean_text.split())
+                matching_words = words & data['words']
+                if matching_words:
+                    # Score based on proportion of matching words
+                    match_scores[lang] = len(matching_words) / len(words) if words else 0
+        
+        # Return language with highest score
+        if match_scores:
+            best_lang = max(match_scores.items(), key=lambda x: x[1])
+            if best_lang[1] > 0:  # Only if we have some match
+                self._detection_cache[text] = best_lang[0]
+                return best_lang[0]
         
         return None
     
@@ -311,7 +321,17 @@ class SRTTranslator:
         segment_indices = {}  # Track which segments use each text
         
         for i, segment in enumerate(segments):
-            if not preserve_original_when_matching or self.should_translate_segment(segment, target_language):
+            # Determine if this segment should be translated
+            # If preserve_original_when_matching is True, only translate if NOT in target language
+            # If preserve_original_when_matching is False, translate everything
+            if preserve_original_when_matching:
+                # Only translate if segment is NOT already in target language
+                should_translate = self.should_translate_segment(segment, target_language)
+            else:
+                # Translate everything except empty/non-verbal
+                should_translate = segment.text.strip() and segment.text.strip() not in self.NON_VERBAL_SOUNDS
+                
+            if should_translate:
                 text = segment.text
                 if text not in texts_to_translate:
                     texts_to_translate[text] = None
