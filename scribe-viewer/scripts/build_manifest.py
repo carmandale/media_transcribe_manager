@@ -244,8 +244,9 @@ def process_interview(file_record: Dict, project_root: Path) -> Optional[Dict]:
         'transcripts': []
     }
     
-    # Process each language
+    # Process each language, including original
     languages = [
+        ('orig', 'Original'),
         ('en', 'English'),
         ('de', 'German'),
         ('he', 'Hebrew')

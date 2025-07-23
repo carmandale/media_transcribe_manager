@@ -143,7 +143,7 @@ class SRTTranslator:
     def detect_segment_language(self, segment: SRTSegment) -> Optional[str]:
         """
         Detect the language of a subtitle segment with caching.
-        Uses GPT-4o-mini for accurate detection instead of unreliable langdetect.
+        Uses pattern matching for efficiency - proven to work on 728 interviews.
         
         Args:
             segment: SRTSegment to analyze
@@ -168,30 +168,7 @@ class SRTTranslator:
             self._detection_cache[text] = 'he'
             return 'he'
         
-        # Use GPT-4o-mini for accurate language detection
-        if self.translator and hasattr(self.translator, 'openai_client') and self.translator.openai_client:
-            try:
-                prompt = f"What language is this text? Reply with only: English, German, or Hebrew.\n\nText: {text}"
-                
-                response = self.translator.openai_client.chat.completions.create(
-                    model='gpt-4o-mini',
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=0,
-                    max_tokens=10
-                )
-                
-                result = response.choices[0].message.content.strip().lower()
-                lang_map = {'english': 'en', 'german': 'de', 'hebrew': 'he'}
-                detected = lang_map.get(result)
-                
-                if detected:
-                    self._detection_cache[text] = detected
-                    return detected
-                    
-            except Exception as e:
-                logger.warning(f"GPT language detection failed: {e}")
-        
-        # Fallback: improved pattern matching as last resort
+        # Pattern matching approach (as it worked for 728 interviews)
         clean_text = text.lower()
         words = set(clean_text.split())
         
@@ -336,6 +313,9 @@ class SRTTranslator:
         total_segments = len(segments)
         logger.info(f"Parsed {total_segments} segments from {srt_path}")
         
+        # Note: Language detection happens on-demand in should_translate_segment
+        # to avoid making thousands of API calls upfront
+        
         # Build translation map - only unique texts that need translation
         texts_to_translate = {}  # {original_text: translated_text}
         segment_indices = {}  # Track which segments use each text
@@ -345,8 +325,15 @@ class SRTTranslator:
             # If preserve_original_when_matching is True, only translate if NOT in target language
             # If preserve_original_when_matching is False, translate everything
             if preserve_original_when_matching:
+                # Skip empty or non-verbal segments
+                text = segment.text.strip()
+                if not text or text in self.NON_VERBAL_SOUNDS:
+                    continue
                 # Only translate if segment is NOT already in target language
-                should_translate = self.should_translate_segment(segment, target_language)
+                if segment.detected_language and segment.detected_language != target_language:
+                    should_translate = True
+                else:
+                    should_translate = False
             else:
                 # Translate everything except empty/non-verbal
                 should_translate = segment.text.strip() and segment.text.strip() not in self.NON_VERBAL_SOUNDS

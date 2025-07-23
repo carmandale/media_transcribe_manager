@@ -292,7 +292,7 @@ class HistoricalTranslator:
         """Batch translate using DeepL."""
         # DeepL accepts multiple texts in a single request
         results = self.providers['deepl'].translate_text(
-            texts=texts,
+            text=texts,  # DeepL API expects 'text' not 'texts'
             target_lang=target_lang,
             source_lang=source_lang
         )
@@ -334,53 +334,23 @@ class HistoricalTranslator:
         return translations
     
     def _batch_translate_openai(self, texts: List[str], target_lang: str, source_lang: Optional[str]) -> List[str]:
-        """Batch translate using OpenAI by joining texts with separator."""
-        # OpenAI doesn't have native batch support, so we use a separator approach
-        separator = "\n<<<SEP>>>\n"
-        combined_text = separator.join(texts)
+        """Batch translate using OpenAI - process individually since separator approach is unreliable."""
+        # OpenAI doesn't reliably preserve separators, so we process texts individually
+        # This is still efficient because we've already deduplicated at a higher level
         
-        # Map language codes to names
-        lang_names = {
-            'en': 'English', 'de': 'German', 'he': 'Hebrew',
-            'fr': 'French', 'es': 'Spanish', 'it': 'Italian'
-        }
-        target_name = lang_names.get(target_lang.lower(), target_lang)
+        results = []
+        for i, text in enumerate(texts):
+            if i > 0 and i % 10 == 0:
+                logger.info(f"Translating {i}/{len(texts)} texts...")
+            
+            try:
+                result = self._translate_openai(text, target_lang, source_lang)
+                results.append(result if result else '')
+            except Exception as e:
+                logger.error(f"Error translating text {i}: {e}")
+                results.append('')
         
-        # System prompt for batch translation
-        system_prompt = (
-            f"You are a professional translator specializing in historical documents. "
-            f"Translate the following texts to {target_name}. "
-            "The texts are separated by <<<SEP>>>. "
-            "Requirements:\n"
-            "1. Translate each text segment independently\n"
-            "2. Preserve the <<<SEP>>> separator between translations\n"
-            "3. Maintain the exact same number of segments\n"
-            "4. Return ONLY the translated texts with separators, no additional formatting\n"
-            "5. For Hebrew translations, use proper Hebrew script and grammar"
-        )
-        
-        try:
-            # Use the API call method
-            translated_combined = self._call_openai_api(system_prompt, combined_text)
-            
-            if not translated_combined:
-                return [''] * len(texts)
-            
-            # Split back into individual translations
-            translations = translated_combined.split(separator)
-            
-            # Ensure we have the right number of translations
-            if len(translations) != len(texts):
-                logger.warning(f"Translation count mismatch: expected {len(texts)}, got {len(translations)}")
-                # Fall back to individual translation
-                return [self.translate(text, target_lang, source_lang, 'openai') or '' for text in texts]
-            
-            return [t.strip() for t in translations]
-            
-        except Exception as e:
-            logger.error(f"OpenAI batch translation error: {e}")
-            # Fall back to individual translation
-            return [self.translate(text, target_lang, source_lang, 'openai') or '' for text in texts]
+        return results
     
     def _translate_deepl(self, text: str, target_lang: str, source_lang: Optional[str]) -> str:
         """Translate using DeepL."""
