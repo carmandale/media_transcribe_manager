@@ -48,7 +48,7 @@ language_map = detect_languages_for_segments(
 )
 ```
 
-### Preservation Logic
+### Preservation Logic (Works for ANY Language)
 - Target: German
   - German segments → Keep as-is ✅
   - English segments → Translate to German ✅
@@ -58,6 +58,13 @@ language_map = detect_languages_for_segments(
   - English segments → Keep as-is ✅
   - German segments → Translate to English ✅
   - Hebrew segments → Translate to English ✅
+
+- Target: Hebrew
+  - Hebrew segments → Keep as-is ✅
+  - German segments → Translate to Hebrew ✅
+  - English segments → Translate to Hebrew ✅
+
+**Universal Rule**: For ANY target language, segments already in that language are preserved, while segments in other languages are translated.
 
 ### Files Modified
 - `scribe/srt_translator.py` - Core translation logic with GPT-4o-mini detection

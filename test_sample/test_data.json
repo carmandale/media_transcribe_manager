@@ -1,0 +1,39 @@
+{
+  "test_interview": {
+    "id": "25af0f9c-8f96-44c9-be5e-e92cb462a41f",
+    "name": "Friedrich Schlesinger Interview",
+    "date": "2002-04-13",
+    "primary_language": "de",
+    "secondary_languages": ["en"],
+    "total_segments": 1835,
+    "test_points": [
+      {
+        "timestamp": "00:39:42.030 --> 00:39:45.110",
+        "line_number": 3663,
+        "current_text": "much Jews. We know that one",
+        "language": "en",
+        "expected_german": "viele Juden. Wir wissen das",
+        "issue": "English text not translated to German"
+      },
+      {
+        "timestamp": "00:00:10.000 --> 00:00:15.000",
+        "current_text": "In die Wehrmacht gekommen?",
+        "language": "de",
+        "expected_german": "In die Wehrmacht gekommen?",
+        "issue": "German text should be preserved, not retranslated"
+      }
+    ]
+  },
+  "api_requirements": {
+    "openai": {
+      "models": ["gpt-4o-mini"],
+      "purpose": "Language detection and translation",
+      "estimated_cost": "$0.02 for test interview"
+    }
+  },
+  "expected_improvements": {
+    "api_calls": "Reduce from 1835 to ~40 calls using batch processing",
+    "accuracy": "100% correct language detection with GPT-4o-mini",
+    "preservation": "German segments stay German when target is German"
+  }
+}
