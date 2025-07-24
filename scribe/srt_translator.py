@@ -20,6 +20,7 @@ from pathlib import Path
 from datetime import datetime
 
 from .translate import HistoricalTranslator
+from .batch_language_detection import detect_languages_for_segments
 
 # Try to import langdetect for language detection
 try:
@@ -348,6 +349,16 @@ class SRTTranslator:
         
         total_segments = len(segments)
         logger.info(f"Parsed {total_segments} segments from {srt_path}")
+        
+        # Batch language detection for efficiency (if OpenAI client available)
+        if self.translator and hasattr(self.translator, 'openai_client') and self.translator.openai_client:
+            logger.info("Running batch language detection with GPT-4o-mini...")
+            language_map = detect_languages_for_segments(
+                segments, 
+                self.translator.openai_client,
+                batch_size=50
+            )
+            logger.info(f"Detected languages for {len(language_map)} segments")
         
         # Build translation map - only unique texts that need translation
         texts_to_translate = {}  # {original_text: translated_text}
