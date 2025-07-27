@@ -143,67 +143,23 @@ class SRTTranslator:
     
     def detect_segment_language(self, segment: SRTSegment) -> Optional[str]:
         """
-        Detect the language of a subtitle segment with caching.
+        Get the detected language for a segment.
+        
+        This should only be called after batch language detection with GPT-4o-mini.
+        The flawed pattern matching has been removed.
         
         Args:
-            segment: SRTSegment to analyze
+            segment: SRTSegment to check
             
         Returns:
             Detected language code ('en', 'de', 'he') or None
         """
-        text = segment.text.strip()
-        if not text:
-            return None
+        # Only return the language if it was already detected by GPT-4o-mini
+        if segment.detected_language:
+            return segment.detected_language
             
-        # Check cache first
-        if text in self._detection_cache:
-            return self._detection_cache[text]
-        
-        # Skip very short texts or non-verbal sounds
-        if len(text) < 3 or text in self.NON_VERBAL_SOUNDS:
-            return None
-            
-        # Clean text for detection
-        clean_text = text.lower()
-        
-        # Fast pattern matching for common languages - use scoring to handle overlaps
-        words = set(clean_text.split())
-        lang_scores = {}
-        
-        for lang, data in self.LANGUAGE_PATTERNS.items():
-            if lang == 'he':
-                # Hebrew detection by character range
-                if data['pattern'].search(text):
-                    self._detection_cache[text] = lang
-                    return lang
-            else:
-                # Word-based detection for other languages
-                matches = words & data['words']
-                if matches:
-                    lang_scores[lang] = len(matches)
-        
-        # Return language with most matches
-        if lang_scores:
-            best_lang = max(lang_scores, key=lang_scores.get)
-            self._detection_cache[text] = best_lang
-            return best_lang
-        
-        # Try langdetect for ambiguous cases
-        if HAS_LANGDETECT:
-            try:
-                # Get probabilities for each language
-                langs = detect_langs(text)
-                if langs and langs[0].prob > 0.4:  # Confidence threshold (lowered for short texts)
-                    detected = langs[0].lang
-                    # Map langdetect codes to our codes
-                    lang_map = {'en': 'en', 'de': 'de', 'he': 'he', 'iw': 'he'}  # iw is old code for Hebrew
-                    result = lang_map.get(detected)
-                    if result:
-                        self._detection_cache[text] = result
-                        return result
-            except LangDetectException:
-                pass
-        
+        # If no language was detected by GPT-4o-mini, return None
+        # This forces the system to rely only on GPT-4o-mini detection
         return None
     
     def _validate_segment_boundaries(self, original_segments: List[SRTSegment], translated_segments: List[SRTSegment]) -> bool:
