@@ -105,11 +105,11 @@ fi
 # Start the viewer
 echo -e "\n${GREEN}Launching Scribe Viewer...${NC}"
 echo "=================================="
-echo -e "${GREEN}✓ Opening http://localhost:3000${NC}"
+echo -e "${GREEN}✓ Opening http://localhost:3001${NC}"
 echo -e "${YELLOW}Press Ctrl+C to stop${NC}\n"
 
 # Open browser after a short delay
-(sleep 3 && open http://localhost:3000) &
+(sleep 3 && open http://localhost:3001) &
 
 # Start the development server
 pnpm dev 

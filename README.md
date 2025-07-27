@@ -50,7 +50,7 @@ The system emphasizes preserving authentic speech patterns, including hesitation
 This will:
 - Check all prerequisites (Python, Node.js, database)
 - Install dependencies if needed
-- Launch the Scribe Viewer at http://localhost:3000
+- Launch the Scribe Viewer at http://localhost:3001
 - Open your browser automatically
 
 ### Option 2: Command Line Processing
@@ -267,6 +267,25 @@ uv run python scribe_cli.py backup restore <backup_id>
 # Verify Hebrew routing is working
 uv run python test_hebrew_fix.py
 ```
+
+## Local Ports
+
+| Service | Port |
+|---------|------|
+| Front-end dev server (Next.js) | **3001** |
+| Back-end API (Python) | **8001** |
+
+> **How it works**  
+> Each folder has a private env file:
+>
+> * `scribe-viewer/.env.local`   → `PORT=3001`, `NEXT_PUBLIC_API_URL=http://localhost:8001`  
+> * `.env`                       → `API_PORT=8001`
+>
+> Dev frameworks auto-load these files, so you never export variables manually.
+>
+> Need to change a port? Edit the two env files and restart the dev servers.
+>
+> **Do not commit real `.env` files** – use `.env.example` for templates.
 
 ## Support
 
