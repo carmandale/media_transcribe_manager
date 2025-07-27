@@ -22,13 +22,8 @@ from datetime import datetime
 from .translate import HistoricalTranslator
 from .batch_language_detection import detect_languages_for_segments
 
-# Try to import langdetect for language detection
-try:
-    from langdetect import detect, detect_langs, LangDetectException
-    HAS_LANGDETECT = True
-except ImportError:
-    HAS_LANGDETECT = False
-    logging.warning("langdetect not available - will use basic language detection")
+# Note: langdetect has been removed in favor of GPT-4o-mini batch detection
+# The flawed pattern-based detection was removed per issue #72
 
 logger = logging.getLogger(__name__)
 
@@ -50,27 +45,6 @@ class SRTTranslator:
     RE_TIMING = re.compile(r'(\d{2}:\d{2}:\d{2},\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2},\d{3})')
     RE_INDEX = re.compile(r'^\d+$')
     
-    # Enhanced language detection patterns
-    LANGUAGE_PATTERNS = {
-        'en': {
-            'words': {'the', 'and', 'of', 'to', 'in', 'is', 'was', 'that', 'have', 'has', 
-                     'had', 'will', 'would', 'could', 'should', 'yes', 'no', 'okay', 
-                     'yeah', 'well', 'so', 'but', 'what', 'how', 'are', 'you', 'hello',
-                     'today', 'name', 'your', 'my', 'this', 'with', 'for', 'on', 'at'},
-            'pattern': re.compile(r'\b(the|and|of|to|in|is|was|that|have|has|had|will|would|could|should|how|are|you|hello)\b', re.I)
-        },
-        'de': {
-            'words': {'der', 'die', 'das', 'und', 'von', 'zu', 'ist', 'war', 'haben', 
-                     'hat', 'hatte', 'werden', 'wurde', 'ja', 'nein', 'aber', 'was', 'dass',
-                     'mein', 'meine', 'ich', 'wir', 'sie', 'er', 'es', 'wie', 'geht'},
-            'pattern': re.compile(r'\b(der|die|das|und|von|zu|ist|war|haben|hat|hatte|werden|wurde|mein|ich|wie|geht)\b', re.I)
-        },
-        'he': {
-            'words': {'של', 'את', 'על', 'עם', 'הוא', 'היא', 'כן', 'לא', 'מה', 'זה'},
-            'pattern': re.compile(r'[\u0590-\u05FF]+')  # Hebrew character range
-        }
-    }
-    
     # Non-verbal sounds that should not be translated
     NON_VERBAL_SOUNDS = {'♪', '♪♪', '[Music]', '[Applause]', '[Laughter]', '[Silence]', '...', '***', '--'}
     
@@ -82,7 +56,6 @@ class SRTTranslator:
             translator: HistoricalTranslator instance (creates new if not provided)
         """
         self.translator = translator or HistoricalTranslator()
-        self._detection_cache = {}  # Cache for language detection results
     
     def parse_srt(self, srt_path: str) -> List[SRTSegment]:
         """
@@ -143,7 +116,10 @@ class SRTTranslator:
     
     def detect_segment_language(self, segment: SRTSegment) -> Optional[str]:
         """
-        Detect the language of a subtitle segment with caching.
+        Get the detected language for a segment.
+        
+        This should only be called after batch language detection with GPT-4o-mini.
+        The flawed pattern matching has been removed per issue #72.
         
         Args:
             segment: SRTSegment to analyze
@@ -151,59 +127,12 @@ class SRTTranslator:
         Returns:
             Detected language code ('en', 'de', 'he') or None
         """
-        text = segment.text.strip()
-        if not text:
-            return None
-            
-        # Check cache first
-        if text in self._detection_cache:
-            return self._detection_cache[text]
+        # Only return the language if it was already detected by GPT-4o-mini
+        if segment.detected_language:
+            return segment.detected_language
         
-        # Skip very short texts or non-verbal sounds
-        if len(text) < 3 or text in self.NON_VERBAL_SOUNDS:
-            return None
-            
-        # Clean text for detection
-        clean_text = text.lower()
-        
-        # Fast pattern matching for common languages - use scoring to handle overlaps
-        words = set(clean_text.split())
-        lang_scores = {}
-        
-        for lang, data in self.LANGUAGE_PATTERNS.items():
-            if lang == 'he':
-                # Hebrew detection by character range
-                if data['pattern'].search(text):
-                    self._detection_cache[text] = lang
-                    return lang
-            else:
-                # Word-based detection for other languages
-                matches = words & data['words']
-                if matches:
-                    lang_scores[lang] = len(matches)
-        
-        # Return language with most matches
-        if lang_scores:
-            best_lang = max(lang_scores, key=lang_scores.get)
-            self._detection_cache[text] = best_lang
-            return best_lang
-        
-        # Try langdetect for ambiguous cases
-        if HAS_LANGDETECT:
-            try:
-                # Get probabilities for each language
-                langs = detect_langs(text)
-                if langs and langs[0].prob > 0.4:  # Confidence threshold (lowered for short texts)
-                    detected = langs[0].lang
-                    # Map langdetect codes to our codes
-                    lang_map = {'en': 'en', 'de': 'de', 'he': 'he', 'iw': 'he'}  # iw is old code for Hebrew
-                    result = lang_map.get(detected)
-                    if result:
-                        self._detection_cache[text] = result
-                        return result
-            except LangDetectException:
-                pass
-        
+        # If no language was detected by GPT-4o-mini, return None
+        # This ensures we NEVER use the flawed pattern matching
         return None
     
     def _validate_segment_boundaries(self, original_segments: List[SRTSegment], translated_segments: List[SRTSegment]) -> bool:
@@ -314,16 +243,34 @@ class SRTTranslator:
             return [self.translator.translate(text, target_language, source_language) or '' 
                     for text in texts]
     
+    def _normalize_spacing(self, text: str) -> str:
+        """
+        Normalize spacing in text by reducing multiple spaces to single spaces.
+        
+        This prevents "In   die   Wehrmacht" from being treated as different from
+        "In die Wehrmacht", significantly reducing unique text count and API calls.
+        
+        Args:
+            text: Text to normalize
+            
+        Returns:
+            Text with normalized spacing
+        """
+        # Replace multiple spaces with single space
+        normalized = ' '.join(text.split())
+        return normalized
+    
     def translate_srt(self, 
                       srt_path: str, 
                       target_language: str,
                       source_language: Optional[str] = None,
                       preserve_original_when_matching: bool = True,
-                      batch_size: int = 100) -> List[SRTSegment]:
+                      batch_size: int = 200) -> List[SRTSegment]:
         """
         Translate an SRT file using batch optimization for 50-100x efficiency.
         
         This implementation:
+        - Normalizes spacing before deduplication (reduces unique texts)
         - Deduplicates repeated phrases (translate once, apply everywhere)
         - Batches translations to minimize API calls
         - Preserves segments already in target language
@@ -334,7 +281,7 @@ class SRTTranslator:
             target_language: Target language code ('en', 'de', 'he')
             source_language: Source language code (optional, will auto-detect)
             preserve_original_when_matching: If True, preserve segments already in target language
-            batch_size: Number of unique texts to translate per API call
+            batch_size: Number of unique texts to translate per API call (default: 200)
             
         Returns:
             List of translated SRTSegment objects
@@ -363,14 +310,20 @@ class SRTTranslator:
         # Build translation map - only unique texts that need translation
         texts_to_translate = {}  # {original_text: translated_text}
         segment_indices = {}  # Track which segments use each text
+        normalized_map = {}  # Map original text to normalized version
         
         for i, segment in enumerate(segments):
             if not preserve_original_when_matching or self.should_translate_segment(segment, target_language):
-                text = segment.text
-                if text not in texts_to_translate:
-                    texts_to_translate[text] = None
-                    segment_indices[text] = []
-                segment_indices[text].append(i)
+                original_text = segment.text
+                normalized_text = self._normalize_spacing(original_text)
+                
+                # Store mapping for later reconstruction
+                normalized_map[original_text] = normalized_text
+                
+                if normalized_text not in texts_to_translate:
+                    texts_to_translate[normalized_text] = None
+                    segment_indices[normalized_text] = []
+                segment_indices[normalized_text].append(i)
                 
         unique_count = len(texts_to_translate)
         logger.info(f"Found {unique_count} unique texts to translate out of {total_segments} segments")
@@ -413,10 +366,14 @@ class SRTTranslator:
                 detected_language=segment.detected_language
             )
             
-            # Apply translation if available
-            if segment.text in texts_to_translate and texts_to_translate[segment.text]:
-                new_segment.text = texts_to_translate[segment.text]
-                translated_segment_count += 1
+            # Apply translation if available - look up using normalized text
+            if segment.text in normalized_map:
+                normalized_text = normalized_map[segment.text]
+                if normalized_text in texts_to_translate and texts_to_translate[normalized_text]:
+                    new_segment.text = texts_to_translate[normalized_text]
+                    translated_segment_count += 1
+                else:
+                    preserved_count += 1
             else:
                 preserved_count += 1
                 
@@ -526,7 +483,7 @@ def translate_srt_file(srt_path: str,
                        target_language: str,
                        source_language: Optional[str] = None,
                        preserve_original_when_matching: bool = True,
-                       batch_size: int = 100,
+                       batch_size: int = 200,
                        estimate_only: bool = False,
                        config: Optional[Dict] = None) -> bool:
     """
@@ -538,7 +495,7 @@ def translate_srt_file(srt_path: str,
         target_language: Target language code ('en', 'de', 'he')
         source_language: Source language code (optional)
         preserve_original_when_matching: If True, preserve segments already in target language
-        batch_size: Number of unique texts to translate per API call
+        batch_size: Number of unique texts to translate per API call (default: 200)
         estimate_only: If True, only estimate cost without translating
         config: Translation configuration with API keys
         

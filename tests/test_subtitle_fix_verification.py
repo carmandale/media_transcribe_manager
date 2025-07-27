@@ -35,10 +35,14 @@ class TestSubtitleFixVerification(unittest.TestCase):
         
         # Mock GPT-4o-mini to return German
         self.mock_translator.openai_client.chat.completions.create.return_value = \
-            Mock(choices=[Mock(message=Mock(content="German"))])
+            Mock(choices=[Mock(message=Mock(content="1: German"))])
         
-        # Detect language
-        detected = self.srt_translator.detect_segment_language(segment)
+        # Simulate batch detection (which sets detected_language on segments)
+        from scribe.batch_language_detection import detect_languages_for_segments
+        detect_languages_for_segments([segment], self.mock_translator.openai_client, batch_size=50)
+        
+        # Now check the detected language
+        detected = segment.detected_language
         
         # Should be detected as German, not English
         self.assertEqual(detected, 'de', 
@@ -53,18 +57,26 @@ class TestSubtitleFixVerification(unittest.TestCase):
             ("in", None),                           # Too short, ambiguous
         ]
         
-        # Mock GPT responses
-        gpt_responses = [
-            Mock(choices=[Mock(message=Mock(content="German"))]),
-            Mock(choices=[Mock(message=Mock(content="German"))]),
-            Mock(choices=[Mock(message=Mock(content="English"))]),
-        ]
-        self.mock_translator.openai_client.chat.completions.create.side_effect = gpt_responses
+        # Mock GPT responses for batch detection
+        mock_response = Mock()
+        mock_response.choices = [Mock(message=Mock(content="""1: German
+2: German
+3: English
+4: Unknown"""))]
+        self.mock_translator.openai_client.chat.completions.create.return_value = mock_response
         
-        for text, expected_lang in test_cases:
-            segment = SRTSegment(1, "00:00:00,000", "00:00:02,000", text)
-            detected = self.srt_translator.detect_segment_language(segment)
-            
+        # Create segments
+        segments = []
+        for text, _ in test_cases:
+            segments.append(SRTSegment(len(segments) + 1, "00:00:00,000", "00:00:02,000", text))
+        
+        # Run batch detection
+        from scribe.batch_language_detection import detect_languages_for_segments
+        detect_languages_for_segments(segments, self.mock_translator.openai_client, batch_size=50)
+        
+        # Check results
+        for segment, (text, expected_lang) in zip(segments, test_cases):
+            detected = segment.detected_language
             if expected_lang:
                 self.assertEqual(detected, expected_lang,
                                f"Wrong detection for '{text}': expected {expected_lang}, got {detected}")
@@ -80,12 +92,16 @@ class TestSubtitleFixVerification(unittest.TestCase):
                       "In die Wehrmacht gekommen?"),
         ]
         
-        # Mock language detection
-        self.mock_translator.openai_client.chat.completions.create.side_effect = [
-            Mock(choices=[Mock(message=Mock(content="German"))]),
-            Mock(choices=[Mock(message=Mock(content="English"))]),
-            Mock(choices=[Mock(message=Mock(content="German"))]),
-        ]
+        # Mock batch language detection response
+        mock_response = Mock()
+        mock_response.choices = [Mock(message=Mock(content="""1: German
+2: English
+3: German"""))]
+        self.mock_translator.openai_client.chat.completions.create.return_value = mock_response
+        
+        # Run batch detection
+        from scribe.batch_language_detection import detect_languages_for_segments
+        detect_languages_for_segments(segments, self.mock_translator.openai_client, batch_size=50)
         
         # Test translation decisions for German target
         decisions = []
@@ -131,10 +147,11 @@ class TestSubtitleFixVerification(unittest.TestCase):
         
         # Mock GPT response
         self.mock_translator.openai_client.chat.completions.create.return_value = \
-            Mock(choices=[Mock(message=Mock(content="German"))])
+            Mock(choices=[Mock(message=Mock(content="1: German"))])
         
-        # Detect language
-        detected = self.srt_translator.detect_segment_language(segment)
+        # Run batch detection
+        from scribe.batch_language_detection import detect_languages_for_segments
+        detect_languages_for_segments([segment], self.mock_translator.openai_client, batch_size=50)
         
         # Verify GPT-4o-mini was called
         self.mock_translator.openai_client.chat.completions.create.assert_called_once()
@@ -149,24 +166,25 @@ class TestSubtitleFixVerification(unittest.TestCase):
         self.assertIn("English, German, or Hebrew", prompt)
         
         # Verify detection result
-        self.assertEqual(detected, 'de')
+        self.assertEqual(segment.detected_language, 'de')
     
-    def test_fallback_pattern_matching(self):
-        """Test fallback pattern matching when GPT is not available."""
+    def test_no_fallback_pattern_matching(self):
+        """Test that pattern matching is completely removed."""
         # Create translator without OpenAI client
         translator_no_gpt = SRTTranslator()
         
         test_cases = [
-            ("der Mann und die Frau", 'de'),     # Strong German indicators
-            ("the man and the woman", 'en'),      # Strong English indicators
-            ("מה שלומך היום", 'he'),              # Hebrew characters
+            "der Mann und die Frau",     # Strong German indicators
+            "the man and the woman",      # Strong English indicators
+            "מה שלומך היום",              # Hebrew characters
         ]
         
-        for text, expected_lang in test_cases:
+        for text in test_cases:
             segment = SRTSegment(1, "00:00:00,000", "00:00:02,000", text)
             detected = translator_no_gpt.detect_segment_language(segment)
-            self.assertEqual(detected, expected_lang,
-                           f"Pattern matching failed for '{text}'")
+            # Without batch detection, should always return None
+            self.assertIsNone(detected,
+                           f"Pattern matching should be removed - got {detected} for '{text}'")
     
     def test_non_verbal_preservation(self):
         """Test that non-verbal segments are always preserved."""
@@ -180,7 +198,7 @@ class TestSubtitleFixVerification(unittest.TestCase):
         for text in non_verbal_segments:
             segment = SRTSegment(1, "00:00:00,000", "00:00:02,000", text)
             
-            # Should not detect a language
+            # Non-verbal segments should not have a detected language
             detected = self.srt_translator.detect_segment_language(segment)
             self.assertIsNone(detected, f"Non-verbal '{text}' should not have language")
             
@@ -203,22 +221,33 @@ class TestSubtitleFixVerification(unittest.TestCase):
             ("Ja, wir mussten weg.", 'de'),
         ]
         
-        # Mock GPT responses (skip non-verbal)
-        gpt_responses = []
-        for text, expected_lang in interview_segments:
+        # Mock GPT response for all segments
+        response_lines = []
+        for i, (text, expected_lang) in enumerate(interview_segments):
             if expected_lang:
                 lang_name = {'de': 'German', 'en': 'English', 'he': 'Hebrew'}[expected_lang]
-                gpt_responses.append(Mock(choices=[Mock(message=Mock(content=lang_name))]))
+                response_lines.append(f"{i+1}: {lang_name}")
+            else:
+                response_lines.append(f"{i+1}: Unknown")
         
-        self.mock_translator.openai_client.chat.completions.create.side_effect = gpt_responses
+        mock_response = Mock()
+        mock_response.choices = [Mock(message=Mock(content="\n".join(response_lines)))]
+        self.mock_translator.openai_client.chat.completions.create.return_value = mock_response
         
-        # Process each segment
+        # Create all segments first
+        segments = []
         for i, (text, expected_lang) in enumerate(interview_segments):
-            segment = SRTSegment(i+1, f"00:00:{i*3:02d},000", f"00:00:{(i+1)*3:02d},000", text)
-            detected = self.srt_translator.detect_segment_language(segment)
-            
+            segments.append(SRTSegment(i+1, f"00:00:{i*3:02d},000", f"00:00:{(i+1)*3:02d},000", text))
+        
+        # Run batch detection
+        from scribe.batch_language_detection import detect_languages_for_segments
+        detect_languages_for_segments(segments, self.mock_translator.openai_client, batch_size=50)
+        
+        # Check each segment
+        for segment, (text, expected_lang) in zip(segments, interview_segments):
+            detected = segment.detected_language
             self.assertEqual(detected, expected_lang,
-                           f"Wrong detection for segment {i+1}: '{text}'")
+                           f"Wrong detection for segment {segment.index}: '{text}'")
             
             # Test translation decision for German target
             if expected_lang:
