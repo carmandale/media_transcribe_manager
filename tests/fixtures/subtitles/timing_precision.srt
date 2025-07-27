@@ -1,0 +1,31 @@
+1
+00:00:00,123 --> 00:00:02,456
+Precise timing test
+
+2
+00:00:02,456 --> 00:00:02,457
+Single millisecond gap
+
+3
+00:00:02,457 --> 00:00:05,789
+Another segment
+
+4
+00:00:05,789 --> 00:00:10,123
+Longer duration segment
+
+5
+00:00:10,123 --> 00:00:10,124
+Another millisecond precision
+
+6
+00:59:59,999 --> 01:00:00,000
+Hour boundary crossing
+
+7
+01:00:00,000 --> 01:00:00,001
+Minimal duration
+
+8
+23:59:59,999 --> 23:59:59,999
+Zero duration edge case
