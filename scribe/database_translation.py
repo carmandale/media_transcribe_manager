@@ -172,7 +172,7 @@ class DatabaseTranslator:
                 translations = self.translator.batch_translate(
                     group_texts,
                     target_language,
-                    source_language=source_lang if source_lang != 'unknown' else None
+                    source_lang if source_lang != 'unknown' else None
                 )
                 
                 # Prepare updates

@@ -376,17 +376,27 @@ class Transcriber:
         if hasattr(response, 'language_probability'):
             confidence = response.language_probability
         
-        # Extract words with timing
+        # Extract words with timing - enhanced for subtitle-first architecture
         words = []
         if hasattr(response, 'words') and response.words:
             try:
                 for word in response.words:
-                    words.append({
+                    word_data = {
                         'text': word.text,
                         'start': word.start,
                         'end': word.end,
                         'speaker': getattr(word, 'speaker', None)
-                    })
+                    }
+                    
+                    # Capture additional timestamp data for subtitle-first processing
+                    if hasattr(word, 'confidence'):
+                        word_data['confidence'] = word.confidence
+                    if hasattr(word, 'probability'):
+                        word_data['probability'] = word.probability
+                    if hasattr(word, 'speaker_id'):
+                        word_data['speaker_id'] = word.speaker_id
+                    
+                    words.append(word_data)
             except (TypeError, AttributeError):
                 # Handle case where words is not iterable (e.g., in tests)
                 pass
@@ -418,6 +428,333 @@ class Transcriber:
             metadata=metadata
         )
     
+    def create_subtitle_segments(self, words: List[Dict[str, Any]], 
+                               max_duration: float = 4.0, 
+                               min_gap: float = 0.5,
+                               max_chars: int = 40,
+                               fallback_text: Optional[str] = None) -> List[Dict[str, Any]]:
+        """
+        Create subtitle segments from word-level timestamps.
+        
+        This method implements natural segment boundary detection based on:
+        - Timing gaps between words (speaker pauses)
+        - Maximum segment duration limits
+        - Character count limits for readability
+        - Speaker change boundaries
+        
+        Includes fallback handling when word-level timestamps are unavailable.
+        
+        Args:
+            words: List of word dictionaries with timing data
+            max_duration: Maximum segment duration in seconds
+            min_gap: Minimum gap to trigger segment boundary (seconds)
+            max_chars: Maximum characters per segment
+            fallback_text: Text to use if no word-level data available
+            
+        Returns:
+            List of segment dictionaries with timing and text data
+        """
+        # Fallback: No word-level timestamps available
+        if not words:
+            if fallback_text:
+                logger.warning("No word-level timestamps available, creating fallback segment")
+                return self._create_fallback_segments(fallback_text, max_duration, max_chars)
+            else:
+                logger.warning("No word-level timestamps and no fallback text provided")
+                return []
+        
+        # Check if words have timing information
+        valid_words = [w for w in words if 'start' in w and 'end' in w and 
+                      isinstance(w.get('start'), (int, float)) and 
+                      isinstance(w.get('end'), (int, float))]
+        
+        if not valid_words:
+            if fallback_text:
+                logger.warning("Word data lacks timing information, using fallback segmentation")
+                return self._create_fallback_segments(fallback_text, max_duration, max_chars)
+            else:
+                # Create basic segments from word text only
+                logger.warning("No timing data available, creating basic text segments")
+                return self._create_text_only_segments(words, max_chars)
+        
+        # Use only valid words for timing-based segmentation
+        words = valid_words
+        
+        segments = []
+        current_segment_words = []
+        segment_start = None
+        
+        for i, word in enumerate(words):
+            if not current_segment_words:
+                # Start new segment
+                segment_start = word["start"]
+                current_segment_words = [word]
+                continue
+            
+            # Check if we should end current segment
+            current_duration = word["end"] - segment_start
+            gap_from_previous = word["start"] - words[i-1]["end"]
+            current_text = ' '.join([w['text'] for w in current_segment_words])
+            new_text = f"{current_text} {word['text']}"
+            
+            # Check speaker change (if available)
+            speaker_change = (
+                word.get('speaker') is not None and 
+                current_segment_words[-1].get('speaker') is not None and
+                word.get('speaker') != current_segment_words[-1].get('speaker')
+            )
+            
+            should_end_segment = (
+                current_duration > max_duration or 
+                gap_from_previous > min_gap or
+                len(new_text) > max_chars or
+                speaker_change
+            )
+            
+            if should_end_segment:
+                # End current segment
+                segment_end = current_segment_words[-1]["end"]
+                segment_text = ' '.join([w['text'] for w in current_segment_words])
+                
+                # Calculate average confidence if available
+                confidences = [w.get('confidence', 0) for w in current_segment_words if w.get('confidence')]
+                avg_confidence = sum(confidences) / len(confidences) if confidences else None
+                
+                segments.append({
+                    'start_time': segment_start,
+                    'end_time': segment_end,
+                    'duration': segment_end - segment_start,
+                    'text': segment_text,
+                    'word_count': len(current_segment_words),
+                    'confidence_score': avg_confidence,
+                    'speaker': current_segment_words[0].get('speaker'),
+                    'words': current_segment_words.copy()
+                })
+                
+                # Start new segment
+                segment_start = word["start"]
+                current_segment_words = [word]
+            else:
+                current_segment_words.append(word)
+        
+        # Add final segment
+        if current_segment_words and segment_start is not None:
+            segment_end = current_segment_words[-1]["end"]
+            segment_text = ' '.join([w['text'] for w in current_segment_words])
+            
+            # Calculate average confidence if available
+            confidences = [w.get('confidence', 0) for w in current_segment_words if w.get('confidence')]
+            avg_confidence = sum(confidences) / len(confidences) if confidences else None
+            
+            segments.append({
+                'start_time': segment_start,
+                'end_time': segment_end,
+                'duration': segment_end - segment_start,
+                'text': segment_text,
+                'word_count': len(current_segment_words),
+                'confidence_score': avg_confidence,
+                'speaker': current_segment_words[0].get('speaker'),
+                'words': current_segment_words.copy()
+            })
+        
+        return segments
+    
+    def _create_fallback_segments(self, text: str, max_duration: float, max_chars: int) -> List[Dict[str, Any]]:
+        """
+        Create segments from text when timing data is unavailable.
+        
+        This method creates evenly-spaced segments based on character count
+        and estimated reading speed when word-level timestamps are not available.
+        """
+        if not text.strip():
+            return []
+        
+        # Split text into sentences first
+        import re
+        sentences = re.split(r'[.!?]+', text)
+        sentences = [s.strip() for s in sentences if s.strip()]
+        
+        if not sentences:
+            return []
+        
+        segments = []
+        current_text = []
+        estimated_start = 0.0
+        
+        # Estimate reading speed: ~150 words per minute = 2.5 words per second
+        words_per_second = 2.5
+        
+        for i, sentence in enumerate(sentences):
+            # Check if adding this sentence would exceed character limit
+            current_combined = ' '.join(current_text + [sentence])
+            
+            if len(current_combined) > max_chars and current_text:
+                # Finalize current segment
+                segment_text = ' '.join(current_text)
+                word_count = len(segment_text.split())
+                estimated_duration = min(word_count / words_per_second, max_duration)
+                
+                segments.append({
+                    'start_time': estimated_start,
+                    'end_time': estimated_start + estimated_duration,
+                    'duration': estimated_duration,
+                    'text': segment_text,
+                    'word_count': word_count,
+                    'confidence_score': None,  # No confidence for fallback
+                    'speaker': None,
+                    'words': [],  # No word-level data
+                    'fallback': True  # Mark as fallback segment
+                })
+                
+                # Start new segment
+                estimated_start += estimated_duration + 0.5  # Small gap between segments
+                current_text = [sentence]
+            else:
+                current_text.append(sentence)
+        
+        # Add final segment
+        if current_text:
+            segment_text = ' '.join(current_text)
+            word_count = len(segment_text.split())
+            estimated_duration = min(word_count / words_per_second, max_duration)
+            
+            segments.append({
+                'start_time': estimated_start,
+                'end_time': estimated_start + estimated_duration,
+                'duration': estimated_duration,
+                'text': segment_text,
+                'word_count': word_count,
+                'confidence_score': None,
+                'speaker': None,
+                'words': [],
+                'fallback': True
+            })
+        
+        return segments
+    
+    def _create_text_only_segments(self, words: List[Dict[str, Any]], max_chars: int) -> List[Dict[str, Any]]:
+        """
+        Create segments from word list when timing data is invalid.
+        
+        This method creates segments based only on text content when
+        words are available but lack proper timing information.
+        """
+        if not words:
+            return []
+        
+        # Extract text from words
+        word_texts = [w.get('text', '') for w in words if w.get('text')]
+        full_text = ' '.join(word_texts)
+        
+        if not full_text.strip():
+            return []
+        
+        # Use fallback method with the reconstructed text
+        return self._create_fallback_segments(full_text, 4.0, max_chars)
+    
+    def store_subtitle_segments(self, interview_id: str, segments: List[Dict[str, Any]], 
+                               database_path: Optional[str] = None) -> bool:
+        """
+        Store subtitle segments in the database.
+        
+        This method integrates with the subtitle-first architecture by storing
+        segments with precise timing data that can be used for perfect subtitle
+        synchronization.
+        
+        Args:
+            interview_id: Unique identifier for the interview
+            segments: List of segment dictionaries from create_subtitle_segments()
+            database_path: Optional path to database (uses default if None)
+            
+        Returns:
+            True if storage successful, False otherwise
+        """
+        try:
+            from .database import Database
+            
+            # Initialize database connection
+            if database_path:
+                db = Database(database_path)
+            else:
+                db = Database()  # Uses default path
+            
+            # Store each segment
+            for i, segment in enumerate(segments):
+                db.add_subtitle_segment(
+                    interview_id=interview_id,
+                    segment_index=i,
+                    start_time=segment['start_time'],
+                    end_time=segment['end_time'],
+                    original_text=segment['text'],
+                    confidence_score=segment.get('confidence_score')
+                )
+            
+            db.close()
+            logger.info(f"Stored {len(segments)} subtitle segments for interview {interview_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to store subtitle segments: {e}")
+            return False
+    
+    def transcribe_with_subtitle_segments(self, file_path: Path, interview_id: str,
+                                        database_path: Optional[str] = None,
+                                        segment_params: Optional[Dict[str, Any]] = None) -> TranscriptionResult:
+        """
+        Transcribe a file and automatically create and store subtitle segments.
+        
+        This is the main method for the subtitle-first architecture workflow:
+        1. Transcribe audio with word-level timestamps
+        2. Create natural subtitle segments from word boundaries
+        3. Store segments in database for perfect synchronization
+        4. Return full transcription result
+        
+        Args:
+            file_path: Path to media file
+            interview_id: Unique identifier for the interview
+            database_path: Optional path to database
+            segment_params: Optional parameters for segment creation
+            
+        Returns:
+            TranscriptionResult with populated segments data
+        """
+        # Set default segment parameters
+        if segment_params is None:
+            segment_params = {
+                'max_duration': 4.0,
+                'min_gap': 0.5,
+                'max_chars': 40
+            }
+        
+        # Perform transcription
+        result = self.transcribe_file(file_path)
+        
+        # Create subtitle segments from word-level timestamps with fallback
+        segments = self.create_subtitle_segments(
+            result.words, 
+            fallback_text=result.text,  # Use full transcript as fallback
+            **segment_params
+        )
+        
+        if segments:
+            # Store segments in database
+            success = self.store_subtitle_segments(interview_id, segments, database_path)
+            
+            if success:
+                # Add segments to result for immediate use
+                result.segments = segments
+                fallback_count = sum(1 for s in segments if s.get('fallback', False))
+                if fallback_count > 0:
+                    logger.info(f"Successfully processed {file_path} with {len(segments)} subtitle segments ({fallback_count} fallback)")
+                else:
+                    logger.info(f"Successfully processed {file_path} with {len(segments)} subtitle segments")
+            else:
+                logger.warning("Transcription succeeded but segment storage failed")
+        else:
+            logger.warning("Unable to create subtitle segments - no word data or fallback text available")
+        
+        return result
+    
     def save_results(self, result: TranscriptionResult, output_path: Path,
                     save_json: bool = True, save_srt: bool = True):
         """
@@ -440,16 +777,31 @@ class Transcriber:
         # Save detailed JSON
         if save_json:
             json_path = output_path.with_suffix('.json')
+            
+            # Create JSON-safe data by filtering out non-serializable objects
+            def make_json_safe(obj):
+                """Convert object to JSON-safe format."""
+                if hasattr(obj, '__dict__') and not isinstance(obj, (str, int, float, bool, type(None))):
+                    # For complex objects like Mock, convert to string representation
+                    return str(obj)
+                elif isinstance(obj, dict):
+                    return {k: make_json_safe(v) for k, v in obj.items()}
+                elif isinstance(obj, list):
+                    return [make_json_safe(item) for item in obj]
+                else:
+                    return obj
+            
             json_data = {
                 'text': result.text,
-                'language': result.language,
+                'language': make_json_safe(result.language),
                 'confidence': result.confidence,
                 'duration': result.duration,
-                'words': result.words,
-                'speakers': result.speakers,
-                'segments': result.segments,
-                'metadata': result.metadata
+                'words': make_json_safe(result.words),
+                'speakers': make_json_safe(result.speakers),
+                'segments': make_json_safe(result.segments),
+                'metadata': make_json_safe(result.metadata)
             }
+            
             json_path.write_text(
                 json.dumps(json_data, ensure_ascii=False, indent=2),
                 encoding='utf-8'
