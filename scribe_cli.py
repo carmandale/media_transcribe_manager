@@ -198,6 +198,180 @@ def translate_srt(language: str, workers: int, limit: Optional[int], model: Opti
         click.echo(f"✗ Failed: {failed}")
 
 
+@cli.command('process-subtitles')
+@click.argument('file_ids', nargs=-1)
+@click.option('-w', '--workers', default=1, help='Number of parallel workers')
+@click.option('-f', '--force', is_flag=True, help='Force regeneration even if files exist')
+@click.option('-l', '--limit', type=int, help='Maximum files to process')
+def process_subtitles(file_ids: tuple, workers: int, force: bool, limit: int):
+    """Process all subtitle languages and formats for interviews.
+    
+    Generates complete subtitle sets:
+    - Original (orig.srt/vtt)
+    - English translation (en.srt/vtt)
+    - German translation (de.srt/vtt)
+    - Hebrew translation (he.srt/vtt)
+    
+    If no FILE_IDS provided, processes pending interviews.
+    """
+    from scribe.subtitle_processor import SubtitleProcessor
+    
+    # Get file IDs to process
+    if file_ids:
+        files_to_process = list(file_ids)
+    else:
+        # Get files with original subtitles but missing translations
+        db = Database()
+        
+        query = """
+        SELECT DISTINCT m.file_id 
+        FROM media_files m
+        WHERE EXISTS (
+            SELECT 1 FROM processing_status p 
+            WHERE p.file_id = m.file_id 
+            AND p.transcription_status = 'completed'
+        )
+        ORDER BY m.file_id
+        """
+        
+        if limit:
+            query += f" LIMIT {limit}"
+        
+        results = db.execute_query(query)
+        files_to_process = [r[0] for r in results]
+        
+        if not files_to_process:
+            click.echo("No files to process.")
+            return
+    
+    # Apply limit if specified
+    if limit and len(files_to_process) > limit:
+        files_to_process = files_to_process[:limit]
+    
+    click.echo(f"Processing subtitles for {len(files_to_process)} interviews...")
+    if force:
+        click.echo("Force mode: Regenerating all files")
+    
+    # Process subtitles
+    processor = SubtitleProcessor()
+    results = processor.process_multiple(files_to_process, workers=workers, force=force)
+    
+    # Summary
+    successful = sum(1 for r in results if r['success'])
+    failed = len(results) - successful
+    
+    click.echo(f"\n{'='*50}")
+    click.echo(f"SUBTITLE PROCESSING COMPLETE")
+    click.echo(f"{'='*50}")
+    click.echo(f"Total: {len(results)}")
+    click.echo(f"✅ Successful: {successful}")
+    if failed:
+        click.echo(f"❌ Failed: {failed}")
+    
+    # Show failed files
+    if failed:
+        click.echo("\nFailed interviews:")
+        for result in results:
+            if not result['success']:
+                click.echo(f"  - {result['file_id']}: {result.get('error', 'Unknown error')}")
+    
+    # Show validation summary
+    click.echo("\nValidation Summary:")
+    all_valid = 0
+    for result in results:
+        if result['success'] and all(result['validation'].values()):
+            all_valid += 1
+    
+    click.echo(f"  Files with all subtitles: {all_valid}/{len(results)}")
+
+
+@cli.command('validate-subtitles')
+@click.argument('file_ids', nargs=-1)
+@click.option('-v', '--verbose', is_flag=True, help='Show detailed validation for each file')
+def validate_subtitles(file_ids: tuple, verbose: bool):
+    """Validate subtitle completeness for interviews.
+    
+    Checks that all required subtitle files exist:
+    - Original (orig.srt/vtt)
+    - English (en.srt/vtt)
+    - German (de.srt/vtt)
+    - Hebrew (he.srt/vtt)
+    
+    If no FILE_IDS provided, validates all interviews with transcriptions.
+    """
+    from scribe.subtitle_processor import SubtitleProcessor
+    
+    # Get file IDs to validate
+    if file_ids:
+        files_to_validate = list(file_ids)
+    else:
+        # Get all files with transcriptions
+        db = Database()
+        
+        query = """
+        SELECT DISTINCT m.file_id 
+        FROM media_files m
+        WHERE EXISTS (
+            SELECT 1 FROM processing_status p 
+            WHERE p.file_id = m.file_id 
+            AND p.transcription_status = 'completed'
+        )
+        ORDER BY m.file_id
+        """
+        
+        results = db.execute_query(query)
+        files_to_validate = [r[0] for r in results]
+        
+        if not files_to_validate:
+            click.echo("No files to validate.")
+            return
+    
+    click.echo(f"Validating subtitles for {len(files_to_validate)} interviews...")
+    
+    # Validate subtitles
+    processor = SubtitleProcessor()
+    all_valid = 0
+    missing_files = []
+    
+    for file_id in files_to_validate:
+        validation = processor.validate_subtitle_files(file_id)
+        
+        # Check if all files exist
+        if all(validation.values()):
+            all_valid += 1
+        else:
+            missing_files.append((file_id, validation))
+            
+            if verbose:
+                click.echo(f"\n{file_id}:")
+                for file_type, exists in validation.items():
+                    status = "✅" if exists else "❌"
+                    click.echo(f"  {status} {file_type}")
+    
+    # Summary
+    click.echo(f"\n{'='*50}")
+    click.echo(f"SUBTITLE VALIDATION SUMMARY")
+    click.echo(f"{'='*50}")
+    click.echo(f"Total interviews: {len(files_to_validate)}")
+    click.echo(f"✅ Complete: {all_valid}")
+    click.echo(f"❌ Incomplete: {len(missing_files)}")
+    
+    if missing_files and not verbose:
+        click.echo(f"\nRun with --verbose to see missing files for each interview.")
+        
+        # Show summary of missing file types
+        missing_by_type = {}
+        for _, validation in missing_files:
+            for file_type, exists in validation.items():
+                if not exists:
+                    missing_by_type[file_type] = missing_by_type.get(file_type, 0) + 1
+        
+        if missing_by_type:
+            click.echo("\nMissing files by type:")
+            for file_type, count in sorted(missing_by_type.items()):
+                click.echo(f"  {file_type}: {count}")
+
+
 @cli.command('estimate-srt-cost')
 @click.argument('srt_file', type=click.Path(exists=True))
 @click.argument('language', type=click.Choice(['en', 'de', 'he']))
