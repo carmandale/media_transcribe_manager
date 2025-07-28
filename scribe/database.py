@@ -958,6 +958,145 @@ class Database:
             'overlaps': overlaps
         }
     
+    def get_segments_for_translation(self, interview_id: str, target_language: str) -> List[Dict[str, Any]]:
+        """
+        Get segments that need translation for a specific language.
+        
+        Args:
+            interview_id: ID of the interview
+            target_language: Target language code ('en', 'de', 'he')
+            
+        Returns:
+            List of segment dictionaries that need translation
+        """
+        language_column_map = {
+            'en': 'english_text',
+            'de': 'german_text',
+            'he': 'hebrew_text'
+        }
+        
+        if target_language not in language_column_map:
+            raise ValueError(f"Unsupported target language: {target_language}")
+        
+        column = language_column_map[target_language]
+        
+        conn = self._get_connection()
+        query = f"""
+            SELECT * FROM subtitle_segments
+            WHERE interview_id = ? AND {column} IS NULL
+            ORDER BY segment_index
+        """
+        
+        cursor = conn.execute(query, (interview_id,))
+        results = []
+        for row in cursor.fetchall():
+            try:
+                results.append(dict(row))
+            except (TypeError, ValueError):
+                continue
+        
+        return results
+    
+    def batch_update_segment_translations(self, updates: List[Dict[str, Any]]) -> bool:
+        """
+        Batch update translations for multiple segments efficiently.
+        
+        Args:
+            updates: List of update dictionaries with format:
+                    [{'segment_id': 1, 'language': 'en', 'text': 'translation'}, ...]
+                    
+        Returns:
+            True if all updates successful, False otherwise
+        """
+        if not updates:
+            return True
+        
+        conn = self._get_connection()
+        
+        # Group updates by language for efficiency
+        language_updates = {}
+        for update in updates:
+            lang = update['language']
+            if lang not in language_updates:
+                language_updates[lang] = []
+            language_updates[lang].append((update['text'], update['segment_id']))
+        
+        language_column_map = {
+            'en': 'english_text',
+            'de': 'german_text',
+            'he': 'hebrew_text'
+        }
+        
+        try:
+            # Execute batch updates for each language
+            for lang, update_list in language_updates.items():
+                if lang not in language_column_map:
+                    logger.warning(f"Skipping unsupported language: {lang}")
+                    continue
+                
+                column = language_column_map[lang]
+                query = f"UPDATE subtitle_segments SET {column} = ?, processing_timestamp = CURRENT_TIMESTAMP WHERE id = ?"
+                
+                # Execute all updates for this language
+                conn.executemany(query, update_list)
+            
+            conn.commit()
+            logger.info(f"Successfully updated {len(updates)} segment translations")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Batch translation update failed: {e}")
+            conn.rollback()
+            return False
+    
+    def get_segment_translation_status(self, interview_id: str) -> Dict[str, Dict[str, int]]:
+        """
+        Get translation status counts by language.
+        
+        Args:
+            interview_id: ID of the interview
+            
+        Returns:
+            Dictionary with format:
+            {
+                'total': 100,
+                'de': {'translated': 90, 'pending': 10},
+                'en': {'translated': 85, 'pending': 15},
+                'he': {'translated': 80, 'pending': 20}
+            }
+        """
+        conn = self._get_connection()
+        
+        # Get total segments
+        total_query = """
+            SELECT COUNT(*) as total FROM subtitle_segments
+            WHERE interview_id = ?
+        """
+        total = conn.execute(total_query, (interview_id,)).fetchone()['total']
+        
+        # Get translation counts for each language
+        status = {'total': total}
+        
+        language_queries = {
+            'de': 'german_text',
+            'en': 'english_text',
+            'he': 'hebrew_text'
+        }
+        
+        for lang, column in language_queries.items():
+            translated_query = f"""
+                SELECT COUNT(*) as count FROM subtitle_segments
+                WHERE interview_id = ? AND {column} IS NOT NULL
+            """
+            translated = conn.execute(translated_query, (interview_id,)).fetchone()['count']
+            
+            status[lang] = {
+                'translated': translated,
+                'pending': total - translated
+            }
+        
+        return status
+    
     def close(self):
         """Close database connection for current thread."""
         if hasattr(self._local, 'conn'):

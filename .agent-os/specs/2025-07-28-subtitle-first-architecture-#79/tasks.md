@@ -7,25 +7,25 @@ These are the tasks to be completed for the spec detailed in @.agent-os/specs/20
 
 ## Tasks
 
-- [ ] 1. Database Schema Evolution (Build Upon Existing)
-  - [ ] 1.1 Extend existing database tests to cover subtitle_segments table creation
-  - [ ] 1.2 Create database migration script that preserves existing transcript data
-  - [ ] 1.3 Implement subtitle_segments table alongside existing schema (additive)
-  - [ ] 1.4 Create views to maintain backward compatibility with current transcript access patterns
-  - [ ] 1.5 Write integration tests for combined transcript + segment workflows
-  - [ ] 1.6 Verify all database tests pass including existing transcript functionality
+- [x] 1. Database Schema Evolution (Build Upon Existing)
+  - [x] 1.1 Extend existing database tests to cover subtitle_segments table creation
+  - [x] 1.2 Create database migration script that preserves existing transcript data
+  - [x] 1.3 Implement subtitle_segments table alongside existing schema (additive)
+  - [x] 1.4 Create views to maintain backward compatibility with current transcript access patterns
+  - [x] 1.5 Write integration tests for combined transcript + segment workflows
+  - [x] 1.6 Verify all database tests pass including existing transcript functionality
 
-- [ ] 2. Enhanced ElevenLabs Integration (Preserve Current Quality)
-  - [ ] 2.1 Extend existing ElevenLabs tests to cover word-level timestamp parsing
-  - [ ] 2.2 Enhance current API response parsing to capture additional timestamp data
-  - [ ] 2.3 Create database integration for storing timestamped segments alongside current transcript workflow
-  - [ ] 2.4 Preserve existing transcription quality while adding segment capability
-  - [ ] 2.5 Add fallback handling that maintains current behavior when timestamps unavailable
-  - [ ] 2.6 Verify enhanced integration doesn't break existing transcription functionality
+- [x] 2. Enhanced ElevenLabs Integration (Preserve Current Quality)
+  - [x] 2.1 Extend existing ElevenLabs tests to cover word-level timestamp parsing
+  - [x] 2.2 Enhance current API response parsing to capture additional timestamp data
+  - [x] 2.3 Create database integration for storing timestamped segments alongside current transcript workflow
+  - [x] 2.4 Preserve existing transcription quality while adding segment capability
+  - [x] 2.5 Add fallback handling that maintains current behavior when timestamps unavailable
+  - [x] 2.6 Verify enhanced integration doesn't break existing transcription functionality
 
 - [ ] 3. Database-Coordinated Translation (Leverage Existing Quality)
-  - [ ] 3.1 Extend existing batch language detection tests (83% coverage) for segment coordination
-  - [ ] 3.2 Integrate database segments with existing DeepL translation workflow
+  - [x] 3.1 Extend existing batch language detection tests (83% coverage) for segment coordination
+  - [x] 3.2 Integrate database segments with existing DeepL translation workflow
   - [ ] 3.3 Preserve existing OpenAI Hebrew translation quality while adding segment storage
   - [ ] 3.4 Coordinate existing translation timing mechanisms with database segments
   - [ ] 3.5 Build upon existing translation quality validation rather than replacing
