@@ -14,13 +14,13 @@ These are the tasks to be completed for the spec detailed in @.agent-os/specs/20
   - [x] 1.4 Add test helpers for subtitle file parsing and validation
   - [x] 1.5 Verify all basic tests pass
 
-- [ ] 2. Add Mixed-Language Detection and Preservation Tests
-  - [ ] 2.1 Write tests for identifying mixed-language segments (e.g., [EN] text [ES] texto)
-  - [ ] 2.2 Create test cases for various language tag formats and edge cases
-  - [ ] 2.3 Implement tests for language preservation during translation
-  - [ ] 2.4 Add tests for proper segment reassembly after translation
-  - [ ] 2.5 Test handling of segments with multiple language switches
-  - [ ] 2.6 Verify all mixed-language tests pass
+- [x] 2. Add Mixed-Language Detection and Preservation Tests
+  - [x] 2.1 Write tests for identifying mixed-language segments (e.g., [EN] text [ES] texto)
+  - [x] 2.2 Create test cases for various language tag formats and edge cases
+  - [x] 2.3 Implement tests for language preservation during translation
+  - [x] 2.4 Add tests for proper segment reassembly after translation
+  - [x] 2.5 Test handling of segments with multiple language switches
+  - [x] 2.6 Verify all mixed-language tests pass
 
 - [ ] 3. Implement Edge Case and Error Handling Tests
   - [ ] 3.1 Write tests for malformed subtitle files and invalid formats
