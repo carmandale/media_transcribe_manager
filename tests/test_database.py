@@ -61,6 +61,219 @@ class TestDatabaseInitialization:
     
     @pytest.mark.unit
     @pytest.mark.database
+    def test_subtitle_segments_table_creation(self, temp_dir):
+        """Test that subtitle_segments table is created with proper schema."""
+        db_path = temp_dir / "test.db"
+        db = Database(db_path)
+        
+        # Apply migration to create subtitle_segments table
+        db._migrate_to_subtitle_segments()
+        
+        # Verify table exists
+        conn = sqlite3.connect(str(db_path))
+        cursor = conn.cursor()
+        
+        # Check table exists
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='subtitle_segments'")
+        assert cursor.fetchone() is not None
+        
+        # Check table schema
+        cursor.execute("PRAGMA table_info(subtitle_segments)")
+        columns = {row[1]: row[2] for row in cursor.fetchall()}  # name: type
+        
+        # Basic columns (excluding generated columns like duration)
+        expected_columns = {
+            'id': 'INTEGER',
+            'interview_id': 'TEXT',  # TEXT because it references media_files.file_id which is TEXT
+            'segment_index': 'INTEGER',
+            'start_time': 'REAL',
+            'end_time': 'REAL',
+            'original_text': 'TEXT',
+            'german_text': 'TEXT',
+            'english_text': 'TEXT',
+            'hebrew_text': 'TEXT',
+            'confidence_score': 'REAL',
+            'processing_timestamp': 'DATETIME'
+        }
+        
+        for col_name, col_type in expected_columns.items():
+            assert col_name in columns
+            assert columns[col_name] == col_type
+        
+        # Test that we can query the duration column (generated column)
+        cursor.execute("SELECT duration FROM subtitle_segments LIMIT 0")
+        assert len(cursor.description) == 1  # Should be able to query duration column
+        
+        # Check indexes exist
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='subtitle_segments'")
+        segment_indexes = {row[0] for row in cursor.fetchall()}
+        expected_segment_indexes = {
+            'idx_subtitle_segments_interview_id',
+            'idx_subtitle_segments_timing',
+            'idx_subtitle_segments_search',
+            'idx_subtitle_segments_original_text',
+            'idx_subtitle_segments_english_text',
+            'idx_subtitle_segments_german_text'
+        }
+        assert expected_segment_indexes.issubset(segment_indexes)
+        
+        # Check views exist
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='view'")
+        views = {row[0] for row in cursor.fetchall()}
+        expected_views = {'transcripts', 'segment_quality'}
+        assert expected_views.issubset(views)
+        
+        conn.close()
+        db.close()
+    
+    @pytest.mark.unit
+    @pytest.mark.database
+    def test_subtitle_segments_constraints(self, temp_dir):
+        """Test subtitle_segments table constraints work correctly."""
+        db_path = temp_dir / "test.db"
+        db = Database(db_path)
+        db._migrate_to_subtitle_segments()
+        
+        # Add a test interview first
+        interview_id = db.add_file(
+            file_path="/test/interview.mp4",
+            safe_filename="interview_mp4",
+            media_type="video"
+        )
+        
+        conn = sqlite3.connect(str(db_path))
+        conn.execute("PRAGMA foreign_keys = ON")
+        
+        # Test valid segment insertion
+        valid_segment = (
+            interview_id, 1, 0.0, 5.0, "Hello world", 
+            "Hallo Welt", "Hello world", "שלום עולם", 0.95
+        )
+        
+        conn.execute("""
+            INSERT INTO subtitle_segments (
+                interview_id, segment_index, start_time, end_time, 
+                original_text, german_text, english_text, hebrew_text, 
+                confidence_score
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, valid_segment)
+        conn.commit()
+        
+        # Test constraint violations
+        
+        # 1. Negative start_time should fail
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute("""
+                INSERT INTO subtitle_segments (
+                    interview_id, segment_index, start_time, end_time, 
+                    original_text, confidence_score
+                ) VALUES (?, ?, ?, ?, ?, ?)
+            """, (interview_id, 2, -1.0, 5.0, "Test", 0.8))
+            conn.commit()
+        
+        # 2. end_time <= start_time should fail
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute("""
+                INSERT INTO subtitle_segments (
+                    interview_id, segment_index, start_time, end_time, 
+                    original_text, confidence_score
+                ) VALUES (?, ?, ?, ?, ?, ?)
+            """, (interview_id, 3, 5.0, 5.0, "Test", 0.8))
+            conn.commit()
+        
+        # 3. Confidence score > 1.0 should fail
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute("""
+                INSERT INTO subtitle_segments (
+                    interview_id, segment_index, start_time, end_time, 
+                    original_text, confidence_score
+                ) VALUES (?, ?, ?, ?, ?, ?)
+            """, (interview_id, 4, 6.0, 10.0, "Test", 1.5))
+            conn.commit()
+        
+        # 4. Duplicate (interview_id, segment_index) should fail
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute("""
+                INSERT INTO subtitle_segments (
+                    interview_id, segment_index, start_time, end_time, 
+                    original_text, confidence_score
+                ) VALUES (?, ?, ?, ?, ?, ?)
+            """, (interview_id, 1, 10.0, 15.0, "Duplicate", 0.8))
+            conn.commit()
+        
+        conn.close()
+        db.close()
+    
+    @pytest.mark.unit
+    @pytest.mark.database
+    def test_backward_compatibility_views(self, temp_dir):
+        """Test that backward compatibility views work correctly."""
+        db_path = temp_dir / "test.db"
+        db = Database(db_path)
+        db._migrate_to_subtitle_segments()
+        
+        # Add test interview
+        interview_id = db.add_file(
+            file_path="/test/interview.mp4",
+            safe_filename="interview_mp4",
+            media_type="video"
+        )
+        
+        conn = sqlite3.connect(str(db_path))
+        
+        # Insert test segments
+        segments = [
+            (interview_id, 1, 0.0, 2.5, "Hello", "Hallo", "Hello", "שלום", 0.95),
+            (interview_id, 2, 2.5, 5.0, "world", "Welt", "world", "עולם", 0.90),
+            (interview_id, 3, 5.0, 8.0, "test", "Test", "test", "בדיקה", 0.85)
+        ]
+        
+        for segment in segments:
+            conn.execute("""
+                INSERT INTO subtitle_segments (
+                    interview_id, segment_index, start_time, end_time,
+                    original_text, german_text, english_text, hebrew_text,
+                    confidence_score
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, segment)
+        conn.commit()
+        
+        # Test transcripts view
+        cursor = conn.execute("SELECT * FROM transcripts WHERE interview_id = ?", (interview_id,))
+        transcript = cursor.fetchone()
+        
+        assert transcript is not None
+        # Check concatenated text (SQLite GROUP_CONCAT uses space separator by default)
+        original_words = transcript[1].split()  # original_transcript
+        assert "Hello" in original_words
+        assert "world" in original_words  
+        assert "test" in original_words
+        
+        assert transcript[5] == 3  # total_segments
+        assert abs(transcript[6] - 0.9) < 0.01  # avg_confidence (0.95+0.90+0.85)/3
+        assert transcript[7] == 0.0  # transcript_start
+        assert transcript[8] == 8.0  # transcript_end
+        assert transcript[9] == 8.0  # total_duration
+        
+        # Test segment_quality view
+        cursor = conn.execute("SELECT * FROM segment_quality WHERE interview_id = ?", (interview_id,))
+        quality = cursor.fetchone()
+        
+        assert quality is not None
+        assert quality[1] == 3  # total_segments
+        assert abs(quality[2] - 2.667) < 0.01  # avg_segment_duration (2.5+2.5+3.0)/3 = 8.0/3 = 2.667
+        assert quality[3] == 2.5  # min_segment_duration
+        assert quality[4] == 3.0  # max_segment_duration
+        assert abs(quality[5] - 0.9) < 0.01  # avg_confidence
+        assert quality[6] == 0  # low_confidence_segments (none < 0.8)
+        assert quality[7] == 0  # short_segments (none < 1.0)
+        assert quality[8] == 0  # long_segments (none > 10.0)
+        
+        conn.close()
+        db.close()
+    
+    @pytest.mark.unit
+    @pytest.mark.database
     def test_database_path_creation(self, temp_dir):
         """Test that parent directories are created if needed."""
         db_path = temp_dir / "nested" / "path" / "test.db"
@@ -720,6 +933,460 @@ class TestCompatibilityMethods:
         # Test aggregation
         results = db.execute_query("SELECT COUNT(*) as count FROM media_files")
         assert results[0]['count'] == 3
+        
+        db.close()
+
+
+class TestSubtitleSegments:
+    """Test subtitle segments functionality for subtitle-first architecture."""
+    
+    @pytest.mark.unit
+    @pytest.mark.database
+    def test_add_subtitle_segments(self, temp_dir):
+        """Test adding subtitle segments to the database."""
+        db = Database(temp_dir / "test.db")
+        db._migrate_to_subtitle_segments()
+        
+        # Add test interview
+        interview_id = db.add_file(
+            file_path="/test/interview.mp4",
+            safe_filename="interview_mp4",
+            media_type="video"
+        )
+        
+        # Add subtitle segments
+        segments = [
+            {
+                'interview_id': interview_id,
+                'segment_index': 1,
+                'start_time': 0.0,
+                'end_time': 2.5,
+                'original_text': "Hello world",
+                'german_text': "Hallo Welt",
+                'english_text': "Hello world", 
+                'hebrew_text': "שלום עולם",
+                'confidence_score': 0.95
+            },
+            {
+                'interview_id': interview_id,
+                'segment_index': 2,
+                'start_time': 2.5,
+                'end_time': 5.0,
+                'original_text': "How are you?",
+                'german_text': "Wie geht es dir?",
+                'english_text': "How are you?",
+                'hebrew_text': "איך אתה?",
+                'confidence_score': 0.92
+            }
+        ]
+        
+        for segment in segments:
+            segment_id = db.add_subtitle_segment(**segment)
+            assert segment_id is not None
+        
+        # Verify segments were added
+        retrieved_segments = db.get_subtitle_segments(interview_id)
+        assert len(retrieved_segments) == 2
+        
+        # Check first segment
+        first_segment = retrieved_segments[0]
+        assert first_segment['segment_index'] == 1
+        assert first_segment['start_time'] == 0.0
+        assert first_segment['end_time'] == 2.5
+        assert first_segment['original_text'] == "Hello world"
+        assert first_segment['confidence_score'] == 0.95
+        
+        db.close()
+    
+    @pytest.mark.unit
+    @pytest.mark.database
+    def test_get_subtitle_segments_by_time_range(self, temp_dir):
+        """Test retrieving subtitle segments by time range."""
+        db = Database(temp_dir / "test.db")
+        db._migrate_to_subtitle_segments()
+        
+        interview_id = db.add_file(
+            file_path="/test/interview.mp4",
+            safe_filename="interview_mp4",
+            media_type="video"
+        )
+        
+        # Add segments with different time ranges
+        segments = [
+            (interview_id, 1, 0.0, 2.0, "First", 0.95),
+            (interview_id, 2, 2.0, 4.0, "Second", 0.90),
+            (interview_id, 3, 4.0, 6.0, "Third", 0.85),
+            (interview_id, 4, 6.0, 8.0, "Fourth", 0.92),
+            (interview_id, 5, 8.0, 10.0, "Fifth", 0.88)
+        ]
+        
+        conn = sqlite3.connect(str(temp_dir / "test.db"))
+        for segment in segments:
+            conn.execute("""
+                INSERT INTO subtitle_segments (
+                    interview_id, segment_index, start_time, end_time, 
+                    original_text, confidence_score
+                ) VALUES (?, ?, ?, ?, ?, ?)
+            """, segment)
+        conn.commit()
+        conn.close()
+        
+        # Test getting segments within time range
+        segments_in_range = db.get_subtitle_segments_by_time_range(
+            interview_id, start_time=2.0, end_time=6.0
+        )
+        
+        assert len(segments_in_range) == 2  # segments 2 and 3
+        assert segments_in_range[0]['original_text'] == "Second"
+        assert segments_in_range[1]['original_text'] == "Third"
+        
+        # Test getting all segments (no time range)
+        all_segments = db.get_subtitle_segments(interview_id)
+        assert len(all_segments) == 5
+        
+        db.close()
+    
+    @pytest.mark.unit
+    @pytest.mark.database
+    def test_update_subtitle_segment_translations(self, temp_dir):
+        """Test updating translations for existing segments."""
+        db = Database(temp_dir / "test.db")
+        db._migrate_to_subtitle_segments()
+        
+        interview_id = db.add_file(
+            file_path="/test/interview.mp4",
+            safe_filename="interview_mp4",
+            media_type="video"
+        )
+        
+        # Add segment with only original text
+        segment_id = db.add_subtitle_segment(
+            interview_id=interview_id,
+            segment_index=1,
+            start_time=0.0,
+            end_time=2.5,
+            original_text="Hello world",
+            confidence_score=0.95
+        )
+        
+        # Update with translations
+        db.update_subtitle_segment_translations(
+            segment_id=segment_id,
+            german_text="Hallo Welt",
+            english_text="Hello world",
+            hebrew_text="שלום עולם"
+        )
+        
+        # Verify translations were added
+        segments = db.get_subtitle_segments(interview_id)
+        assert len(segments) == 1
+        
+        segment = segments[0]
+        assert segment['german_text'] == "Hallo Welt"
+        assert segment['english_text'] == "Hello world" 
+        assert segment['hebrew_text'] == "שלום עולם"
+        assert segment['original_text'] == "Hello world"  # Should be unchanged
+        
+        db.close()
+    
+    @pytest.mark.unit
+    @pytest.mark.database
+    def test_subtitle_segment_quality_metrics(self, temp_dir):
+        """Test quality metrics calculation for subtitle segments."""
+        db = Database(temp_dir / "test.db")
+        db._migrate_to_subtitle_segments()
+        
+        interview_id = db.add_file(
+            file_path="/test/interview.mp4",
+            safe_filename="interview_mp4",
+            media_type="video"
+        )
+        
+        # Add segments with varying quality
+        segments = [
+            (interview_id, 1, 0.0, 0.5, "Short1", 0.95),    # Short segment (0.5s)
+            (interview_id, 2, 0.5, 1.0, "Short2", 0.85),    # Short segment (0.5s)
+            (interview_id, 3, 1.0, 2.0, "Normal2", 0.75),   # Low confidence (1.0s)
+            (interview_id, 4, 2.0, 13.0, "Long", 0.90),     # Long segment (11.0s)
+            (interview_id, 5, 13.0, 14.0, "Normal3", 0.88)  # Normal segment (1.0s)
+        ]
+        
+        conn = sqlite3.connect(str(temp_dir / "test.db"))
+        for segment in segments:
+            conn.execute("""
+                INSERT INTO subtitle_segments (
+                    interview_id, segment_index, start_time, end_time, 
+                    original_text, confidence_score
+                ) VALUES (?, ?, ?, ?, ?, ?)
+            """, segment)
+        conn.commit()
+        conn.close()
+        
+        # Test quality metrics
+        quality_metrics = db.get_subtitle_quality_metrics(interview_id)
+        
+        assert quality_metrics['total_segments'] == 5
+        assert quality_metrics['avg_confidence'] == 0.866  # (0.95+0.85+0.75+0.90+0.88)/5
+        assert quality_metrics['low_confidence_segments'] == 1  # confidence < 0.8
+        assert quality_metrics['short_segments'] == 2  # duration < 1.0 (0.5s + 0.5s)
+        assert quality_metrics['long_segments'] == 1  # duration > 10.0 (11.0s)
+        # avg_segment_duration = (0.5+0.5+1.0+11.0+1.0)/5 = 14.0/5 = 2.8
+        assert abs(quality_metrics['avg_segment_duration'] - 2.8) < 0.1
+        
+        db.close()
+    
+    @pytest.mark.unit
+    @pytest.mark.database
+    def test_subtitle_segments_timing_validation(self, temp_dir):
+        """Test timing validation for subtitle segments."""
+        db = Database(temp_dir / "test.db")
+        db._migrate_to_subtitle_segments()
+        
+        interview_id = db.add_file(
+            file_path="/test/interview.mp4",
+            safe_filename="interview_mp4",
+            media_type="video"
+        )
+        
+        # Add valid segments
+        valid_segments = [
+            (interview_id, 1, 0.0, 2.0, "First"),
+            (interview_id, 2, 2.0, 4.0, "Second"),  # No gap
+            (interview_id, 3, 4.5, 6.0, "Third")    # Small gap (0.5s)
+        ]
+        
+        conn = sqlite3.connect(str(temp_dir / "test.db"))
+        for segment in valid_segments:
+            conn.execute("""
+                INSERT INTO subtitle_segments (
+                    interview_id, segment_index, start_time, end_time, 
+                    original_text
+                ) VALUES (?, ?, ?, ?, ?)
+            """, segment)
+        conn.commit()
+        conn.close()
+        
+        # Test timing validation
+        timing_issues = db.validate_subtitle_timing(interview_id)
+        
+        assert 'gaps' in timing_issues
+        assert 'overlaps' in timing_issues
+        assert len(timing_issues['gaps']) == 1  # One gap between segments 2 and 3
+        assert len(timing_issues['overlaps']) == 0  # No overlaps
+        
+        # Check gap details
+        gap = timing_issues['gaps'][0]
+        assert gap['after_segment'] == 2
+        assert gap['before_segment'] == 3
+        assert gap['gap_duration'] == 0.5
+        
+        db.close()
+
+
+class TestIntegratedWorkflows:
+    """Test combined transcript + segment workflows for backward compatibility."""
+    
+    @pytest.mark.integration
+    @pytest.mark.database
+    def test_combined_transcript_segment_workflow(self, temp_dir):
+        """Test that transcript and segment workflows work together seamlessly."""
+        db = Database(temp_dir / "test.db")
+        db._migrate_to_subtitle_segments()
+        
+        # Create interview
+        interview_id = db.add_file(
+            file_path="/test/interview.mp4",
+            safe_filename="interview_mp4",
+            media_type="video"
+        )
+        
+        # Add subtitle segments (simulating segment-first processing)
+        segments = [
+            {
+                'interview_id': interview_id,
+                'segment_index': 1,
+                'start_time': 0.0,
+                'end_time': 3.0,
+                'original_text': "Welcome to the interview.",
+                'german_text': "Willkommen zum Interview.",
+                'english_text': "Welcome to the interview.",
+                'hebrew_text': "ברוכים הבאים לראיון.",
+                'confidence_score': 0.92
+            },
+            {
+                'interview_id': interview_id,
+                'segment_index': 2,
+                'start_time': 3.0,
+                'end_time': 6.0,
+                'original_text': "Please tell us your story.",
+                'german_text': "Bitte erzählen Sie uns Ihre Geschichte.",
+                'english_text': "Please tell us your story.",
+                'hebrew_text': "אנא ספרו לנו את הסיפור שלכם.",
+                'confidence_score': 0.88
+            }
+        ]
+        
+        for segment in segments:
+            db.add_subtitle_segment(**segment)
+        
+        # Test that transcript view provides consolidated data
+        conn = db._get_connection()
+        cursor = conn.execute("SELECT * FROM transcripts WHERE interview_id = ?", (interview_id,))
+        transcript = cursor.fetchone()
+        
+        assert transcript is not None
+        # Should have concatenated text from both segments
+        assert "Welcome to the interview" in transcript[1]  # original_transcript
+        assert "Please tell us your story" in transcript[1]
+        assert "Willkommen zum Interview" in transcript[2]  # german_transcript
+        assert "Bitte erzählen Sie uns Ihre Geschichte" in transcript[2]
+        
+        # Test quality metrics
+        quality_metrics = db.get_subtitle_quality_metrics(interview_id)
+        assert quality_metrics['total_segments'] == 2
+        assert quality_metrics['avg_confidence'] == 0.9  # (0.92 + 0.88) / 2
+        
+        # Test that both access patterns work
+        # 1. Segment-based access (new way)
+        segments_retrieved = db.get_subtitle_segments(interview_id)
+        assert len(segments_retrieved) == 2
+        
+        # 2. Traditional database queries still work
+        all_files = db.get_all_files()
+        assert len(all_files) == 1
+        assert all_files[0]['file_id'] == interview_id
+        
+        db.close()
+    
+    @pytest.mark.integration
+    @pytest.mark.database
+    def test_mixed_processing_compatibility(self, temp_dir):
+        """Test compatibility between old transcript processing and new segment processing."""
+        db = Database(temp_dir / "test.db")
+        db._migrate_to_subtitle_segments()
+        
+        # Simulate mixed environment: some interviews processed old way, some new way
+        
+        # Old-style interview (no segments, just database tracking)
+        old_interview_id = db.add_file(
+            file_path="/test/old_interview.mp4",
+            safe_filename="old_interview_mp4",
+            media_type="video"
+        )
+        db.update_status(old_interview_id, 
+                        transcription_status='completed',
+                        translation_en_status='completed')
+        
+        # New-style interview (with segments)
+        new_interview_id = db.add_file(
+            file_path="/test/new_interview.mp4",
+            safe_filename="new_interview_mp4",
+            media_type="video"
+        )
+        
+        # Add segments for new interview
+        db.add_subtitle_segment(
+            interview_id=new_interview_id,
+            segment_index=1,
+            start_time=0.0,
+            end_time=5.0,
+            original_text="This is the new processing approach.",
+            english_text="This is the new processing approach.",
+            confidence_score=0.95
+        )
+        
+        # Both should appear in general queries
+        all_files = db.get_all_files()
+        assert len(all_files) == 2
+        
+        file_ids = {f['file_id'] for f in all_files}
+        assert old_interview_id in file_ids
+        assert new_interview_id in file_ids
+        
+        # Old interview should not appear in segment queries
+        old_segments = db.get_subtitle_segments(old_interview_id)
+        assert len(old_segments) == 0
+        
+        # New interview should appear in segment queries
+        new_segments = db.get_subtitle_segments(new_interview_id)
+        assert len(new_segments) == 1
+        
+        # Summary should include both
+        summary = db.get_summary()
+        assert summary['total_files'] == 2
+        
+        db.close()
+    
+    @pytest.mark.integration
+    @pytest.mark.database
+    def test_processing_pipeline_integration(self, temp_dir):
+        """Test integration with existing processing pipeline patterns."""
+        db = Database(temp_dir / "test.db")
+        db._migrate_to_subtitle_segments()
+        
+        # Simulate processing pipeline workflow
+        interview_id = db.add_file(
+            file_path="/test/pipeline_interview.mp4",
+            safe_filename="pipeline_interview_mp4",
+            media_type="video"
+        )
+        
+        # Stage 1: Start transcription
+        db.update_status(interview_id, 
+                        status='in-progress',
+                        transcription_status='in-progress')
+        
+        # Stage 2: Transcription complete, add segments
+        segments = [
+            (interview_id, 1, 0.0, 2.0, "First segment", 0.9),
+            (interview_id, 2, 2.0, 4.0, "Second segment", 0.85),
+            (interview_id, 3, 4.0, 6.0, "Third segment", 0.92)
+        ]
+        
+        for interview_id_val, idx, start, end, text, conf in segments:
+            db.add_subtitle_segment(
+                interview_id=interview_id_val,
+                segment_index=idx,
+                start_time=start,
+                end_time=end,
+                original_text=text,
+                confidence_score=conf
+            )
+        
+        db.update_status(interview_id, transcription_status='completed')
+        
+        # Stage 3: Start translation
+        db.update_status(interview_id, translation_en_status='in-progress')
+        
+        # Update segments with translations
+        retrieved_segments = db.get_subtitle_segments(interview_id)
+        for segment in retrieved_segments:
+            db.update_subtitle_segment_translations(
+                segment_id=segment['id'],
+                english_text=f"EN: {segment['original_text']}"
+            )
+        
+        db.update_status(interview_id, translation_en_status='completed')
+        
+        # Stage 4: Complete processing
+        db.update_status(interview_id, status='completed')
+        
+        # Verify final state
+        final_status = db.get_status(interview_id)
+        assert final_status['status'] == 'completed'
+        assert final_status['transcription_status'] == 'completed'
+        assert final_status['translation_en_status'] == 'completed'
+        
+        # Verify segments have translations
+        final_segments = db.get_subtitle_segments(interview_id)
+        assert len(final_segments) == 3
+        for segment in final_segments:
+            assert segment['english_text'].startswith("EN:")
+        
+        # Verify quality metrics
+        quality = db.get_subtitle_quality_metrics(interview_id)
+        assert quality['total_segments'] == 3
+        assert quality['avg_confidence'] > 0.8
         
         db.close()
 
