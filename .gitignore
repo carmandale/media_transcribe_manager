@@ -94,3 +94,5 @@ htmlcov/
 .cursor/
 .vscode/
 *.mdc
+.coverage
+coverage.xml
