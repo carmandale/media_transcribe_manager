@@ -27,13 +27,13 @@ These are the tasks to be completed for the spec detailed in @.agent-os/specs/20
   - [x] 3.1 Extend existing batch language detection tests (83% coverage) for segment coordination
   - [x] 3.2 Integrate database segments with existing DeepL translation workflow
   - [x] 3.3 Preserve existing OpenAI Hebrew translation quality while adding segment storage
-  - [ ] 3.4 Coordinate existing translation timing mechanisms with database segments
-  - [ ] 3.5 Build upon existing translation quality validation rather than replacing
-  - [ ] 3.6 Verify enhanced translation preserves all existing functionality and quality
+  - [x] 3.4 Coordinate existing translation timing mechanisms with database segments
+  - [x] 3.5 Build upon existing translation quality validation rather than replacing
+  - [x] 3.6 Verify enhanced translation preserves all existing functionality and quality
 
 - [ ] 4. Integrate with SRTTranslator Core (Build Upon Proven Foundation)
-  - [ ] 4.1 Extend existing SRTTranslator tests (67% coverage) for database segment integration
-  - [ ] 4.2 Coordinate database segments with existing SRT generation logic (preserve timing validation)
+  - [x] 4.1 Extend existing SRTTranslator tests (67% coverage) for database segment integration
+  - [x] 4.2 Coordinate database segments with existing SRT generation logic (preserve timing validation)
   - [ ] 4.3 Build upon existing segment boundary validation rather than replacing
   - [ ] 4.4 Enhance existing quality framework with database-backed metrics
   - [ ] 4.5 Integrate database segments with proven timing accuracy mechanisms
