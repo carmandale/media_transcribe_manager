@@ -80,4 +80,17 @@ node_modules/
 mcp.json
 
 # Added by Task Master AI
-# OS specific
+# OS specific# Cursor Rules for Database Translation Development
+*.mdc files are development guidance rules for Cursor IDE
+These files provide context for ongoing development work but are not part of the core codebase
+
+# Coverage Reports  
+.coverage
+coverage.xml
+htmlcov/
+.pytest_cache/
+
+# IDE Configuration
+.cursor/
+.vscode/
+*.mdc
