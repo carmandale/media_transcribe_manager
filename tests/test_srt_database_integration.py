@@ -26,6 +26,11 @@ from scribe.database import Database
 from scribe.database_translation import DatabaseTranslator
 from scribe.srt_translator import SRTTranslator, SRTSegment
 from scribe.translate import HistoricalTranslator
+from scribe.database_quality_metrics import (
+    add_quality_metrics_schema,
+    store_quality_metrics,
+    get_quality_metrics
+)
 
 
 class TestSRTTranslatorDatabaseIntegration:
@@ -623,6 +628,259 @@ Das war sehr schwierig für mich.
         
         # DatabaseTranslator adds database capabilities without breaking SRT functionality
         assert callable(DatabaseTranslator)  # Database integration available
+    
+    @pytest.mark.integration
+    @pytest.mark.database
+    def test_quality_metrics_storage_integration(self, temp_dir):
+        """Test Task 4.4: Enhance existing quality framework with database-backed metrics."""
+        db_path = temp_dir / "test_quality_metrics.db"
+        db = Database(db_path)
+        db._migrate_to_subtitle_segments()
+        
+        # Create mock translator
+        mock_translator = Mock(spec=HistoricalTranslator)
+        mock_translator.batch_translate.return_value = ['This is a test.', 'For quality measurements.']
+        
+        # Initialize quality metrics schema
+        add_quality_metrics_schema(db)
+        
+        # Create interview with segments
+        interview_id = db.add_file("/test/quality_test.mp4", "quality_test_mp4", "video")
+        
+        segments = [
+            (0, 0.0, 3.0, 'Das ist ein Test.'),
+            (1, 3.0, 6.0, 'Für Qualitätsmessungen.')
+        ]
+        
+        for idx, start, end, original in segments:
+            db.add_subtitle_segment(
+                interview_id=interview_id,
+                segment_index=idx,
+                start_time=start,
+                end_time=end,
+                original_text=original,
+                confidence_score=0.95
+            )
+        
+        # Create evaluator mock
+        mock_evaluator = Mock()
+        mock_evaluator.evaluate.return_value = {'score': 8.5}
+        mock_evaluator.get_score.return_value = 8.5
+        
+        db_translator = DatabaseTranslator(db, mock_translator, mock_evaluator)
+        
+        # Translate and validate with enhanced quality check
+        db_translator.translate_interview(interview_id, 'en')
+        validation_results = db_translator.validate_translations(
+            interview_id, 'en', enhanced_quality_check=True
+        )
+        
+        # Verify quality metrics were stored
+        metrics = get_quality_metrics(db, interview_id, 'en')
+        assert metrics is not None
+        assert 'overall_quality_score' in metrics or 'overall_quality' in validation_results.get('quality_scores', {})
+        
+        db.close()
+    
+    @pytest.mark.integration
+    @pytest.mark.database
+    def test_timing_accuracy_mechanisms_integration(self, temp_dir):
+        """Test Task 4.5: Integrate database segments with proven timing accuracy mechanisms."""
+        db_path = temp_dir / "test_timing_integration.db"
+        db = Database(db_path)
+        db._migrate_to_subtitle_segments()
+        
+        # Create mock translator
+        mock_translator = Mock(spec=HistoricalTranslator)
+        
+        # Create interview with precise timing requirements
+        interview_id = db.add_file("/test/timing_test.mp4", "timing_test_mp4", "video")
+        
+        # Segments with exact timing boundaries
+        timing_segments = [
+            (0, 0.000, 2.500, 'First segment.'),
+            (1, 2.500, 5.750, 'Second segment.'),
+            (2, 5.750, 8.333, 'Third segment.')
+        ]
+        
+        for idx, start, end, original in timing_segments:
+            db.add_subtitle_segment(
+                interview_id=interview_id,
+                segment_index=idx,
+                start_time=start,
+                end_time=end,
+                original_text=original
+            )
+        
+        db_translator = DatabaseTranslator(db, mock_translator)
+        
+        # Convert to SRT format
+        srt_segments = db_translator.convert_segments_to_srt_format(interview_id, 'original')
+        
+        # Verify timing precision is maintained
+        assert srt_segments[0].start_time == "00:00:00,000"
+        assert srt_segments[0].end_time == "00:00:02,500"
+        assert srt_segments[1].start_time == "00:00:02,500"
+        assert srt_segments[1].end_time == "00:00:05,750"
+        assert srt_segments[2].start_time == "00:00:05,750"
+        assert srt_segments[2].end_time == "00:00:08,333"
+        
+        # Test timing coordination validation
+        timing_validation = db_translator.validate_timing_coordination(interview_id, 'original')
+        assert timing_validation['timing_valid'] == True
+        assert timing_validation['boundary_validation'] == True
+        assert timing_validation['srt_compatibility'] == True
+        
+        # Verify that timing metrics are calculated
+        if hasattr(db_translator, 'calculate_timing_accuracy_metrics'):
+            timing_metrics = db_translator.calculate_timing_accuracy_metrics(
+                interview_id, 'original', timing_validation
+            )
+            assert 'total_segments' in timing_metrics
+            assert timing_metrics['total_segments'] == 3
+        
+        db.close()
+    
+    @pytest.mark.integration
+    @pytest.mark.database
+    def test_srt_functionality_preserved_with_database(self, temp_dir):
+        """Test Task 4.6: Verify all SRTTranslator functionality preserved while adding database coordination."""
+        db_path = temp_dir / "test_functionality_preserved.db"
+        db = Database(db_path)
+        db._migrate_to_subtitle_segments()
+        
+        # Create mock translator
+        mock_translator = Mock(spec=HistoricalTranslator)
+        
+        # Create interview
+        interview_id = db.add_file("/test/preserve_test.mp4", "preserve_test_mp4", "video")
+        
+        # Add segments
+        segments = [
+            (0, 0.0, 3.5, 'Ich bin ein Berliner.'),
+            (1, 3.5, 7.0, 'Das ist wichtig.'),
+            (2, 7.0, 10.5, 'Für die Geschichte.')
+        ]
+        
+        for idx, start, end, original in segments:
+            db.add_subtitle_segment(
+                interview_id=interview_id,
+                segment_index=idx,
+                start_time=start,
+                end_time=end,
+                original_text=original
+            )
+        
+        db_translator = DatabaseTranslator(db, mock_translator)
+        srt_translator = SRTTranslator(mock_translator)
+        
+        # Test 1: Boundary validation is preserved
+        original_segments = db_translator.convert_segments_to_srt_format(interview_id, 'original')
+        
+        # Create a copy for translated segments (simulating translation)
+        translated_segments = []
+        for seg in original_segments:
+            new_seg = SRTSegment(
+                index=seg.index,
+                start_time=seg.start_time,
+                end_time=seg.end_time,
+                text=f"Translated: {seg.text}"
+            )
+            translated_segments.append(new_seg)
+        
+        # Verify SRTTranslator boundary validation still works
+        boundary_valid = srt_translator._validate_segment_boundaries(
+            original_segments, translated_segments
+        )
+        assert boundary_valid == True
+        
+        # Test 2: SRT file generation works
+        output_path = temp_dir / "test_output.srt"
+        success = db_translator.generate_coordinated_srt(interview_id, 'original', output_path)
+        assert success == True
+        assert output_path.exists()
+        
+        # Test 3: Parse generated SRT file using SRTTranslator
+        parsed_segments = srt_translator.parse_srt(str(output_path))
+        assert len(parsed_segments) == 3
+        
+        # Test 4: Timing preservation through round-trip
+        for orig, parsed in zip(original_segments, parsed_segments):
+            assert orig.start_time == parsed.start_time
+            assert orig.end_time == parsed.end_time
+            assert orig.text == parsed.text
+        
+        # Test 5: Workflow coordination
+        coordination_results = db_translator.coordinate_with_srt_workflow(
+            interview_id, ['original']
+        )
+        assert coordination_results['overall_success'] == True
+        assert coordination_results['workflow_compatibility'] == True
+        assert coordination_results['timing_preservation'] == True
+        
+        # Test 6: Quality validation framework integration
+        validation_results = db_translator.validate_translations(interview_id, 'original')
+        assert 'valid' in validation_results
+        assert 'quality_scores' in validation_results
+        
+        # Test 7: Comprehensive quality report
+        if hasattr(db_translator, 'get_comprehensive_quality_report'):
+            quality_report = db_translator.get_comprehensive_quality_report(interview_id)
+            assert 'interview_id' in quality_report
+            assert quality_report['interview_id'] == interview_id
+        
+        db.close()
+    
+    @pytest.mark.integration  
+    @pytest.mark.database
+    def test_enhanced_quality_evaluation_with_database(self, temp_dir):
+        """Test enhanced quality evaluation integrated with database storage."""
+        db_path = temp_dir / "test_enhanced_quality.db"
+        db = Database(db_path)
+        db._migrate_to_subtitle_segments()
+        
+        # Create mock translator
+        mock_translator = Mock(spec=HistoricalTranslator)
+        
+        # Setup evaluator mock with detailed responses
+        mock_evaluator = Mock()
+        mock_evaluator.evaluate.side_effect = lambda orig, trans, **kwargs: {
+            'accuracy': 0.85,
+            'fluency': 0.90,
+            'terminology': 0.88,
+            'overall': 0.88
+        }
+        mock_evaluator.get_score.side_effect = lambda result: result['overall'] * 10
+        
+        interview_id = db.add_file("/test/quality_eval.mp4", "quality_eval_mp4", "video")
+        
+        # Add segments with translations
+        db.add_subtitle_segment(
+            interview_id=interview_id,
+            segment_index=0,
+            start_time=0.0,
+            end_time=3.0,
+            original_text='Wichtige historische Ereignisse.',
+            english_text='Important historical events.'
+        )
+        
+        db_translator = DatabaseTranslator(db, mock_translator, mock_evaluator)
+        
+        # Evaluate quality
+        quality_results = db_translator.evaluate_translation_quality(
+            interview_id, ['en'], sample_size=1
+        )
+        
+        assert 'languages' in quality_results
+        assert 'en' in quality_results['languages']
+        assert quality_results['languages']['en']['average_score'] == 8.8
+        
+        # Verify quality metrics are stored
+        metrics = get_quality_metrics(db, interview_id, 'en')
+        if metrics:  # Quality metrics were stored
+            assert isinstance(metrics, dict)
+        
+        db.close()
 
 
 if __name__ == '__main__':

@@ -19,6 +19,14 @@ from .translate import HistoricalTranslator
 from .batch_language_detection import detect_languages_batch
 from .srt_translator import SRTSegment, SRTTranslator
 from .evaluate import HistoricalEvaluator, validate_hebrew_translation
+from .database_quality_metrics import (
+    add_quality_metrics_schema,
+    store_quality_metrics,
+    store_segment_quality_scores,
+    store_timing_coordination_metrics,
+    get_quality_metrics,
+    enhance_database_translator_with_metrics
+)
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +52,9 @@ class DatabaseTranslator:
         self.db = db
         self.translator = translator or HistoricalTranslator()
         self.evaluator = evaluator
+        
+        # Initialize quality metrics schema
+        add_quality_metrics_schema(self.db)
         
     def translate_interview(self, 
                           interview_id: str, 
@@ -408,6 +419,10 @@ class DatabaseTranslator:
                 logger.info(f"✅ Translation validation passed for {target_language}: {validation_results['validated']} segments")
             else:
                 logger.warning(f"⚠️ Translation validation issues in {target_language}: {len(validation_results['issues'])} issues found")
+            
+            # Task 4.4: Store quality metrics in database
+            if enhanced_quality_check or validation_results.get('quality_scores'):
+                self.store_translation_quality_metrics(interview_id, target_language, validation_results)
                     
         except Exception as e:
             logger.error(f"Validation failed: {e}")
@@ -720,6 +735,9 @@ class DatabaseTranslator:
             logger.info(f"  SRT Boundary Validation: {'✅' if boundary_valid else '❌'}")
             logger.info(f"  Database Consistency: {'✅' if db_validation['valid'] else '❌'}")
             logger.info(f"  Cross-validation: {'✅' if srt_db_consistency['consistent'] else '❌'}")
+            
+            # Task 4.5: Store timing coordination metrics
+            timing_metrics = self.calculate_timing_accuracy_metrics(interview_id, target_language, validation_results)
             
         except Exception as e:
             logger.error(f"Enhanced timing validation failed: {e}")
@@ -1577,3 +1595,7 @@ def coordinate_translation_timing(db: Database,
         coordination_results['critical_error'] = str(e)
         
     return coordination_results
+
+
+# Enhance DatabaseTranslator with quality metrics methods
+enhance_database_translator_with_metrics(DatabaseTranslator)
