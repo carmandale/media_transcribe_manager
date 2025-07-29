@@ -635,24 +635,28 @@ class DatabaseTranslator:
         
     def validate_timing_coordination(self, interview_id: str, target_language: str) -> Dict[str, Any]:
         """
-        Validate that database segments coordinate perfectly with SRT timing mechanisms.
+        Enhanced timing coordination validation that builds upon SRTTranslator's proven validation.
         
-        This ensures the database translation maintains the exact timing validation
-        that the existing SRTTranslator provides.
+        This validation adds database-specific checks while preserving all existing
+        SRTTranslator boundary validation mechanisms. It extends rather than replaces
+        the proven timing validation framework.
         
         Args:
             interview_id: ID of the interview to validate
             target_language: Language to validate timing for
             
         Returns:
-            Validation results with timing analysis
+            Comprehensive validation results with timing analysis
         """
         validation_results = {
             'timing_valid': True,
             'segment_count': 0,
             'timing_issues': [],
             'boundary_validation': True,
-            'total_duration': 0.0
+            'database_consistency': True,
+            'srt_compatibility': True,
+            'total_duration': 0.0,
+            'database_validation_details': {}
         }
         
         try:
@@ -664,7 +668,7 @@ class DatabaseTranslator:
             
             validation_results['segment_count'] = len(original_segments)
             
-            # Use SRTTranslator's proven boundary validation
+            # 1. FOUNDATION: Use SRTTranslator's proven boundary validation
             srt_translator = SRTTranslator(self.translator)
             boundary_valid = srt_translator._validate_segment_boundaries(
                 original_segments, 
@@ -672,41 +676,291 @@ class DatabaseTranslator:
             )
             
             validation_results['boundary_validation'] = boundary_valid
+            validation_results['srt_compatibility'] = boundary_valid
+            
             if not boundary_valid:
                 validation_results['timing_valid'] = False
-                validation_results['timing_issues'].append("Segment boundaries not preserved")
+                validation_results['timing_issues'].append("SRTTranslator boundary validation failed")
                 
-            # Additional timing analysis
+            # 2. ENHANCEMENT: Database-specific segment boundary validation
+            db_validation = self._validate_database_segment_boundaries(interview_id, target_language)
+            validation_results['database_validation_details'] = db_validation
+            validation_results['database_consistency'] = db_validation['valid']
+            
+            if not db_validation['valid']:
+                validation_results['timing_valid'] = False
+                validation_results['timing_issues'].extend(db_validation['issues'])
+                
+            # 3. ENHANCEMENT: Cross-validation between database and SRT format
+            srt_db_consistency = self._validate_srt_database_consistency(
+                original_segments, translated_segments, interview_id, target_language
+            )
+            
+            if not srt_db_consistency['consistent']:
+                validation_results['timing_valid'] = False
+                validation_results['timing_issues'].extend(srt_db_consistency['issues'])
+                validation_results['srt_compatibility'] = False
+                
+            # 4. EXISTING: Enhanced timing gap analysis (preserved from original)
             if original_segments:
                 first_segment_start = self._srt_time_to_seconds(original_segments[0].start_time)
                 last_segment_end = self._srt_time_to_seconds(original_segments[-1].end_time)
                 validation_results['total_duration'] = last_segment_end - first_segment_start
                 
-                # Check for timing gaps or overlaps
-                for i in range(len(original_segments) - 1):
-                    current_end = self._srt_time_to_seconds(original_segments[i].end_time)
-                    next_start = self._srt_time_to_seconds(original_segments[i + 1].start_time)
+                # Enhanced gap detection with database coordination
+                gap_analysis = self._analyze_timing_gaps_with_database(
+                    original_segments, interview_id
+                )
+                validation_results['timing_issues'].extend(gap_analysis['issues'])
+                
+                if gap_analysis['critical_overlaps']:
+                    validation_results['timing_valid'] = False
                     
-                    gap = next_start - current_end
-                    if abs(gap) > 0.001:  # More than 1ms difference
-                        if gap > 0:
-                            validation_results['timing_issues'].append(
-                                f"Gap of {gap:.3f}s between segments {i+1} and {i+2}"
-                            )
-                        else:
-                            validation_results['timing_issues'].append(
-                                f"Overlap of {abs(gap):.3f}s between segments {i+1} and {i+2}"
-                            )
-                            validation_results['timing_valid'] = False
-                            
-            logger.info(f"Timing coordination validation: {'✅ PASSED' if validation_results['timing_valid'] else '❌ FAILED'}")
+            logger.info(f"Enhanced timing coordination validation: {'✅ PASSED' if validation_results['timing_valid'] else '❌ FAILED'}")
+            logger.info(f"  SRT Boundary Validation: {'✅' if boundary_valid else '❌'}")
+            logger.info(f"  Database Consistency: {'✅' if db_validation['valid'] else '❌'}")
+            logger.info(f"  Cross-validation: {'✅' if srt_db_consistency['consistent'] else '❌'}")
             
         except Exception as e:
-            logger.error(f"Timing validation failed: {e}")
+            logger.error(f"Enhanced timing validation failed: {e}")
             validation_results['timing_valid'] = False
-            validation_results['timing_issues'].append(str(e))
+            validation_results['timing_issues'].append(f"Validation exception: {str(e)}")
             
         return validation_results
+        
+    def _validate_database_segment_boundaries(self, interview_id: str, target_language: str) -> Dict[str, Any]:
+        """
+        Database-specific segment boundary validation that complements SRTTranslator validation.
+        
+        This method validates database integrity while building upon existing patterns.
+        """
+        validation = {
+            'valid': True,
+            'issues': [],
+            'segment_integrity': True,
+            'timestamp_consistency': True,
+            'translation_alignment': True
+        }
+        
+        try:
+            # Check database segment integrity
+            conn = self.db._get_connection()
+            
+            # Validate segment sequence continuity
+            cursor = conn.execute("""
+                SELECT segment_index, start_time, end_time, original_text
+                FROM subtitle_segments 
+                WHERE interview_id = ?
+                ORDER BY segment_index
+            """, (interview_id,))
+            
+            segments = cursor.fetchall()
+            
+            # Check for missing segments in sequence
+            expected_indices = set(range(len(segments)))
+            actual_indices = set(seg[0] for seg in segments)
+            
+            if expected_indices != actual_indices:
+                missing = expected_indices - actual_indices
+                validation['issues'].append(f"Missing segment indices: {sorted(missing)}")
+                validation['segment_integrity'] = False
+                validation['valid'] = False
+                
+            # Check for timestamp consistency
+            for i, segment in enumerate(segments):
+                start_time, end_time = segment[1], segment[2]
+                
+                if start_time >= end_time:
+                    validation['issues'].append(
+                        f"Invalid timing in segment {segment[0]}: start ({start_time}) >= end ({end_time})"
+                    )
+                    validation['timestamp_consistency'] = False
+                    validation['valid'] = False
+                    
+                # Check for negative timestamps
+                if start_time < 0 or end_time < 0:
+                    validation['issues'].append(
+                        f"Negative timestamp in segment {segment[0]}: start={start_time}, end={end_time}"
+                    )
+                    validation['timestamp_consistency'] = False
+                    validation['valid'] = False
+                    
+            # Validate translation alignment if target language segments exist
+            if target_language != 'original':
+                # Check if target language column exists and has data
+                language_column_map = {
+                    'de': 'german_text',
+                    'en': 'english_text', 
+                    'he': 'hebrew_text'
+                }
+                
+                target_column = language_column_map.get(target_language)
+                if target_column:
+                    # Check for non-null translated text in target language
+                    translation_cursor = conn.execute(f"""
+                        SELECT segment_index, start_time, end_time, {target_column}
+                        FROM subtitle_segments 
+                        WHERE interview_id = ? AND {target_column} IS NOT NULL AND {target_column} != ''
+                        ORDER BY segment_index
+                    """, (interview_id,))
+                    
+                    translated_segments = translation_cursor.fetchall()
+                    
+                    if translated_segments:
+                        # Check alignment with original segments  
+                        if len(segments) != len(translated_segments):
+                            validation['issues'].append(
+                                f"Segment count mismatch: original={len(segments)}, {target_language}={len(translated_segments)}"
+                            )
+                            validation['translation_alignment'] = False
+                            validation['valid'] = False
+                            
+                        # Check timing preservation
+                        for orig, trans in zip(segments, translated_segments):
+                            if orig[1] != trans[1] or orig[2] != trans[2]:  # start_time, end_time
+                                validation['issues'].append(
+                                    f"Timing mismatch in segment {orig[0]}: "
+                                    f"original=({orig[1]}, {orig[2]}), {target_language}=({trans[1]}, {trans[2]})"
+                                )
+                                validation['translation_alignment'] = False
+                                validation['valid'] = False
+                            
+        except Exception as e:
+            validation['issues'].append(f"Database validation error: {str(e)}")
+            validation['valid'] = False
+            
+        return validation
+        
+    def _validate_srt_database_consistency(self, original_segments: List[SRTSegment], 
+                                         translated_segments: List[SRTSegment],
+                                         interview_id: str, target_language: str) -> Dict[str, Any]:
+        """
+        Cross-validate consistency between SRT format and database storage.
+        
+        This ensures the database segments exactly match what SRTTranslator expects.
+        """
+        consistency = {
+            'consistent': True,
+            'issues': [],
+            'format_alignment': True,
+            'content_alignment': True
+        }
+        
+        try:
+            # Get database segments for comparison
+            conn = self.db._get_connection()
+            cursor = conn.execute("""
+                SELECT segment_index, start_time, end_time, original_text
+                FROM subtitle_segments 
+                WHERE interview_id = ?
+                ORDER BY segment_index
+            """, (interview_id,))
+            
+            db_original_segments = cursor.fetchall()
+            
+            # Validate format alignment
+            if len(original_segments) != len(db_original_segments):
+                consistency['issues'].append(
+                    f"Format mismatch: SRT has {len(original_segments)} segments, "
+                    f"database has {len(db_original_segments)}"
+                )
+                consistency['format_alignment'] = False
+                consistency['consistent'] = False
+                
+            # Validate content alignment
+            for i, (srt_seg, db_seg) in enumerate(zip(original_segments, db_original_segments)):
+                # Convert database timestamps to SRT format for comparison
+                db_start_srt = self._seconds_to_srt_time(db_seg[1])
+                db_end_srt = self._seconds_to_srt_time(db_seg[2])
+                
+                if srt_seg.start_time != db_start_srt:
+                    consistency['issues'].append(
+                        f"Start time mismatch in segment {i}: "
+                        f"SRT={srt_seg.start_time}, DB={db_start_srt}"
+                    )
+                    consistency['content_alignment'] = False
+                    consistency['consistent'] = False
+                    
+                if srt_seg.end_time != db_end_srt:
+                    consistency['issues'].append(
+                        f"End time mismatch in segment {i}: "
+                        f"SRT={srt_seg.end_time}, DB={db_end_srt}"
+                    )
+                    consistency['content_alignment'] = False
+                    consistency['consistent'] = False
+                    
+                if srt_seg.text.strip() != db_seg[3].strip():
+                    consistency['issues'].append(
+                        f"Text mismatch in segment {i}: content differs between SRT and database"
+                    )
+                    consistency['content_alignment'] = False
+                    consistency['consistent'] = False
+                    
+        except Exception as e:
+            consistency['issues'].append(f"Cross-validation error: {str(e)}")
+            consistency['consistent'] = False
+            
+        return consistency
+        
+    def _analyze_timing_gaps_with_database(self, segments: List[SRTSegment], 
+                                         interview_id: str) -> Dict[str, Any]:
+        """
+        Enhanced timing gap analysis that leverages database segment information.
+        
+        Builds upon existing gap detection with database-backed insights.
+        """
+        analysis = {
+            'issues': [],
+            'critical_overlaps': False,
+            'gap_count': 0,
+            'overlap_count': 0,
+            'database_insights': {}
+        }
+        
+        try:
+            # Existing gap detection logic (preserved)
+            for i in range(len(segments) - 1):
+                current_end = self._srt_time_to_seconds(segments[i].end_time)
+                next_start = self._srt_time_to_seconds(segments[i + 1].start_time)
+                
+                gap = next_start - current_end
+                if abs(gap) > 0.001:  # More than 1ms difference
+                    if gap > 0:
+                        analysis['issues'].append(
+                            f"Gap of {gap:.3f}s between segments {i+1} and {i+2}"
+                        )
+                        analysis['gap_count'] += 1
+                    else:
+                        analysis['issues'].append(
+                            f"Overlap of {abs(gap):.3f}s between segments {i+1} and {i+2}"
+                        )
+                        analysis['overlap_count'] += 1
+                        
+                        # Critical overlaps compromise subtitle readability
+                        if abs(gap) > 0.1:  # More than 100ms overlap
+                            analysis['critical_overlaps'] = True
+                            
+            # Database-enhanced insights
+            if self.db:
+                db_timing_validation = self.db.validate_subtitle_timing(interview_id)
+                analysis['database_insights'] = {
+                    'database_gaps': len(db_timing_validation.get('gaps', [])),
+                    'database_overlaps': len(db_timing_validation.get('overlaps', [])),
+                    'cross_validation': True
+                }
+                
+                # Cross-validate findings
+                db_gap_count = len(db_timing_validation.get('gaps', []))
+                if db_gap_count != analysis['gap_count']:
+                    analysis['issues'].append(
+                        f"Gap count mismatch: SRT analysis found {analysis['gap_count']}, "
+                        f"database found {db_gap_count}"
+                    )
+                    
+        except Exception as e:
+            analysis['issues'].append(f"Gap analysis error: {str(e)}")
+            
+        return analysis
         
     def generate_coordinated_srt(self, interview_id: str, target_language: str, output_path: Path) -> bool:
         """

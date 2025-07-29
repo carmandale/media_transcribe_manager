@@ -23,7 +23,7 @@ These are the tasks to be completed for the spec detailed in @.agent-os/specs/20
   - [x] 2.5 Add fallback handling that maintains current behavior when timestamps unavailable
   - [x] 2.6 Verify enhanced integration doesn't break existing transcription functionality
 
-- [ ] 3. Database-Coordinated Translation (Leverage Existing Quality)
+- [x] 3. Database-Coordinated Translation (Leverage Existing Quality)
   - [x] 3.1 Extend existing batch language detection tests (83% coverage) for segment coordination
   - [x] 3.2 Integrate database segments with existing DeepL translation workflow
   - [x] 3.3 Preserve existing OpenAI Hebrew translation quality while adding segment storage
@@ -34,7 +34,7 @@ These are the tasks to be completed for the spec detailed in @.agent-os/specs/20
 - [ ] 4. Integrate with SRTTranslator Core (Build Upon Proven Foundation)
   - [x] 4.1 Extend existing SRTTranslator tests (67% coverage) for database segment integration
   - [x] 4.2 Coordinate database segments with existing SRT generation logic (preserve timing validation)
-  - [ ] 4.3 Build upon existing segment boundary validation rather than replacing
+  - [x] 4.3 Build upon existing segment boundary validation rather than replacing
   - [ ] 4.4 Enhance existing quality framework with database-backed metrics
   - [ ] 4.5 Integrate database segments with proven timing accuracy mechanisms
   - [ ] 4.6 Verify all SRTTranslator functionality preserved while adding database coordination

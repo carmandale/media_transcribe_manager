@@ -1441,3 +1441,126 @@ class TestTimingCoordination:
             assert validation['timing_valid'] == True
         
         db.close()
+
+    @pytest.mark.unit
+    @pytest.mark.database
+    def test_enhanced_segment_boundary_validation(self, temp_dir):
+        """Test enhanced boundary validation that builds upon SRTTranslator validation."""
+        db_path = temp_dir / "test_enhanced_boundary.db"
+        db = Database(db_path)
+        db._migrate_to_subtitle_segments()
+        
+        # Create interview
+        interview_id = db.add_file("/test/enhanced_boundary.mp4", "enhanced_boundary_mp4", "video")
+        
+        # Add segments with perfect timing coordination
+        segments = [
+            (0, 0.0, 2.5, 'Hello world.', 'Hallo Welt.'),
+            (1, 2.5, 5.0, 'How are you?', 'Wie geht es dir?'),
+            (2, 5.0, 7.5, 'Good morning.', 'Guten Morgen.')
+        ]
+        
+        for idx, start, end, original, german in segments:
+            db.add_subtitle_segment(
+                interview_id=interview_id,
+                segment_index=idx,
+                start_time=start,
+                end_time=end,
+                original_text=original,
+                english_text=original,  # Using original as English for this test
+                german_text=german
+            )
+        
+        # Test enhanced validation that builds upon SRTTranslator
+        db_translator = DatabaseTranslator(db)
+        
+        # Mock SRTTranslator to verify it's still being used as foundation
+        with patch('scribe.database_translation.SRTTranslator') as mock_srt_class:
+            mock_srt_instance = Mock()
+            mock_srt_instance._validate_segment_boundaries.return_value = True
+            mock_srt_class.return_value = mock_srt_instance
+            
+            validation = db_translator.validate_timing_coordination(interview_id, 'de')
+            
+            # Verify SRTTranslator foundation is preserved
+            mock_srt_class.assert_called_once_with(db_translator.translator)
+            mock_srt_instance._validate_segment_boundaries.assert_called_once()
+            
+            # Verify enhanced validation results
+            assert validation['timing_valid'] == True
+            assert validation['boundary_validation'] == True  # SRTTranslator validation
+            assert validation['database_consistency'] == True  # Enhanced database validation
+            assert validation['srt_compatibility'] == True     # Cross-validation
+            assert 'database_validation_details' in validation
+            
+            # Verify database-specific validation details
+            db_details = validation['database_validation_details']
+            assert db_details['valid'] == True
+            assert db_details['segment_integrity'] == True
+            assert db_details['timestamp_consistency'] == True
+            assert db_details['translation_alignment'] == True
+            
+        db.close()
+
+    @pytest.mark.unit
+    @pytest.mark.database
+    def test_enhanced_validation_catches_database_issues(self, temp_dir):
+        """Test that enhanced validation detects database-specific issues while preserving SRT validation."""
+        db_path = temp_dir / "test_validation_issues.db"
+        db = Database(db_path)
+        db._migrate_to_subtitle_segments()
+        
+        # Create interview
+        interview_id = db.add_file("/test/validation_issues.mp4", "validation_issues_mp4", "video")
+        
+        # Add segments with database integrity issues
+        segments = [
+            (0, 0.0, 2.0, 'First segment.', 'Erstes Segment.'),
+            # Missing segment index 1 - creates database integrity issue
+            (2, 4.0, 6.0, 'Third segment.', 'Drittes Segment.'),  # Gap in timing
+            (3, 5.5, 7.0, 'Fourth segment.', 'Viertes Segment.')  # Overlap with previous
+        ]
+        
+        for idx, start, end, original, german in segments:
+            db.add_subtitle_segment(
+                interview_id=interview_id,
+                segment_index=idx,
+                start_time=start,
+                end_time=end,
+                original_text=original,
+                english_text=original,
+                german_text=german
+            )
+        
+        # Test that enhanced validation catches database issues
+        db_translator = DatabaseTranslator(db)
+        
+        # Mock SRTTranslator to pass boundary validation (testing database-specific detection)
+        with patch('scribe.database_translation.SRTTranslator') as mock_srt_class:
+            mock_srt_instance = Mock()
+            mock_srt_instance._validate_segment_boundaries.return_value = True
+            mock_srt_class.return_value = mock_srt_instance
+            
+            validation = db_translator.validate_timing_coordination(interview_id, 'de')
+            
+            # SRTTranslator validation should still be called (foundation preserved)
+            mock_srt_class.assert_called_once()
+            
+            # Enhanced validation should detect database issues
+            assert validation['timing_valid'] == False  # Overall validation fails
+            assert validation['boundary_validation'] == True  # SRT validation passes
+            assert validation['database_consistency'] == False  # Database validation fails
+            
+            # Verify specific database issues are detected
+            db_details = validation['database_validation_details']
+            assert db_details['valid'] == False
+            assert db_details['segment_integrity'] == False  # Missing segment detected
+            assert 'Missing segment indices: [1]' in str(db_details['issues'])
+            
+            # Verify timing issues are detected
+            timing_issues = validation['timing_issues']
+            assert len(timing_issues) > 0
+            assert any('Gap of' in issue for issue in timing_issues)
+            assert any('Overlap of' in issue for issue in timing_issues)
+            
+        db.close()
