@@ -67,6 +67,24 @@ Logs processing errors for debugging.
 | error_details | TEXT | Detailed error information |
 | timestamp | TIMESTAMP | When error occurred |
 
+### 5. subtitle_segments
+Stores word-level subtitle segments with precise timestamps for each interview.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | INTEGER PRIMARY KEY | Auto-incrementing ID |
+| interview_id | TEXT NOT NULL | Foreign key to media_files |
+| segment_index | INTEGER NOT NULL | Sequential segment number |
+| start_time | REAL NOT NULL | Start time in seconds |
+| end_time | REAL NOT NULL | End time in seconds |
+| duration | REAL GENERATED | Calculated duration (end_time - start_time) |
+| original_text | TEXT NOT NULL | Original transcribed text |
+| german_text | TEXT | German translation |
+| english_text | TEXT | English translation |
+| hebrew_text | TEXT | Hebrew translation |
+| confidence_score | REAL | Transcription confidence (0-1) |
+| processing_timestamp | DATETIME | When segment was processed |
+
 ## Current Data Summary
 
 As of the last assessment:
