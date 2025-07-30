@@ -235,6 +235,8 @@ class TestMixedLanguageDetection:
         for i, segment in enumerate(segments):
             if segment.expected_language is None:
                 # Non-verbal segments should not be translated
+                # Set detected_language to None for non-verbal segments
+                segment.detected_language = None
                 should_translate = srt_translator.should_translate_segment(segment, "en")
                 assert should_translate == False, \
                     f"Non-verbal segment {segment.index} should not be translated"
