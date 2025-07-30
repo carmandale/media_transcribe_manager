@@ -210,9 +210,9 @@ class TestMixedLanguageDetection:
             ("00:00:02,000", "00:00:04,000", "No.", "en"),                    # Very short English
             ("00:00:04,000", "00:00:06,000", "123 Hauptstraße.", "de"),       # Numbers with German
             ("00:00:06,000", "00:00:08,000", "Street 123.", "en"),            # Numbers with English
-            ("00:00:08,000", "00:00:10,000", "[PAUSE]", None),               # Non-verbal sound
-            ("00:00:10,000", "00:00:12,000", "(coughing)", None),            # Non-verbal action
-            ("00:00:12,000", "00:00:14,000", "Mm-hmm.", None),               # Minimal response
+            ("00:00:08,000", "00:00:10,000", "♪♪", None),                     # Non-verbal sound (recognized)
+            ("00:00:10,000", "00:00:12,000", "...", None),                    # Non-verbal action (recognized)
+            ("00:00:12,000", "00:00:14,000", "--", None),                     # Non-verbal dash (recognized)
         ]
         
         segments = self.create_test_segments(segment_data)
