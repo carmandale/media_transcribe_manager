@@ -1,11 +1,11 @@
 # Database Schema Documentation
 
 **Database**: SQLite (`media_tracking.db`)  
-**Last Updated**: 2025-06-15
+**Last Updated**: 2025-07-30
 
 ## Overview
 
-The Scribe system uses SQLite with four main tables to track media files, processing status, quality evaluations, and errors. The database uses thread-safe connection pooling for concurrent operations.
+The Scribe system uses SQLite with five main tables to track media files, processing status, subtitle segments, quality evaluations, and errors. The database uses thread-safe connection pooling for concurrent operations. The subtitle-first architecture stores word-level segments with precise timestamps for improved synchronization.
 
 ## Tables
 
