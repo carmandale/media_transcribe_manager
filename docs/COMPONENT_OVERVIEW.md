@@ -45,20 +45,22 @@ This document provides a detailed overview of how all Scribe components interact
 - → `Utils`: File operations
 
 ### 3. Transcription Engine (`scribe/transcribe.py`)
-**Purpose**: Convert audio/video to text using ElevenLabs
+**Purpose**: Convert audio/video to text using ElevenLabs with word-level timestamps
 **Key Functions**:
-- `transcribe_file()`: Main transcription function
-- `generate_srt()`: Create subtitle files
+- `transcribe_file()`: Main transcription function with segment extraction
+- `generate_srt()`: Create subtitle files from database segments
 - `validate_transcription()`: Quality checks
+- `store_segments()`: Store word-level segments in database
 
 **External Dependencies**:
-- ElevenLabs Scribe API
+- ElevenLabs Scribe API (with word timestamps)
 - FFmpeg for audio processing
 
 **Interactions**:
 - ← `Pipeline`: Receives transcription requests
-- → `Database`: Updates transcription status
+- → `Database`: Stores subtitle segments with timestamps
 - → `Utils`: File I/O operations
+- → `DatabaseTranslation`: Coordinates segment storage
 
 ### 4. Translation Engine (`scribe/translate.py`)
 **Purpose**: Multi-language translation with provider routing
