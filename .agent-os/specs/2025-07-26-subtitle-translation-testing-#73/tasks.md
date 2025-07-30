@@ -22,13 +22,13 @@ These are the tasks to be completed for the spec detailed in @.agent-os/specs/20
   - [x] 2.5 Test handling of segments with multiple language switches
   - [x] 2.6 Verify all mixed-language tests pass
 
-- [ ] 3. Implement Edge Case and Error Handling Tests
-  - [ ] 3.1 Write tests for malformed subtitle files and invalid formats
-  - [ ] 3.2 Create tests for API rate limiting and retry logic
-  - [ ] 3.3 Implement tests for partial translation failures
-  - [ ] 3.4 Add tests for character encoding issues (UTF-8, UTF-16, etc.)
-  - [ ] 3.5 Test handling of empty segments and timing-only entries
-  - [ ] 3.6 Verify all edge case tests pass
+- [x] 3. Implement Edge Case and Error Handling Tests
+  - [x] 3.1 Write tests for malformed subtitle files and invalid formats
+  - [x] 3.2 Create tests for API rate limiting and retry logic
+  - [x] 3.3 Implement tests for partial translation failures
+  - [x] 3.4 Add tests for character encoding issues (UTF-8, UTF-16, etc.)
+  - [x] 3.5 Test handling of empty segments and timing-only entries
+  - [x] 3.6 Verify all edge case tests pass
 
 - [ ] 4. Add Integration and Batch Processing Tests
   - [ ] 4.1 Write integration tests for the complete translation pipeline
