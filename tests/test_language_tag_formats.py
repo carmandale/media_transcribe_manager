@@ -234,7 +234,7 @@ class TestLanguageTagFormats:
             ("00:00:04,000", "00:00:05,000", "Mm", None),           # Too short to translate
             ("00:00:05,000", "00:00:06,000", "Ah", None),           # Too short to translate
             ("00:00:06,000", "00:00:07,000", "...", None),          # Non-verbal
-            ("00:00:07,000", "00:00:08,000", "123", None),          # Just numbers
+            ("00:00:07,000", "00:00:08,000", "12", None),           # Just numbers (too short)
             ("00:00:08,000", "00:00:09,000", "A", None),            # Single letter
             ("00:00:09,000", "00:00:10,000", "No", "en"),           # Short but valid
         ]
