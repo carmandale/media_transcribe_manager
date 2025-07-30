@@ -139,6 +139,14 @@ echo "OPENAI_API_KEY=your_key_here" >> .env
 **Cause**: Multiple processes accessing database  
 **Solution**: Wait and retry, or use single process
 
+### "no such table: subtitle_segments"
+**Cause**: Database hasn't been migrated to subtitle-first architecture  
+**Solution**: Run the migration script:
+```bash
+uv run python migrate_to_subtitle_segments.py
+```
+This will create the subtitle_segments table and migrate existing transcript data.
+
 ### Missing Data
 **Solution**: Check database integrity:
 ```bash
