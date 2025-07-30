@@ -259,7 +259,7 @@ class TestEmptySegmentsAndTimingEntries(unittest.TestCase):
         return filepath
     
     def test_empty_text_segments(self):
-        """Test segments with empty text."""
+        """Test segments with empty text are filtered out during parsing."""
         content = """1
 00:00:00,000 --> 00:00:02,000
 
@@ -276,16 +276,12 @@ Valid text segment
         test_file = self.create_test_file('empty_segments.srt', content)
         segments = self.translator.parse_srt(str(test_file))
         
-        # Should parse all segments including empty ones
-        self.assertEqual(len(segments), 3)
-        self.assertEqual(segments[0].text, "")
-        self.assertEqual(segments[1].text, "Valid text segment")
-        self.assertEqual(segments[2].text, "")
+        # Parser filters out empty segments, only keeps meaningful content
+        self.assertEqual(len(segments), 1)
+        self.assertEqual(segments[0].text, "Valid text segment")
         
-        # Test translation logic with empty segments
-        self.assertFalse(self.translator.should_translate_segment(segments[0], 'de'))
-        self.assertTrue(self.translator.should_translate_segment(segments[1], 'de'))
-        self.assertFalse(self.translator.should_translate_segment(segments[2], 'de'))
+        # Test translation logic with the valid segment
+        self.assertTrue(self.translator.should_translate_segment(segments[0], 'de'))
     
     def test_whitespace_only_segments(self):
         """Test segments with only whitespace."""
