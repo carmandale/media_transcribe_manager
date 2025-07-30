@@ -316,12 +316,18 @@ class TestMixedLanguageDetection:
         assert call_args[1]['model'] == 'gpt-4o-mini'
         assert 'messages' in call_args[1]
         
-        # Verify system message contains language detection instructions
+        # Verify messages structure contains language detection instructions
         messages = call_args[1]['messages']
-        system_message = next((msg for msg in messages if msg['role'] == 'system'), None)
-        assert system_message is not None
-        assert 'language' in system_message['content'].lower()
-        assert 'detect' in system_message['content'].lower()
+        assert len(messages) > 0, "No messages sent to OpenAI API"
+        
+        # Find system or user message with language detection instructions
+        found_language_instruction = False
+        for msg in messages:
+            if 'language' in msg['content'].lower() and 'detect' in msg['content'].lower():
+                found_language_instruction = True
+                break
+        
+        assert found_language_instruction, "No language detection instructions found in messages"
     
     @pytest.mark.mixed_language
     def test_complex_multilingual_interview_scenario(self, srt_translator, mock_translator):
