@@ -207,15 +207,25 @@ This document provides a detailed overview of how all Scribe components interact
 
 ## 📊 Data Flow Diagram
 
+### Legacy Flow (File-Based)
 ```
 Input Files → CLI Add → Database → Pipeline → Processing → Output → Manifest → Web Viewer
      ↓           ↓         ↓          ↓           ↓          ↓          ↓          ↓
 [Media]    [file_id]  [pending]  [orchestrate] [APIs]   [results]  [index]   [research]
-     ↓           ↓         ↓          ↓           ↓          ↓          ↓          ↓
-   Local     SQLite    Status    Transcribe   External   Files    JSON      React
-   Files     Record    Track     Translate    Services   System   Index     Interface
-                                Evaluate
 ```
+
+### Subtitle-First Architecture (Database-Coordinated)
+```
+Input Files → CLI Add →    Database    → Pipeline → Processing → Database → SRT Export → Web Viewer
+     ↓           ↓              ↓           ↓           ↓           ↓           ↓           ↓
+[Media]    [file_id]  [subtitle_segments] [coordinate] [APIs]  [segments]  [files]   [research]
+     ↓           ↓              ↓           ↓           ↓           ↓           ↓           ↓
+   Local     SQLite     Word Timestamps  Transcribe  External  Precise     SRT       React
+   Files     Record     Language Columns Translate   Services  Timing    Generation Interface
+                       Quality Metrics   Evaluate              Database
+```
+
+**Key Improvement**: Segments stored in database with precise timestamps, enabling better synchronization and quality control.
 
 ## 🔧 Configuration Components
 
