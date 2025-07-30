@@ -153,9 +153,18 @@ The database uses a thread-local connection pool with:
 
 ## Migration Notes
 
-The current schema differs from what some code expects:
-- Code references a `files` table that doesn't exist
-- Code expects `quality_score_*` columns in a single table
-- Actual schema separates concerns into multiple tables
+### Subtitle-First Architecture Migration (2025-07-30)
+The database has been enhanced with the subtitle-first architecture:
+- New `subtitle_segments` table stores word-level segments with precise timestamps
+- Database views maintain backward compatibility with existing code
+- Existing transcript data is preserved and accessible through views
+- Migration script available: `migrate_to_subtitle_segments.py`
 
-This mismatch is being addressed in the Hebrew Evaluation Fix PRD.
+### Legacy Schema Issues (Resolved)
+Previous schema mismatches have been addressed:
+- The `files` table reference has been corrected to `media_files`
+- Quality scores are properly stored in `quality_evaluations` table
+- All code now uses the correct table structure
+
+### Backward Compatibility
+The `transcripts` view provides seamless access to full transcript text by aggregating segments, ensuring existing code continues to function without modification.
