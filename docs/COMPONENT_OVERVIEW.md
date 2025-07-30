@@ -95,20 +95,28 @@ This document provides a detailed overview of how all Scribe components interact
 - → External: OpenAI GPT-4 for assessment
 
 ### 6. Database Manager (`scribe/database.py`)
-**Purpose**: SQLite operations with connection pooling
+**Purpose**: SQLite operations with connection pooling and subtitle-first architecture
 **Key Classes**:
 - `Database`: Main database interface
-- Connection pooling for thread safety
+- `DatabaseManager`: Connection pooling for thread safety
+- `PipelineDatabaseIntegration`: Subtitle segment coordination
 
 **Key Tables**:
-- `files`: Master file registry
+- `media_files`: Master file registry
 - `processing_status`: Pipeline status tracking
-- `evaluations`: Quality assessment results
+- `subtitle_segments`: Word-level segments with timestamps
+- `quality_evaluations`: Translation quality scores
+- `errors`: Processing error log
+
+**Key Views**:
+- `transcripts`: Backward-compatible full transcript access
+- `segment_quality`: Segment-level quality metrics
 
 **Interactions**:
 - ← All Components: Status updates and queries
 - → `Backup`: Database snapshots
 - → `Audit`: System validation
+- → `SRTTranslator`: Segment-based subtitle generation
 
 ## 🌐 Web Viewer Components
 
