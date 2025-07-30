@@ -63,20 +63,27 @@ This document provides a detailed overview of how all Scribe components interact
 - → `DatabaseTranslation`: Coordinates segment storage
 
 ### 4. Translation Engine (`scribe/translate.py`)
-**Purpose**: Multi-language translation with provider routing
+**Purpose**: Multi-language translation with provider routing and database coordination
 **Key Functions**:
 - `translate_text()`: Main translation function
-- `translate_srt_file()`: Subtitle translation
+- `translate_srt_file()`: Subtitle translation from database segments
 - `validate_hebrew()`: Hebrew-specific validation
+- `DatabaseTranslation.translate_segments()`: Segment-level translation
 
 **Provider Routing**:
 - **English/German**: DeepL (primary) → OpenAI (fallback)
 - **Hebrew**: Microsoft Translator (primary) → OpenAI (fallback)
 
+**Database Integration**:
+- Retrieves segments from `subtitle_segments` table
+- Stores translations directly in segment records
+- Maintains timing precision through database coordination
+
 **Interactions**:
 - ← `Pipeline`: Receives translation requests
-- → `Database`: Updates translation status
+- → `Database`: Updates segment translations
 - → `Evaluate`: Triggers quality assessment
+- → `SRTTranslator`: Generates subtitle files from translated segments
 
 ### 5. Quality Evaluation (`scribe/evaluate.py`)
 **Purpose**: Assess translation quality and authenticity
