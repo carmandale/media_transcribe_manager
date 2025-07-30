@@ -92,10 +92,12 @@ Valid timing format"""
         test_file = self.create_test_file('malformed_format.srt', content)
         segments = self.translator.parse_srt(str(test_file))
         
-        # Should only parse the valid segment
-        self.assertEqual(len(segments), 1)
-        self.assertEqual(segments[0].index, 3)
-        self.assertEqual(segments[0].text, "Valid timing format")
+        # Should parse valid segments (1 and 3) but skip segment 2 with wrong arrow
+        self.assertEqual(len(segments), 2)
+        self.assertEqual(segments[0].index, 1)
+        self.assertEqual(segments[0].text, "Invalid timing format")
+        self.assertEqual(segments[1].index, 3)
+        self.assertEqual(segments[1].text, "Valid timing format")
     
     def test_malformed_srt_non_numeric_index(self):
         """Test SRT file with non-numeric segment indices."""
