@@ -98,12 +98,45 @@ As of the last assessment:
   - English: 58 evaluations (avg score: 8.58)
   - Hebrew: 97 evaluations (avg score: 7.51)
 
+## Database Views
+
+### 1. transcripts
+Provides backward-compatible access to full transcripts by aggregating subtitle segments.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| interview_id | TEXT | Interview identifier |
+| original_transcript | TEXT | Concatenated original text |
+| german_transcript | TEXT | Concatenated German translation |
+| english_transcript | TEXT | Concatenated English translation |
+| hebrew_transcript | TEXT | Concatenated Hebrew translation |
+| total_segments | INTEGER | Number of segments |
+| avg_confidence | REAL | Average confidence score |
+| transcript_start | REAL | First segment start time |
+| transcript_end | REAL | Last segment end time |
+
+### 2. segment_quality
+Provides quality metrics for subtitle segments.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| interview_id | TEXT | Interview identifier |
+| total_segments | INTEGER | Total number of segments |
+| avg_segment_duration | REAL | Average segment length |
+| min_segment_duration | REAL | Shortest segment |
+| max_segment_duration | REAL | Longest segment |
+| avg_confidence | REAL | Average confidence score |
+| low_confidence_segments | INTEGER | Segments with confidence < 0.8 |
+| short_segments | INTEGER | Segments shorter than 1 second |
+| long_segments | INTEGER | Segments longer than 10 seconds |
+
 ## Schema Considerations
 
 ### Foreign Key Relationships
 - `processing_status.file_id` → `media_files.file_id`
 - `quality_evaluations.file_id` → `media_files.file_id`
 - `errors.file_id` → `media_files.file_id`
+- `subtitle_segments.interview_id` → `media_files.file_id`
 
 ### Indexes
 The schema uses default SQLite indexes on primary keys. Additional indexes could be added for:
