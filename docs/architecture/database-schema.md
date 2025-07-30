@@ -139,7 +139,8 @@ Provides quality metrics for subtitle segments.
 - `subtitle_segments.interview_id` → `media_files.file_id`
 
 ### Indexes
-The schema uses default SQLite indexes on primary keys. Additional indexes could be added for:
+The schema uses default SQLite indexes on primary keys. Additional indexes have been created for:
+- `subtitle_segments(interview_id, segment_index)` - For ordered segment retrieval
 - `processing_status.transcription_status`
 - `processing_status.translation_*_status`
 - `quality_evaluations.language`
