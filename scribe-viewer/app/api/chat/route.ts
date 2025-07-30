@@ -57,16 +57,25 @@ interface SourceSummary {
 class ChatEngine {
 	private searchEngine: any;
 	private interviews: Interview[] = [];
+	private initialized: boolean = false;
 
 	constructor() {
-		this.loadInterviews();
+		// Don't call async function in constructor
 	}
 
 	private async loadInterviews() {
+		if (this.initialized) return;
+
 		try {
-			const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/manifest.min.json`);
-			this.interviews = await response.json();
+			// Read manifest file directly from filesystem in API route
+			const fs = await import('fs');
+			const path = await import('path');
+			
+			const manifestPath = path.join(process.cwd(), 'public', 'manifest.min.json');
+			const manifestData = fs.readFileSync(manifestPath, 'utf8');
+			this.interviews = JSON.parse(manifestData);
 			this.searchEngine = getSearchEngine(this.interviews);
+			this.initialized = true;
 		} catch (error) {
 			console.error('Failed to load interviews:', error);
 			throw new Error('Failed to initialize chat engine');
