@@ -284,7 +284,7 @@ Valid text segment
         self.assertTrue(self.translator.should_translate_segment(segments[0], 'de'))
     
     def test_whitespace_only_segments(self):
-        """Test segments with only whitespace."""
+        """Test segments with only whitespace are filtered out during parsing."""
         content = """1
 00:00:00,000 --> 00:00:02,000
    
@@ -300,12 +300,12 @@ Valid segment"""
         test_file = self.create_test_file('whitespace_segments.srt', content)
         segments = self.translator.parse_srt(str(test_file))
         
-        self.assertEqual(len(segments), 3)
+        # Parser filters out whitespace-only segments, only keeps meaningful content
+        self.assertEqual(len(segments), 1)
+        self.assertEqual(segments[0].text, "Valid segment")
         
-        # Test that whitespace-only segments are not translated
-        self.assertFalse(self.translator.should_translate_segment(segments[0], 'de'))
-        self.assertFalse(self.translator.should_translate_segment(segments[1], 'de'))
-        self.assertTrue(self.translator.should_translate_segment(segments[2], 'de'))
+        # Test that the valid segment should be translated
+        self.assertTrue(self.translator.should_translate_segment(segments[0], 'de'))
     
     def test_very_short_segments(self):
         """Test very short segments (1-2 characters)."""
