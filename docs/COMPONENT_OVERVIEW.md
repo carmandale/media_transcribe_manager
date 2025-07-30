@@ -45,36 +45,45 @@ This document provides a detailed overview of how all Scribe components interact
 - → `Utils`: File operations
 
 ### 3. Transcription Engine (`scribe/transcribe.py`)
-**Purpose**: Convert audio/video to text using ElevenLabs
+**Purpose**: Convert audio/video to text using ElevenLabs with word-level timestamps
 **Key Functions**:
-- `transcribe_file()`: Main transcription function
-- `generate_srt()`: Create subtitle files
+- `transcribe_file()`: Main transcription function with segment extraction
+- `generate_srt()`: Create subtitle files from database segments
 - `validate_transcription()`: Quality checks
+- `store_segments()`: Store word-level segments in database
 
 **External Dependencies**:
-- ElevenLabs Scribe API
+- ElevenLabs Scribe API (with word timestamps)
 - FFmpeg for audio processing
 
 **Interactions**:
 - ← `Pipeline`: Receives transcription requests
-- → `Database`: Updates transcription status
+- → `Database`: Stores subtitle segments with timestamps
 - → `Utils`: File I/O operations
+- → `DatabaseTranslation`: Coordinates segment storage
 
 ### 4. Translation Engine (`scribe/translate.py`)
-**Purpose**: Multi-language translation with provider routing
+**Purpose**: Multi-language translation with provider routing and database coordination
 **Key Functions**:
 - `translate_text()`: Main translation function
-- `translate_srt_file()`: Subtitle translation
+- `translate_srt_file()`: Subtitle translation from database segments
 - `validate_hebrew()`: Hebrew-specific validation
+- `DatabaseTranslation.translate_segments()`: Segment-level translation
 
 **Provider Routing**:
 - **English/German**: DeepL (primary) → OpenAI (fallback)
 - **Hebrew**: Microsoft Translator (primary) → OpenAI (fallback)
 
+**Database Integration**:
+- Retrieves segments from `subtitle_segments` table
+- Stores translations directly in segment records
+- Maintains timing precision through database coordination
+
 **Interactions**:
 - ← `Pipeline`: Receives translation requests
-- → `Database`: Updates translation status
+- → `Database`: Updates segment translations
 - → `Evaluate`: Triggers quality assessment
+- → `SRTTranslator`: Generates subtitle files from translated segments
 
 ### 5. Quality Evaluation (`scribe/evaluate.py`)
 **Purpose**: Assess translation quality and authenticity
@@ -95,20 +104,28 @@ This document provides a detailed overview of how all Scribe components interact
 - → External: OpenAI GPT-4 for assessment
 
 ### 6. Database Manager (`scribe/database.py`)
-**Purpose**: SQLite operations with connection pooling
+**Purpose**: SQLite operations with connection pooling and subtitle-first architecture
 **Key Classes**:
 - `Database`: Main database interface
-- Connection pooling for thread safety
+- `DatabaseManager`: Connection pooling for thread safety
+- `PipelineDatabaseIntegration`: Subtitle segment coordination
 
 **Key Tables**:
-- `files`: Master file registry
+- `media_files`: Master file registry
 - `processing_status`: Pipeline status tracking
-- `evaluations`: Quality assessment results
+- `subtitle_segments`: Word-level segments with timestamps
+- `quality_evaluations`: Translation quality scores
+- `errors`: Processing error log
+
+**Key Views**:
+- `transcripts`: Backward-compatible full transcript access
+- `segment_quality`: Segment-level quality metrics
 
 **Interactions**:
 - ← All Components: Status updates and queries
 - → `Backup`: Database snapshots
 - → `Audit`: System validation
+- → `SRTTranslator`: Segment-based subtitle generation
 
 ## 🌐 Web Viewer Components
 
@@ -190,15 +207,25 @@ This document provides a detailed overview of how all Scribe components interact
 
 ## 📊 Data Flow Diagram
 
+### Legacy Flow (File-Based)
 ```
 Input Files → CLI Add → Database → Pipeline → Processing → Output → Manifest → Web Viewer
      ↓           ↓         ↓          ↓           ↓          ↓          ↓          ↓
 [Media]    [file_id]  [pending]  [orchestrate] [APIs]   [results]  [index]   [research]
-     ↓           ↓         ↓          ↓           ↓          ↓          ↓          ↓
-   Local     SQLite    Status    Transcribe   External   Files    JSON      React
-   Files     Record    Track     Translate    Services   System   Index     Interface
-                                Evaluate
 ```
+
+### Subtitle-First Architecture (Database-Coordinated)
+```
+Input Files → CLI Add →    Database    → Pipeline → Processing → Database → SRT Export → Web Viewer
+     ↓           ↓              ↓           ↓           ↓           ↓           ↓           ↓
+[Media]    [file_id]  [subtitle_segments] [coordinate] [APIs]  [segments]  [files]   [research]
+     ↓           ↓              ↓           ↓           ↓           ↓           ↓           ↓
+   Local     SQLite     Word Timestamps  Transcribe  External  Precise     SRT       React
+   Files     Record     Language Columns Translate   Services  Timing    Generation Interface
+                       Quality Metrics   Evaluate              Database
+```
+
+**Key Improvement**: Segments stored in database with precise timestamps, enabling better synchronization and quality control.
 
 ## 🔧 Configuration Components
 

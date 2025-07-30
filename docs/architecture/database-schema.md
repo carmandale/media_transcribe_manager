@@ -1,11 +1,11 @@
 # Database Schema Documentation
 
 **Database**: SQLite (`media_tracking.db`)  
-**Last Updated**: 2025-06-15
+**Last Updated**: 2025-07-30
 
 ## Overview
 
-The Scribe system uses SQLite with four main tables to track media files, processing status, quality evaluations, and errors. The database uses thread-safe connection pooling for concurrent operations.
+The Scribe system uses SQLite with five main tables to track media files, processing status, subtitle segments, quality evaluations, and errors. The database uses thread-safe connection pooling for concurrent operations. The subtitle-first architecture stores word-level segments with precise timestamps for improved synchronization.
 
 ## Tables
 
@@ -67,6 +67,24 @@ Logs processing errors for debugging.
 | error_details | TEXT | Detailed error information |
 | timestamp | TIMESTAMP | When error occurred |
 
+### 5. subtitle_segments
+Stores word-level subtitle segments with precise timestamps for each interview.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | INTEGER PRIMARY KEY | Auto-incrementing ID |
+| interview_id | TEXT NOT NULL | Foreign key to media_files |
+| segment_index | INTEGER NOT NULL | Sequential segment number |
+| start_time | REAL NOT NULL | Start time in seconds |
+| end_time | REAL NOT NULL | End time in seconds |
+| duration | REAL GENERATED | Calculated duration (end_time - start_time) |
+| original_text | TEXT NOT NULL | Original transcribed text |
+| german_text | TEXT | German translation |
+| english_text | TEXT | English translation |
+| hebrew_text | TEXT | Hebrew translation |
+| confidence_score | REAL | Transcription confidence (0-1) |
+| processing_timestamp | DATETIME | When segment was processed |
+
 ## Current Data Summary
 
 As of the last assessment:
@@ -80,15 +98,49 @@ As of the last assessment:
   - English: 58 evaluations (avg score: 8.58)
   - Hebrew: 97 evaluations (avg score: 7.51)
 
+## Database Views
+
+### 1. transcripts
+Provides backward-compatible access to full transcripts by aggregating subtitle segments.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| interview_id | TEXT | Interview identifier |
+| original_transcript | TEXT | Concatenated original text |
+| german_transcript | TEXT | Concatenated German translation |
+| english_transcript | TEXT | Concatenated English translation |
+| hebrew_transcript | TEXT | Concatenated Hebrew translation |
+| total_segments | INTEGER | Number of segments |
+| avg_confidence | REAL | Average confidence score |
+| transcript_start | REAL | First segment start time |
+| transcript_end | REAL | Last segment end time |
+
+### 2. segment_quality
+Provides quality metrics for subtitle segments.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| interview_id | TEXT | Interview identifier |
+| total_segments | INTEGER | Total number of segments |
+| avg_segment_duration | REAL | Average segment length |
+| min_segment_duration | REAL | Shortest segment |
+| max_segment_duration | REAL | Longest segment |
+| avg_confidence | REAL | Average confidence score |
+| low_confidence_segments | INTEGER | Segments with confidence < 0.8 |
+| short_segments | INTEGER | Segments shorter than 1 second |
+| long_segments | INTEGER | Segments longer than 10 seconds |
+
 ## Schema Considerations
 
 ### Foreign Key Relationships
 - `processing_status.file_id` → `media_files.file_id`
 - `quality_evaluations.file_id` → `media_files.file_id`
 - `errors.file_id` → `media_files.file_id`
+- `subtitle_segments.interview_id` → `media_files.file_id`
 
 ### Indexes
-The schema uses default SQLite indexes on primary keys. Additional indexes could be added for:
+The schema uses default SQLite indexes on primary keys. Additional indexes have been created for:
+- `subtitle_segments(interview_id, segment_index)` - For ordered segment retrieval
 - `processing_status.transcription_status`
 - `processing_status.translation_*_status`
 - `quality_evaluations.language`
@@ -101,9 +153,18 @@ The database uses a thread-local connection pool with:
 
 ## Migration Notes
 
-The current schema differs from what some code expects:
-- Code references a `files` table that doesn't exist
-- Code expects `quality_score_*` columns in a single table
-- Actual schema separates concerns into multiple tables
+### Subtitle-First Architecture Migration (2025-07-30)
+The database has been enhanced with the subtitle-first architecture:
+- New `subtitle_segments` table stores word-level segments with precise timestamps
+- Database views maintain backward compatibility with existing code
+- Existing transcript data is preserved and accessible through views
+- Migration script available: `migrate_to_subtitle_segments.py`
 
-This mismatch is being addressed in the Hebrew Evaluation Fix PRD.
+### Legacy Schema Issues (Resolved)
+Previous schema mismatches have been addressed:
+- The `files` table reference has been corrected to `media_files`
+- Quality scores are properly stored in `quality_evaluations` table
+- All code now uses the correct table structure
+
+### Backward Compatibility
+The `transcripts` view provides seamless access to full transcript text by aggregating segments, ensuring existing code continues to function without modification.
