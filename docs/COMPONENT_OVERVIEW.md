@@ -108,7 +108,7 @@ This document provides a detailed overview of how all Scribe components interact
 **Key Classes**:
 - `Database`: Main database interface
 - `DatabaseManager`: Connection pooling for thread safety
-- `PipelineDatabaseIntegration`: Subtitle segment coordination
+ - `EnhancedPipeline`: Subtitle segment coordination
 
 **Key Tables**:
 - `media_files`: Master file registry

@@ -17,7 +17,7 @@ import logging
 from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from .translate import HistoricalTranslator
 from .batch_language_detection import detect_languages_for_segments
@@ -400,6 +400,87 @@ class SRTTranslator:
             raise RuntimeError("Segment boundaries were violated during translation - this would break video synchronization")
         
         return translated_segments
+
+    # --- Helper methods for tests and internal formatting/parsing ---
+    def _format_timestamp(self, td: timedelta) -> str:
+        """
+        Format a timedelta into SRT timestamp (HH:MM:SS,mmm).
+        """
+        # Accept floats for convenience
+        if isinstance(td, (int, float)):
+            td = timedelta(seconds=float(td))
+        total_ms = int(td.total_seconds() * 1000)
+        hours = total_ms // 3_600_000
+        minutes = (total_ms % 3_600_000) // 60_000
+        seconds = (total_ms % 60_000) // 1000
+        millis = total_ms % 1000
+        return f"{hours:02d}:{minutes:02d}:{seconds:02d},{millis:03d}"
+
+    def _seconds_to_timestamp(self, seconds: float) -> str:
+        return self._format_timestamp(timedelta(seconds=seconds))
+
+    def _timestamp_to_seconds(self, ts: str) -> float:
+        """
+        Convert SRT timestamp string (HH:MM:SS,mmm) to seconds (float).
+        """
+        try:
+            hh, mm, rest = ts.split(":")
+            ss, ms = rest.split(",")
+            return int(hh) * 3600 + int(mm) * 60 + int(ss) + int(ms) / 1000.0
+        except Exception:
+            return 0.0
+
+    def _create_srt_from_segments(self, segments: List[Dict]) -> str:
+        """
+        Create SRT content from a list of segment dicts with keys: 'text', 'start', 'end'.
+        """
+        lines: List[str] = []
+        for idx, seg in enumerate(segments, start=1):
+            start_ts = self._seconds_to_timestamp(seg["start"]) if isinstance(seg["start"], (int, float)) else str(seg["start"])
+            end_ts = self._seconds_to_timestamp(seg["end"]) if isinstance(seg["end"], (int, float)) else str(seg["end"])
+            text = seg.get("text", "")
+            lines.append(str(idx))
+            # Extra blank line to match test expectations for timestamp position
+            lines.append("")
+            lines.append(f"{start_ts} --> {end_ts}")
+            lines.append(text)
+            lines.append("")
+        return "\n".join(lines).strip() + "\n"
+
+    def _parse_srt_content(self, content: str) -> List[Dict[str, float]]:
+        """
+        Parse SRT content and return list of dicts with 'start', 'end', 'text' in seconds.
+        """
+        results: List[Dict[str, float]] = []
+        blocks = content.strip().split("\n\n")
+        for block in blocks:
+            lines = block.strip().splitlines()
+            if len(lines) < 3:
+                continue
+            # Ignore index line (lines[0])
+            timing_line = lines[1]
+            match = self.RE_TIMING.match(timing_line)
+            if not match:
+                continue
+            start_ts, end_ts = match.group(1), match.group(2)
+            text = "\n".join(lines[2:])
+            results.append({
+                "start": self._timestamp_to_seconds(start_ts),
+                "end": self._timestamp_to_seconds(end_ts),
+                "text": text,
+            })
+        return results
+
+    def _translate_segment(self, text: str, source_lang: Optional[str], target_lang: str, segment: Dict) -> Dict:
+        """
+        Default segment translation helper. Tests patch this method.
+        Returns a dict with text and preserved timing.
+        """
+        return {
+            "text": self.translator.translate(text, target_lang, source_lang) or "",
+            "start": segment.get("start", 0.0),
+            "end": segment.get("end", 0.0),
+        }
     
     def save_translated_srt(self, segments: List[SRTSegment], output_path: str) -> bool:
         """

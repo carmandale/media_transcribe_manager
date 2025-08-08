@@ -13,8 +13,8 @@ from datetime import timedelta
 from unittest.mock import Mock, patch, MagicMock
 
 from scribe.srt_translator import SRTTranslator
-from scribe.database import DatabaseManager
-from scribe.pipeline_database_integration import PipelineDatabaseIntegration
+from scribe.database import Database
+from scribe.pipeline_database_integration import EnhancedPipeline
 
 
 class TestSubtitleSyncCritical:
@@ -138,7 +138,7 @@ class TestSubtitleSyncCritical:
             assert gap >= 0, f"Overlapping segments at language boundary"
             assert gap < 1.0, f"Large gap ({gap}s) at language switch"
     
-    @patch('scribe.database.DatabaseManager')
+    @patch('scribe.database.Database')
     def test_database_segment_timing_integrity(self, mock_db, sample_segments):
         """Test that database storage preserves exact timing."""
         mock_db_instance = Mock()
@@ -148,7 +148,9 @@ class TestSubtitleSyncCritical:
         for segment in sample_segments:
             mock_db_instance.add_subtitle_segment.return_value = True
         
-        pipeline = PipelineDatabaseIntegration(mock_db_instance)
+        pipeline = EnhancedPipeline()
+        # Inject mock db instance for precise call inspection
+        pipeline.db = mock_db_instance
         
         # Simulate storing segments
         interview_id = "test-interview"
