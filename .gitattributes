@@ -1,0 +1,2 @@
+scripts/extracted_transcripts.json filter=lfs diff=lfs merge=lfs -text
+scribe-viewer/public/manifest.min.json filter=lfs diff=lfs merge=lfs -text

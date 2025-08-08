@@ -364,6 +364,35 @@ class EnhancedPipeline(Pipeline):
         # ... (existing implementation)
         
         return result
+
+    # Backward-compatibility helper used by older tests
+    def store_segment(
+        self,
+        interview_id: str,
+        segment_index: int,
+        start_time: float,
+        end_time: float,
+        original_text: str,
+        translated_text: Optional[str] = None,
+        source_language: Optional[str] = None,
+        target_language: Optional[str] = None,
+        confidence_score: Optional[float] = None,
+    ) -> int:
+        """
+        Store a single subtitle segment.
+
+        This is a compatibility layer for older tests that invoked
+        PipelineDatabaseIntegration.store_segment(). It forwards to the
+        database layer without imposing language-specific behavior.
+        """
+        return self.db.add_subtitle_segment(
+            interview_id=interview_id,
+            segment_index=segment_index,
+            start_time=start_time,
+            end_time=end_time,
+            original_text=original_text,
+            confidence_score=confidence_score,
+        )
     
     def get_enhanced_progress_status(self) -> Dict[str, Any]:
         """
