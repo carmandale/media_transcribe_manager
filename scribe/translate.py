@@ -14,6 +14,7 @@ import time
 from typing import Dict, List, Optional, Tuple
 from pathlib import Path
 from functools import wraps
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Optional imports with graceful fallbacks
 try:
@@ -119,15 +120,7 @@ class HistoricalTranslator:
             except Exception as e:
                 logger.error(f"Failed to initialize DeepL: {e}")
         
-        # Microsoft Translator
-        ms_key = self.config.get('ms_translator_key') or os.getenv('MS_TRANSLATOR_KEY')
-        ms_location = self.config.get('ms_location') or os.getenv('MS_TRANSLATOR_LOCATION', 'global')
-        if ms_key and requests:
-            self.providers['microsoft'] = {
-                'api_key': ms_key,
-                'location': ms_location.split()[0].strip() if ms_location and ms_location.strip() else 'global'  # Clean location
-            }
-            logger.info("Microsoft Translator initialized")
+        # Microsoft Translator intentionally disabled in this project
         
         # OpenAI
         openai_key = self.config.get('openai_api_key') or os.getenv('OPENAI_API_KEY')
@@ -176,14 +169,10 @@ class HistoricalTranslator:
         # CRITICAL HEBREW FIX: Auto-route Hebrew to capable providers
         if target_language.lower() in ['he', 'heb', 'hebrew']:
             if provider == 'deepl' or provider is None:
-                # DeepL doesn't support Hebrew - switch providers
-                # Prefer OpenAI for Hebrew to avoid Microsoft rate limiting
+                # DeepL doesn't support Hebrew - use OpenAI only
                 if 'openai' in self.providers:
                     logger.info("Routing Hebrew translation to OpenAI")
                     provider = 'openai'
-                elif 'microsoft' in self.providers:
-                    logger.info("Routing Hebrew translation to Microsoft Translator")
-                    provider = 'microsoft'
                 else:
                     logger.error("No Hebrew-capable provider available")
                     return None
@@ -243,13 +232,10 @@ class HistoricalTranslator:
         # CRITICAL HEBREW FIX: Auto-route Hebrew to capable providers
         if target_language.lower() in ['he', 'heb', 'hebrew']:
             if provider == 'deepl' or provider is None:
-                # DeepL doesn't support Hebrew - switch providers
+                # DeepL doesn't support Hebrew - use OpenAI only
                 if 'openai' in self.providers:
                     logger.info("Routing Hebrew batch translation to OpenAI")
                     provider = 'openai'
-                elif 'microsoft' in self.providers:
-                    logger.info("Routing Hebrew batch translation to Microsoft Translator")
-                    provider = 'microsoft'
                 else:
                     logger.error("No Hebrew-capable provider available")
                     return [''] * len(texts)
@@ -271,8 +257,13 @@ class HistoricalTranslator:
             if provider == 'deepl':
                 return self._batch_translate_deepl(texts, target_lang, source_lang)
             elif provider == 'microsoft':
-                return self._batch_translate_microsoft(texts, target_lang, source_lang)
+                # Microsoft disabled
+                logger.error("Microsoft provider is disabled")
+                return [''] * len(texts)
             elif provider == 'openai':
+                # GPT-5 models are unreliable with separator batching; use parallel per-text
+                if str(self.openai_model).lower().startswith('gpt-5'):
+                    return self._parallel_translate_openai(texts, target_lang, source_lang)
                 return self._batch_translate_openai(texts, target_lang, source_lang)
         except Exception as e:
             logger.error(f"Batch translation error with {provider}: {e}")
@@ -287,6 +278,24 @@ class HistoricalTranslator:
                     logger.error(f"Individual translation also failed: {individual_error}")
                     fallback_results.append('')
             return fallback_results
+
+    def _parallel_translate_openai(self, texts: List[str], target_lang: str, source_lang: Optional[str]) -> List[str]:
+        """Translate texts in parallel using OpenAI; preserves input order."""
+        max_workers = int(os.getenv('OPENAI_CONCURRENCY', '8'))
+        results: List[Optional[str]] = [None] * len(texts)
+
+        def work(index: int, t: str):
+            translated = self._translate_openai(t, target_lang, source_lang) or ''
+            return index, translated
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [executor.submit(work, i, t) for i, t in enumerate(texts)]
+            for fut in as_completed(futures):
+                i, val = fut.result()
+                results[i] = val
+
+        # Replace any None with empty strings to avoid None leaks
+        return [r if r is not None else '' for r in results]
     
     def _batch_translate_deepl(self, texts: List[str], target_lang: str, source_lang: Optional[str]) -> List[str]:
         """Batch translate using DeepL."""
@@ -483,15 +492,20 @@ class HistoricalTranslator:
         """Make API call to OpenAI with retry logic."""
         if not self.openai_client:
             raise ValueError("OpenAI client not initialized")
-            
-        response = self.openai_client.chat.completions.create(
-            model=self.openai_model,
-            messages=[
+        
+        # GPT-5 models do not accept custom temperature (must use default). For others, keep 0.3.
+        create_kwargs = {
+            "model": self.openai_model,
+            "messages": [
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": text}
+                {"role": "user", "content": text},
             ],
-            temperature=0.3  # Lower temperature for consistency
-        )
+        }
+
+        if not str(self.openai_model).lower().startswith("gpt-5"):
+            create_kwargs["temperature"] = 0.3
+
+        response = self.openai_client.chat.completions.create(**create_kwargs)
         
         content = response.choices[0].message.content.strip()
         return content
@@ -668,11 +682,9 @@ class HistoricalTranslator:
     
     def _select_default_provider(self) -> Optional[str]:
         """Select default provider based on availability."""
-        # Prefer DeepL for non-Hebrew, then Microsoft, then OpenAI
+        # Prefer DeepL for non-Hebrew, then OpenAI
         if 'deepl' in self.providers:
             return 'deepl'
-        elif 'microsoft' in self.providers:
-            return 'microsoft'
         elif 'openai' in self.providers:
             return 'openai'
         return None

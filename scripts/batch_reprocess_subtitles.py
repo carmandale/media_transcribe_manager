@@ -297,6 +297,9 @@ class SubtitleReprocessor:
             Batch processing results
         """
         logger.info(f"Processing batch {batch_id} with {len(interviews)} interviews")
+        # Ensure batch directory exists for status artifacts
+        batch_dir = self.backup_dir / batch_id
+        batch_dir.mkdir(parents=True, exist_ok=True)
         
         batch_results = {
             'batch_id': batch_id,
@@ -308,9 +311,11 @@ class SubtitleReprocessor:
             'end_time': None
         }
         
-        for interview in interviews:
+        batch_start_ts = datetime.now()
+        for idx, interview in enumerate(interviews, start=1):
             file_id = interview['file_id']
-            logger.info(f"Processing interview {file_id}")
+            logger.info(f"Processing interview {idx}/{len(interviews)}: {file_id}")
+            interview_start_ts = datetime.now()
             
             # Step 1: Backup
             backup_success = self.backup_interview_subtitles(interview, batch_id)
@@ -347,6 +352,33 @@ class SubtitleReprocessor:
                 }
                 self.stats['failed_interviews'] += 1
                 logger.error(f"❌ Failed to process {file_id}")
+
+            # --- Live status/heartbeat ---
+            elapsed = (datetime.now() - batch_start_ts).total_seconds()
+            processed = batch_results['successful_interviews'] + batch_results['failed_interviews']
+            remaining = max(len(interviews) - processed, 0)
+            rate = (processed / elapsed) if elapsed > 0 else 0.0
+            eta_seconds = int(remaining / rate) if rate > 0 else None
+
+            status = {
+                'batch_id': batch_id,
+                'processed': processed,
+                'total': len(interviews),
+                'successful': batch_results['successful_interviews'],
+                'failed': batch_results['failed_interviews'],
+                'current_file_id': file_id,
+                'last_duration_seconds': (datetime.now() - interview_start_ts).total_seconds(),
+                'elapsed_seconds': elapsed,
+                'eta_seconds': eta_seconds,
+                'updated_at': datetime.now().isoformat(),
+            }
+            try:
+                (batch_dir / 'status.json').write_text(json.dumps(status, indent=2))
+                with open(batch_dir / 'progress.log', 'a') as lf:
+                    eta_txt = f" ETA ~{eta_seconds}s" if eta_seconds is not None else ""
+                    lf.write(f"[{status['updated_at']}] {processed}/{len(interviews)} done | +{status['last_duration_seconds']:.1f}s | success={batch_results['successful_interviews']} fail={batch_results['failed_interviews']}.{eta_txt}\n")
+            except Exception as e:
+                logger.debug(f"Progress write failed: {e}")
         
         batch_results['end_time'] = datetime.now().isoformat()
         
