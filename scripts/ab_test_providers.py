@@ -55,7 +55,8 @@ class ProviderABTest:
         Returns:
             List of segment texts
         """
-        segments = parse_srt_file(str(srt_file))
+        translator = SRTTranslator()
+        segments = translator.parse_srt(str(srt_file))
         
         # Filter out very short segments
         valid_segments = [s for s in segments if len(s.text.strip()) > 20]
