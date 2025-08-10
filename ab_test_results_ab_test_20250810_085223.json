@@ -1,0 +1,249 @@
+{
+  "test_id": "ab_test_20250810_085223",
+  "timestamp": "2025-08-10T08:52:23.481269",
+  "sample_size": 5,
+  "providers": {
+    "deepl": {
+      "en": {
+        "provider": "deepl",
+        "target_language": "en",
+        "total_segments": 5,
+        "successful_segments": 5,
+        "total_time": 1.33,
+        "avg_time_per_segment": 0.266,
+        "segment_times": [
+          0.57,
+          0.193,
+          0.188,
+          0.191,
+          0.186
+        ],
+        "errors": [],
+        "details": [
+          {
+            "original_length": 35,
+            "translated_length": 26,
+            "time_seconds": 0.57,
+            "success": true
+          },
+          {
+            "original_length": 33,
+            "translated_length": 23,
+            "time_seconds": 0.193,
+            "success": true
+          },
+          {
+            "original_length": 32,
+            "translated_length": 26,
+            "time_seconds": 0.188,
+            "success": true
+          },
+          {
+            "original_length": 36,
+            "translated_length": 37,
+            "time_seconds": 0.191,
+            "success": true
+          },
+          {
+            "original_length": 32,
+            "translated_length": 24,
+            "time_seconds": 0.186,
+            "success": true
+          }
+        ]
+      },
+      "de": {
+        "provider": "deepl",
+        "target_language": "de",
+        "total_segments": 5,
+        "successful_segments": 5,
+        "total_time": 0.79,
+        "avg_time_per_segment": 0.158,
+        "segment_times": [
+          0.161,
+          0.158,
+          0.156,
+          0.158,
+          0.158
+        ],
+        "errors": [],
+        "details": [
+          {
+            "original_length": 35,
+            "translated_length": 29,
+            "time_seconds": 0.161,
+            "success": true
+          },
+          {
+            "original_length": 33,
+            "translated_length": 27,
+            "time_seconds": 0.158,
+            "success": true
+          },
+          {
+            "original_length": 32,
+            "translated_length": 24,
+            "time_seconds": 0.156,
+            "success": true
+          },
+          {
+            "original_length": 36,
+            "translated_length": 28,
+            "time_seconds": 0.158,
+            "success": true
+          },
+          {
+            "original_length": 32,
+            "translated_length": 24,
+            "time_seconds": 0.158,
+            "success": true
+          }
+        ]
+      }
+    },
+    "openai": {
+      "en": {
+        "provider": "openai",
+        "target_language": "en",
+        "total_segments": 5,
+        "successful_segments": 5,
+        "total_time": 3.18,
+        "avg_time_per_segment": 0.636,
+        "segment_times": [
+          0.76,
+          1.083,
+          0.285,
+          0.571,
+          0.484
+        ],
+        "errors": [],
+        "details": [
+          {
+            "original_length": 35,
+            "translated_length": 24,
+            "time_seconds": 0.76,
+            "success": true
+          },
+          {
+            "original_length": 33,
+            "translated_length": 26,
+            "time_seconds": 1.083,
+            "success": true
+          },
+          {
+            "original_length": 32,
+            "translated_length": 21,
+            "time_seconds": 0.285,
+            "success": true
+          },
+          {
+            "original_length": 36,
+            "translated_length": 35,
+            "time_seconds": 0.571,
+            "success": true
+          },
+          {
+            "original_length": 32,
+            "translated_length": 27,
+            "time_seconds": 0.484,
+            "success": true
+          }
+        ]
+      },
+      "de": {
+        "provider": "openai",
+        "target_language": "de",
+        "total_segments": 5,
+        "successful_segments": 5,
+        "total_time": 2.97,
+        "avg_time_per_segment": 0.594,
+        "segment_times": [
+          0.78,
+          0.582,
+          0.368,
+          0.8,
+          0.438
+        ],
+        "errors": [],
+        "details": [
+          {
+            "original_length": 35,
+            "translated_length": 27,
+            "time_seconds": 0.78,
+            "success": true
+          },
+          {
+            "original_length": 33,
+            "translated_length": 25,
+            "time_seconds": 0.582,
+            "success": true
+          },
+          {
+            "original_length": 32,
+            "translated_length": 24,
+            "time_seconds": 0.368,
+            "success": true
+          },
+          {
+            "original_length": 36,
+            "translated_length": 28,
+            "time_seconds": 0.8,
+            "success": true
+          },
+          {
+            "original_length": 32,
+            "translated_length": 29,
+            "time_seconds": 0.438,
+            "success": true
+          }
+        ]
+      }
+    }
+  },
+  "summary": {
+    "en": {
+      "deepl": {
+        "success_rate": 1.0,
+        "avg_time": 0.266,
+        "median_time": 0.191,
+        "total_time": 1.33
+      },
+      "openai": {
+        "success_rate": 1.0,
+        "avg_time": 0.636,
+        "median_time": 0.571,
+        "total_time": 3.18
+      },
+      "winner": {
+        "speed": "deepl",
+        "reliability": "openai",
+        "speed_advantage": 0.37
+      }
+    },
+    "de": {
+      "deepl": {
+        "success_rate": 1.0,
+        "avg_time": 0.158,
+        "median_time": 0.158,
+        "total_time": 0.79
+      },
+      "openai": {
+        "success_rate": 1.0,
+        "avg_time": 0.594,
+        "median_time": 0.582,
+        "total_time": 2.97
+      },
+      "winner": {
+        "speed": "deepl",
+        "reliability": "openai",
+        "speed_advantage": 0.43599999999999994
+      }
+    },
+    "recommendation": {
+      "provider": "deepl",
+      "reason": "Won 2/4 metrics",
+      "english_provider": "deepl",
+      "german_provider": "deepl"
+    }
+  }
+}

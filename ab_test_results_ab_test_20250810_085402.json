@@ -1,0 +1,389 @@
+{
+  "test_id": "ab_test_20250810_085402",
+  "timestamp": "2025-08-10T08:54:02.843498",
+  "sample_size": 10,
+  "providers": {
+    "deepl": {
+      "en": {
+        "provider": "deepl",
+        "target_language": "en",
+        "total_segments": 10,
+        "successful_segments": 10,
+        "total_time": 2.12,
+        "avg_time_per_segment": 0.212,
+        "segment_times": [
+          0.505,
+          0.177,
+          0.178,
+          0.186,
+          0.173,
+          0.19,
+          0.178,
+          0.172,
+          0.177,
+          0.182
+        ],
+        "errors": [],
+        "details": [
+          {
+            "original_length": 37,
+            "translated_length": 25,
+            "time_seconds": 0.505,
+            "success": true
+          },
+          {
+            "original_length": 36,
+            "translated_length": 24,
+            "time_seconds": 0.177,
+            "success": true
+          },
+          {
+            "original_length": 40,
+            "translated_length": 28,
+            "time_seconds": 0.178,
+            "success": true
+          },
+          {
+            "original_length": 37,
+            "translated_length": 38,
+            "time_seconds": 0.186,
+            "success": true
+          },
+          {
+            "original_length": 35,
+            "translated_length": 19,
+            "time_seconds": 0.173,
+            "success": true
+          },
+          {
+            "original_length": 40,
+            "translated_length": 36,
+            "time_seconds": 0.19,
+            "success": true
+          },
+          {
+            "original_length": 40,
+            "translated_length": 38,
+            "time_seconds": 0.178,
+            "success": true
+          },
+          {
+            "original_length": 36,
+            "translated_length": 27,
+            "time_seconds": 0.172,
+            "success": true
+          },
+          {
+            "original_length": 36,
+            "translated_length": 35,
+            "time_seconds": 0.177,
+            "success": true
+          },
+          {
+            "original_length": 37,
+            "translated_length": 29,
+            "time_seconds": 0.182,
+            "success": true
+          }
+        ]
+      },
+      "de": {
+        "provider": "deepl",
+        "target_language": "de",
+        "total_segments": 10,
+        "successful_segments": 10,
+        "total_time": 1.51,
+        "avg_time_per_segment": 0.151,
+        "segment_times": [
+          0.154,
+          0.149,
+          0.151,
+          0.146,
+          0.15,
+          0.148,
+          0.154,
+          0.149,
+          0.156,
+          0.152
+        ],
+        "errors": [],
+        "details": [
+          {
+            "original_length": 37,
+            "translated_length": 31,
+            "time_seconds": 0.154,
+            "success": true
+          },
+          {
+            "original_length": 36,
+            "translated_length": 28,
+            "time_seconds": 0.149,
+            "success": true
+          },
+          {
+            "original_length": 40,
+            "translated_length": 32,
+            "time_seconds": 0.151,
+            "success": true
+          },
+          {
+            "original_length": 37,
+            "translated_length": 29,
+            "time_seconds": 0.146,
+            "success": true
+          },
+          {
+            "original_length": 35,
+            "translated_length": 29,
+            "time_seconds": 0.15,
+            "success": true
+          },
+          {
+            "original_length": 40,
+            "translated_length": 32,
+            "time_seconds": 0.148,
+            "success": true
+          },
+          {
+            "original_length": 40,
+            "translated_length": 32,
+            "time_seconds": 0.154,
+            "success": true
+          },
+          {
+            "original_length": 36,
+            "translated_length": 32,
+            "time_seconds": 0.149,
+            "success": true
+          },
+          {
+            "original_length": 36,
+            "translated_length": 30,
+            "time_seconds": 0.156,
+            "success": true
+          },
+          {
+            "original_length": 37,
+            "translated_length": 29,
+            "time_seconds": 0.152,
+            "success": true
+          }
+        ]
+      }
+    },
+    "openai": {
+      "en": {
+        "provider": "openai",
+        "target_language": "en",
+        "total_segments": 10,
+        "successful_segments": 10,
+        "total_time": 5.74,
+        "avg_time_per_segment": 0.574,
+        "segment_times": [
+          0.525,
+          1.067,
+          0.372,
+          0.521,
+          0.347,
+          0.97,
+          0.414,
+          0.484,
+          0.721,
+          0.315
+        ],
+        "errors": [],
+        "details": [
+          {
+            "original_length": 37,
+            "translated_length": 29,
+            "time_seconds": 0.525,
+            "success": true
+          },
+          {
+            "original_length": 36,
+            "translated_length": 22,
+            "time_seconds": 1.067,
+            "success": true
+          },
+          {
+            "original_length": 40,
+            "translated_length": 32,
+            "time_seconds": 0.372,
+            "success": true
+          },
+          {
+            "original_length": 37,
+            "translated_length": 47,
+            "time_seconds": 0.521,
+            "success": true
+          },
+          {
+            "original_length": 35,
+            "translated_length": 22,
+            "time_seconds": 0.347,
+            "success": true
+          },
+          {
+            "original_length": 40,
+            "translated_length": 34,
+            "time_seconds": 0.97,
+            "success": true
+          },
+          {
+            "original_length": 40,
+            "translated_length": 30,
+            "time_seconds": 0.414,
+            "success": true
+          },
+          {
+            "original_length": 36,
+            "translated_length": 27,
+            "time_seconds": 0.484,
+            "success": true
+          },
+          {
+            "original_length": 36,
+            "translated_length": 33,
+            "time_seconds": 0.721,
+            "success": true
+          },
+          {
+            "original_length": 37,
+            "translated_length": 34,
+            "time_seconds": 0.315,
+            "success": true
+          }
+        ]
+      },
+      "de": {
+        "provider": "openai",
+        "target_language": "de",
+        "total_segments": 10,
+        "successful_segments": 10,
+        "total_time": 4.41,
+        "avg_time_per_segment": 0.441,
+        "segment_times": [
+          0.435,
+          0.397,
+          0.552,
+          0.511,
+          0.501,
+          0.377,
+          0.417,
+          0.514,
+          0.399,
+          0.308
+        ],
+        "errors": [],
+        "details": [
+          {
+            "original_length": 37,
+            "translated_length": 29,
+            "time_seconds": 0.435,
+            "success": true
+          },
+          {
+            "original_length": 36,
+            "translated_length": 28,
+            "time_seconds": 0.397,
+            "success": true
+          },
+          {
+            "original_length": 40,
+            "translated_length": 30,
+            "time_seconds": 0.552,
+            "success": true
+          },
+          {
+            "original_length": 37,
+            "translated_length": 33,
+            "time_seconds": 0.511,
+            "success": true
+          },
+          {
+            "original_length": 35,
+            "translated_length": 27,
+            "time_seconds": 0.501,
+            "success": true
+          },
+          {
+            "original_length": 40,
+            "translated_length": 39,
+            "time_seconds": 0.377,
+            "success": true
+          },
+          {
+            "original_length": 40,
+            "translated_length": 28,
+            "time_seconds": 0.417,
+            "success": true
+          },
+          {
+            "original_length": 36,
+            "translated_length": 31,
+            "time_seconds": 0.514,
+            "success": true
+          },
+          {
+            "original_length": 36,
+            "translated_length": 28,
+            "time_seconds": 0.399,
+            "success": true
+          },
+          {
+            "original_length": 37,
+            "translated_length": 29,
+            "time_seconds": 0.308,
+            "success": true
+          }
+        ]
+      }
+    }
+  },
+  "summary": {
+    "en": {
+      "deepl": {
+        "success_rate": 1.0,
+        "avg_time": 0.212,
+        "median_time": 0.178,
+        "total_time": 2.12
+      },
+      "openai": {
+        "success_rate": 1.0,
+        "avg_time": 0.574,
+        "median_time": 0.5025,
+        "total_time": 5.74
+      },
+      "winner": {
+        "speed": "deepl",
+        "reliability": "openai",
+        "speed_advantage": 0.362
+      }
+    },
+    "de": {
+      "deepl": {
+        "success_rate": 1.0,
+        "avg_time": 0.151,
+        "median_time": 0.1505,
+        "total_time": 1.51
+      },
+      "openai": {
+        "success_rate": 1.0,
+        "avg_time": 0.441,
+        "median_time": 0.426,
+        "total_time": 4.41
+      },
+      "winner": {
+        "speed": "deepl",
+        "reliability": "openai",
+        "speed_advantage": 0.29000000000000004
+      }
+    },
+    "recommendation": {
+      "provider": "deepl",
+      "reason": "Won 2/4 metrics",
+      "english_provider": "deepl",
+      "german_provider": "deepl"
+    }
+  }
+}
