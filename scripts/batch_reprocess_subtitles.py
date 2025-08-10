@@ -110,6 +110,12 @@ class SubtitleReprocessor:
             # Check if interview directory exists and has subtitle files
             interview_dir = self.output_dir / interview['file_id']
             if interview_dir.exists():
+                # Check if already processed with preservation fix
+                preservation_marker = interview_dir / '.preservation_fix_applied'
+                if not force_all and preservation_marker.exists():
+                    logger.debug(f"Skipping {interview['file_id']} - already processed with preservation fix")
+                    continue
+                
                 # Look for existing subtitle files that would be over-translated
                 subtitle_files = {
                     'orig': interview_dir / f"{interview['file_id']}.orig.srt",
@@ -271,6 +277,19 @@ class SubtitleReprocessor:
                 logger.error(f"    ❌ Exception reprocessing {target_lang.upper()}: {e}")
                 results[target_lang] = False
                 self.stats['errors'].append(f"Exception for {file_id} ({target_lang}): {e}")
+        
+        # Mark interview as processed with preservation fix
+        if results and all(results.values()):
+            try:
+                marker_file = interview_dir / '.preservation_fix_applied'
+                marker_file.write_text(json.dumps({
+                    'processed_at': datetime.now().isoformat(),
+                    'languages': list(results.keys()),
+                    'success': True
+                }))
+                logger.debug(f"Marked {file_id} as processed with preservation fix")
+            except Exception as e:
+                logger.warning(f"Could not create preservation marker for {file_id}: {e}")
         
         return results
     
@@ -556,14 +575,31 @@ class SubtitleReprocessor:
 
 def main():
     """Main reprocessing function."""
-    logger.info("Starting batch subtitle reprocessing for Issue #56")
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Batch reprocess subtitle files with preservation fix')
+    parser.add_argument('--batch-size', type=int, default=100,
+                       help='Number of interviews per batch (default: 100)')
+    parser.add_argument('--limit', type=int, default=None,
+                       help='Limit total interviews to process (for testing)')
+    parser.add_argument('--force-all', action='store_true',
+                       help='Force reprocessing even if already marked as processed')
+    parser.add_argument('--start-from', type=int, default=0,
+                       help='Start from interview number (for resuming)')
+    
+    args = parser.parse_args()
+    
+    logger.info("Starting batch subtitle reprocessing for Issue #87")
     logger.info("This will fix over-translated subtitles by applying language preservation logic")
     
     # Initialize reprocessor
     reprocessor = SubtitleReprocessor()
     
     # Identify interviews needing reprocessing
-    interviews = reprocessor.identify_interviews_for_reprocessing()
+    interviews = reprocessor.identify_interviews_for_reprocessing(
+        force_all=args.force_all,
+        limit=args.limit
+    )
     
     if not interviews:
         logger.info("No interviews found needing reprocessing")
@@ -572,8 +608,13 @@ def main():
     reprocessor.stats['total_interviews'] = len(interviews)
     logger.info(f"Found {len(interviews)} interviews needing reprocessing")
     
+    # Apply start-from offset if specified
+    if args.start_from > 0:
+        logger.info(f"Starting from interview {args.start_from}")
+        interviews = interviews[args.start_from:]
+    
     # Process in batches
-    batch_size = 50  # Configurable batch size
+    batch_size = args.batch_size
     total_batches = (len(interviews) + batch_size - 1) // batch_size
     
     logger.info(f"Processing {len(interviews)} interviews in {total_batches} batches of {batch_size}")
