@@ -14,6 +14,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict, Any, Tuple, Union
 import uuid
+import weakref
 import os
 
 logger = logging.getLogger(__name__)
@@ -37,6 +38,30 @@ class Database:
         
         # Initialize database schema
         self._initialize_schema()
+
+        # Apply additive migrations for new subsystems
+        # Safe to call repeatedly; each migration checks current state first
+        try:
+            self._migrate_to_chat_support()
+        except Exception as migration_error:
+            logger.error(f"Chat support migration failed: {migration_error}")
+
+        # Ensure connections are closed when the instance is garbage-collected
+        # or at interpreter shutdown in tests.
+        weakref.finalize(self, self.close)
+
+    def __del__(self):
+        """Best-effort close of open database connection on GC."""
+        try:
+            self.close()
+        except Exception:
+            pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        self.close()
         
     def _get_connection(self) -> sqlite3.Connection:
         """Get or create thread-local connection."""
@@ -134,6 +159,17 @@ class Database:
                 CREATE INDEX IF NOT EXISTS idx_last_updated 
                 ON processing_status(last_updated)
             """)
+
+            # Create migrations tracking table (idempotent)
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS schema_migrations (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE,
+                    applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
     
     def _migrate_to_subtitle_segments(self):
         """
@@ -218,6 +254,63 @@ class Database:
             """)
             
             logger.info("Subtitle segments migration completed successfully")
+
+    def _migrate_to_chat_support(self):
+        """
+        Add tables for chat sessions and chat queries, with basic retention support.
+        Idempotent and safe to call multiple times.
+        """
+        with self.transaction() as conn:
+            # Check if already migrated via tables
+            cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='chat_sessions'")
+            if cursor.fetchone() is not None:
+                return
+
+            logger.info("Creating chat_sessions and chat_queries tables...")
+
+            # Chat sessions table
+            conn.execute(
+                """
+                CREATE TABLE chat_sessions (
+                    id TEXT PRIMARY KEY,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    language TEXT CHECK(language IN ('en','de','he')),
+                    -- Optional metadata for analytics, kept minimal for privacy
+                    client_hash TEXT
+                )
+                """
+            )
+
+            # Chat queries table
+            conn.execute(
+                """
+                CREATE TABLE chat_queries (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id TEXT NOT NULL,
+                    query TEXT NOT NULL,
+                    response TEXT,
+                    response_time_ms INTEGER,
+                    token_prompt INTEGER,
+                    token_completion INTEGER,
+                    token_total INTEGER,
+                    citations_json TEXT,
+                    sources_json TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (session_id) REFERENCES chat_sessions(id) ON DELETE CASCADE
+                )
+                """
+            )
+
+            # Indexes for performance
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_chat_queries_session ON chat_queries(session_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_chat_sessions_last_activity ON chat_sessions(last_activity)")
+
+            # Record migration
+            conn.execute(
+                "INSERT OR IGNORE INTO schema_migrations(name) VALUES (?)",
+                ("2025-08-08_add_chat_support",),
+            )
     
     # File tracking methods
     

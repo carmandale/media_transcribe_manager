@@ -10,17 +10,22 @@ import { Interview, SearchResult, SearchOptions } from './types';
 const FUSE_OPTIONS: Fuse.IFuseOptions<Interview> = {
   // Fields to search with different weights
   keys: [
+    // Transcript text carries the most weight for semantic matching
+    {
+      name: 'transcripts.text',
+      weight: 1.0,
+    },
     {
       name: 'metadata.interviewee',
-      weight: 0.7, // Higher weight for interviewee names since we don't have transcripts
+      weight: 0.6,
     },
     {
       name: 'metadata.summary',
-      weight: 0.3, // Medium weight for summaries
+      weight: 0.4,
     },
   ],
   // Search configuration
-  threshold: 0.4, // 0.0 = perfect match, 1.0 = match anything
+  threshold: 0.35, // Slightly stricter for better precision
   distance: 100, // Maximum distance for fuzzy matching
   minMatchCharLength: 2, // Minimum character length for matching
   includeScore: true, // Include relevance scores

@@ -63,7 +63,7 @@ class ChatEngine {
 		// Don't call async function in constructor
 	}
 
-	private async loadInterviews() {
+    private async loadInterviews() {
 		if (this.initialized) return;
 
 		try {
@@ -71,9 +71,35 @@ class ChatEngine {
 			const fs = await import('fs');
 			const path = await import('path');
 			
-			const manifestPath = path.join(process.cwd(), 'public', 'manifest.min.json');
-			const manifestData = fs.readFileSync(manifestPath, 'utf8');
-			this.interviews = JSON.parse(manifestData);
+            const minPath = path.join(process.cwd(), 'public', 'manifest.min.json');
+            const fullPath = path.join(process.cwd(), 'public', 'manifest.json');
+
+            const readIfExists = (p: string) => (fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : null);
+
+            // Try minified first; detect Git LFS pointer files and fall back
+            let data = readIfExists(minPath);
+            let parsed: any = null;
+            if (data) {
+                const trimmed = data.trim();
+                const looksLikeJSON = trimmed.startsWith('{') || trimmed.startsWith('[');
+                if (looksLikeJSON) {
+                    try { parsed = JSON.parse(data); } catch {}
+                }
+            }
+            if (!parsed) {
+                // Fall back to full manifest
+                const fullData = readIfExists(fullPath);
+                if (!fullData) {
+                    throw new Error('No valid manifest found (manifest.min.json or manifest.json)');
+                }
+                try {
+                    parsed = JSON.parse(fullData);
+                } catch (e) {
+                    throw new Error('Failed to parse manifest.json');
+                }
+            }
+
+            this.interviews = parsed as Interview[];
 			this.searchEngine = getSearchEngine(this.interviews);
 			this.initialized = true;
 		} catch (error) {
@@ -300,8 +326,9 @@ export async function POST(request: NextRequest) {
 			);
 		}
 
-		// Initialize chat engine
+        // Initialize chat engine
 		const chatEngine = new ChatEngine();
+        await (chatEngine as any).loadInterviews?.();
 		
 		// Process query
 		const result = await chatEngine.processQuery(query, {
@@ -309,8 +336,10 @@ export async function POST(request: NextRequest) {
 			maxResults,
 		});
 
-		// Generate session ID if not provided
-		const responseSessionId = sessionId || `sess_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        // Generate session ID if not provided
+        const responseSessionId = sessionId || `sess_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+        // (Optional) Analytics could be added here (omitted for now)
 
 		// Calculate response time
 		const responseTime = Date.now() - startTime;
