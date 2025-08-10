@@ -160,12 +160,17 @@ class SubtitleReprocessor:
             self.stats['errors'].append(f"Backup failed for {file_id}: {e}")
             return False
     
-    def reprocess_interview_subtitles(self, interview: Dict) -> Dict[str, bool]:
+    def reprocess_interview_subtitles(self, interview: Dict, batch_id: str = None, batch_dir: Path = None, 
+                                     interview_idx: int = 0, total_interviews: int = 0) -> Dict[str, bool]:
         """
         Reprocess subtitle files for an interview with preservation logic.
         
         Args:
             interview: Interview record
+            batch_id: Optional batch identifier for progress tracking
+            batch_dir: Optional batch directory for writing progress
+            interview_idx: Current interview index in batch
+            total_interviews: Total interviews in batch
             
         Returns:
             Dictionary of language -> success status
@@ -195,10 +200,35 @@ class SubtitleReprocessor:
         results = {}
         
         # Reprocess for each target language
-        for target_lang in self.target_languages:
+        for lang_idx, target_lang in enumerate(self.target_languages):
             output_srt = interview_dir / f"{file_id}.{target_lang}.srt"
             
             logger.info(f"  Reprocessing {file_id} for {target_lang.upper()}")
+            
+            # Write per-language heartbeat
+            if batch_dir and batch_dir.exists():
+                try:
+                    lang_progress = {
+                        'batch_id': batch_id,
+                        'current_interview': interview_idx + 1,
+                        'total_interviews': total_interviews,
+                        'file_id': file_id,
+                        'current_language': target_lang.upper(),
+                        'language_progress': f"{lang_idx + 1}/{len(self.target_languages)}",
+                        'timestamp': datetime.now().isoformat(),
+                        'status': 'processing'
+                    }
+                    
+                    # Write language-specific progress
+                    lang_status_file = batch_dir / f'language_status_{target_lang}.json'
+                    lang_status_file.write_text(json.dumps(lang_progress, indent=2))
+                    
+                    # Append to detailed progress log
+                    with open(batch_dir / 'detailed_progress.log', 'a') as f:
+                        f.write(f"[{lang_progress['timestamp']}] Interview {interview_idx + 1}/{total_interviews} | "
+                               f"File: {file_id} | Language: {target_lang.upper()} ({lang_idx + 1}/{len(self.target_languages)})\n")
+                except Exception as e:
+                    logger.debug(f"Language heartbeat write failed: {e}")
             
             try:
                 # Use the preservation logic
@@ -328,8 +358,14 @@ class SubtitleReprocessor:
                 }
                 continue
             
-            # Step 2: Reprocess
-            reprocess_results = self.reprocess_interview_subtitles(interview)
+            # Step 2: Reprocess with progress tracking
+            reprocess_results = self.reprocess_interview_subtitles(
+                interview, 
+                batch_id=batch_id,
+                batch_dir=batch_dir,
+                interview_idx=batch_results['successful_interviews'] + batch_results['failed_interviews'],
+                total_interviews=len(interviews)
+            )
             
             # Step 3: Validate
             validation_success = self.validate_reprocessed_interview(interview, reprocess_results)
