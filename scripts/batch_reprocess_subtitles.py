@@ -60,6 +60,19 @@ class SubtitleReprocessor:
             'errors': []
         }
     
+    def _format_duration(self, seconds: int) -> str:
+        """Format duration in seconds to human-readable string."""
+        if seconds < 60:
+            return f"{seconds}s"
+        elif seconds < 3600:
+            minutes = seconds // 60
+            secs = seconds % 60
+            return f"{minutes}m {secs}s"
+        else:
+            hours = seconds // 3600
+            minutes = (seconds % 3600) // 60
+            return f"{hours}h {minutes}m"
+    
     def identify_interviews_for_reprocessing(self, cutoff_date: str = "2025-01-07") -> List[Dict]:
         """
         Identify interviews that need reprocessing.
@@ -389,12 +402,26 @@ class SubtitleReprocessor:
                 self.stats['failed_interviews'] += 1
                 logger.error(f"❌ Failed to process {file_id}")
 
-            # --- Live status/heartbeat ---
+            # --- Enhanced live status/heartbeat ---
             elapsed = (datetime.now() - batch_start_ts).total_seconds()
             processed = batch_results['successful_interviews'] + batch_results['failed_interviews']
             remaining = max(len(interviews) - processed, 0)
             rate = (processed / elapsed) if elapsed > 0 else 0.0
-            eta_seconds = int(remaining / rate) if rate > 0 else None
+            
+            # Calculate more accurate ETA based on recent processing times
+            recent_times = batch_results.get('recent_processing_times', [])
+            interview_duration = (datetime.now() - interview_start_ts).total_seconds()
+            recent_times.append(interview_duration)
+            if len(recent_times) > 10:  # Keep last 10 for rolling average
+                recent_times = recent_times[-10:]
+            batch_results['recent_processing_times'] = recent_times
+            
+            if recent_times and remaining > 0:
+                avg_time_per_interview = sum(recent_times) / len(recent_times)
+                eta_seconds = int(remaining * avg_time_per_interview)
+                eta_human = self._format_duration(eta_seconds)
+            else:
+                eta_human = "calculating..."
 
             status = {
                 'batch_id': batch_id,
@@ -403,16 +430,23 @@ class SubtitleReprocessor:
                 'successful': batch_results['successful_interviews'],
                 'failed': batch_results['failed_interviews'],
                 'current_file_id': file_id,
-                'last_duration_seconds': (datetime.now() - interview_start_ts).total_seconds(),
+                'last_duration_seconds': interview_duration,
+                'avg_duration_seconds': sum(recent_times) / len(recent_times) if recent_times else 0,
                 'elapsed_seconds': elapsed,
-                'eta_seconds': eta_seconds,
+                'elapsed_human': self._format_duration(int(elapsed)),
+                'eta_seconds': eta_seconds if recent_times else None,
+                'eta_human': eta_human,
+                'processing_rate': f"{rate:.2f} interviews/sec" if rate > 0 else "N/A",
                 'updated_at': datetime.now().isoformat(),
+                'progress_percent': round((processed / len(interviews)) * 100, 1)
             }
             try:
                 (batch_dir / 'status.json').write_text(json.dumps(status, indent=2))
                 with open(batch_dir / 'progress.log', 'a') as lf:
-                    eta_txt = f" ETA ~{eta_seconds}s" if eta_seconds is not None else ""
-                    lf.write(f"[{status['updated_at']}] {processed}/{len(interviews)} done | +{status['last_duration_seconds']:.1f}s | success={batch_results['successful_interviews']} fail={batch_results['failed_interviews']}.{eta_txt}\n")
+                    lf.write(f"[{status['updated_at']}] {processed}/{len(interviews)} done ({status['progress_percent']}%) | "
+                            f"Last: {interview_duration:.1f}s | Avg: {status['avg_duration_seconds']:.1f}s | "
+                            f"Success: {batch_results['successful_interviews']} | Fail: {batch_results['failed_interviews']} | "
+                            f"ETA: {eta_human}\n")
             except Exception as e:
                 logger.debug(f"Progress write failed: {e}")
         
