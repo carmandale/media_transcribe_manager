@@ -73,31 +73,35 @@ class SubtitleReprocessor:
             minutes = (seconds % 3600) // 60
             return f"{hours}h {minutes}m"
     
-    def identify_interviews_for_reprocessing(self, cutoff_date: str = "2025-01-07") -> List[Dict]:
+    def identify_interviews_for_reprocessing(self, force_all: bool = False, limit: int = None) -> List[Dict]:
         """
         Identify interviews that need reprocessing.
         
         Args:
-            cutoff_date: Only process interviews created before this date
+            force_all: If True, reprocess all completed interviews
+            limit: Maximum number of interviews to process (for testing)
             
         Returns:
             List of interview records needing reprocessing
         """
-        logger.info(f"Identifying interviews for reprocessing (before {cutoff_date})")
+        logger.info(f"Identifying interviews for reprocessing (force_all={force_all}, limit={limit})")
         
-        # Query for completed interviews that were processed before the preservation fix
+        # Query for completed interviews
+        # Check for presence of preservation marker file to track if processed with new fix
         query = """
             SELECT m.file_id, m.original_path, m.created_at, p.last_updated
             FROM media_files m
             JOIN processing_status p ON m.file_id = p.file_id
             WHERE p.transcription_status = 'completed'
               AND p.status != 'failed'
-              AND (p.last_updated < ? OR m.created_at < ?)
             ORDER BY m.created_at ASC
         """
         
+        if limit:
+            query += f" LIMIT {limit}"
+        
         conn = self.db._get_connection()
-        cursor = conn.execute(query, (cutoff_date, cutoff_date))
+        cursor = conn.execute(query)
         interviews = []
         
         for row in cursor.fetchall():
