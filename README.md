@@ -268,6 +268,147 @@ uv run python scribe_cli.py backup restore <backup_id>
 uv run python test_hebrew_fix.py
 ```
 
+## Subtitle Reprocessing Runbook
+
+### Overview
+The reprocessing pipeline stabilizes subtitle translation for 728 interviews, fixing provider selection issues, improving monitoring, and ensuring reliable operation.
+
+### Single Interview Validation
+```bash
+# Validate a single interview with JSON output
+./scripts/reprocess_single.sh <file_id>
+
+# Example:
+./scripts/reprocess_single.sh 5c544e90-807b-4d2d-b75b-95aa739aed45
+```
+
+Output includes:
+- Processing timings for each language
+- Boundary checks (segment count validation)
+- Success/partial/failed status
+- Detailed error messages
+
+### Batch Reprocessing
+
+#### Start Foreground Processing
+```bash
+# Run with environment properly loaded
+./scripts/run_with_env.sh uv run python scripts/batch_reprocess_subtitles.py \
+    --batch-size 100 \
+    --start-from 0
+```
+
+#### Start Background Processing
+```bash
+# Start in background with logging
+nohup ./scripts/run_with_env.sh uv run python scripts/batch_reprocess_subtitles.py \
+    --batch-size 100 \
+    --start-from 0 > reprocess.log 2>&1 &
+
+# Save PID for monitoring
+echo $! > reprocess.pid
+```
+
+#### Monitor Progress
+```bash
+# Real-time monitoring (updates every 2 seconds)
+watch -n 2 'tail -20 reprocessing_backups/*/progress.log'
+
+# Check current status
+cat reprocessing_backups/*/status.json | jq '.'
+
+# View per-language progress
+ls -la reprocessing_backups/*/language_status_*.json
+
+# Check detailed progress with ETA
+tail -f reprocessing_backups/*/detailed_progress.log
+```
+
+#### Stop Processing
+```bash
+# Graceful stop (if PID saved)
+kill $(cat reprocess.pid)
+
+# Find and stop by process name
+pkill -f batch_reprocess_subtitles.py
+```
+
+#### Resume After Interruption
+```bash
+# Check last processed interview
+cat reprocessing_backups/*/status.json | jq '.current_file_id'
+
+# Resume from specific interview number
+./scripts/run_with_env.sh uv run python scripts/batch_reprocess_subtitles.py \
+    --batch-size 100 \
+    --start-from 250  # Resume from interview 250
+```
+
+### Provider Configuration
+
+The pipeline enforces strict provider selection:
+- **English/German**: DeepL (primary), OpenAI (fallback)
+- **Hebrew**: OpenAI only (DeepL doesn't support Hebrew)
+- **Microsoft**: Completely disabled (no longer used)
+
+### Monitoring Files
+
+Each batch creates a timestamped directory in `reprocessing_backups/`:
+```
+reprocessing_backups/
+└── batch_20250110_120000/
+    ├── status.json              # Overall batch status with ETA
+    ├── progress.log             # Summary progress log
+    ├── detailed_progress.log    # Per-language detailed log
+    ├── language_status_en.json  # English processing status
+    ├── language_status_de.json  # German processing status
+    ├── language_status_he.json  # Hebrew processing status
+    └── batch_results.json       # Final results summary
+```
+
+### Troubleshooting
+
+#### Check for Stalled Processing
+```bash
+# No updates in last 5 minutes indicates stall
+find reprocessing_backups -name "status.json" -mmin +5 | head -1
+
+# Check last error
+grep ERROR reprocess.log | tail -10
+```
+
+#### Verify Environment Variables
+```bash
+# Test environment loading
+./scripts/run_with_env.sh env | grep -E "(OPENAI|DEEPL)"
+```
+
+#### Rollback Failed Batch
+```bash
+# Restore original subtitles from backup
+uv run python -c "
+from scripts.batch_reprocess_subtitles import SubtitleReprocessor
+reprocessor = SubtitleReprocessor()
+reprocessor.rollback_batch('batch_20250110_120000')
+"
+```
+
+### Performance Expectations
+
+- **Processing Rate**: ~30-60 seconds per interview (3 languages)
+- **Batch of 100**: ~1-2 hours
+- **Full 728 interviews**: ~8-12 hours with chunking
+- **Memory Usage**: ~500MB-1GB per batch
+- **API Rate Limits**: Handled automatically with retries
+
+### Best Practices
+
+1. **Chunk Processing**: Run in batches of 100-150 interviews
+2. **Monitor Actively**: Check progress.log every 30 minutes
+3. **Save State**: Keep reprocess.pid for clean shutdown
+4. **Backup First**: Always backup before large reprocessing runs
+5. **Test First**: Validate single interview before batch processing
+
 ## Support
 
 This system is designed for preserving historical interviews with maximum fidelity. The focus is on authentic preservation over polished output.
