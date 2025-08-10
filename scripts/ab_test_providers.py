@@ -19,7 +19,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from scribe.translate import HistoricalTranslator
-from scribe.srt_parser import parse_srt_file
+from scribe.srt_translator import SRTTranslator
 
 
 class ProviderABTest:
