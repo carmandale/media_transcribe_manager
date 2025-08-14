@@ -30,13 +30,13 @@ These are the tasks to be completed for the spec detailed in @.agent-os/specs/20
   - [x] 3.5 Test handling of empty segments and timing-only entries
   - [x] 3.6 Verify all edge case tests pass
 
-- [ ] 4. Add Integration and Batch Processing Tests
-  - [ ] 4.1 Write integration tests for the complete translation pipeline
-  - [ ] 4.2 Create tests for batch processing multiple subtitle files
-  - [ ] 4.3 Implement tests for concurrent translation operations
-  - [ ] 4.4 Add tests for progress tracking and cancellation
-  - [ ] 4.5 Test integration with different translation providers (GPT-4, Claude)
-  - [ ] 4.6 Verify all integration tests pass
+- [x] 4. Add Integration and Batch Processing Tests
+  - [x] 4.1 Write integration tests for the complete translation pipeline
+  - [x] 4.2 Create tests for batch processing multiple subtitle files
+  - [x] 4.3 Implement tests for concurrent translation operations
+  - [x] 4.4 Add tests for progress tracking and cancellation
+  - [x] 4.5 Test integration with different translation providers (GPT-4, Claude)
+  - [x] 4.6 Verify all integration tests pass
 
 - [ ] 5. Implement Performance Benchmarking and Final Verification
   - [ ] 5.1 Write performance benchmark tests for translation speed
