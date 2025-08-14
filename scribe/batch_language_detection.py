@@ -4,9 +4,40 @@ Batch language detection for efficient processing.
 """
 
 import logging
+import random
+import time
 from typing import List, Dict, Optional
 
 logger = logging.getLogger(__name__)
+
+
+def _call_openai_with_retry(openai_client, prompt: str, max_tokens: int, max_retries: int = 5) -> Optional[str]:
+    """
+    Call OpenAI with exponential backoff and jitter. Returns the content string or None.
+    """
+    if not openai_client:
+        return None
+
+    backoff_seconds = 1.0
+    for attempt in range(1, max_retries + 1):
+        try:
+            response = openai_client.chat.completions.create(
+                model='gpt-4o-mini',
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0,
+                max_tokens=max_tokens
+            )
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            # Backoff on any transient error
+            logger.warning(f"OpenAI detect call failed (attempt {attempt}/{max_retries}): {e}")
+            if attempt == max_retries:
+                break
+            # jitter 0-250ms
+            jitter = random.uniform(0, 0.25)
+            time.sleep(backoff_seconds + jitter)
+            backoff_seconds = min(backoff_seconds * 2, 8.0)
+    return None
 
 
 def detect_languages_batch(texts: List[str], openai_client) -> List[Optional[str]]:
@@ -41,39 +72,32 @@ Only use: English, German, or Hebrew
 Texts:
 """ + "\n".join(numbered_texts)
     
-    try:
-        response = openai_client.chat.completions.create(
-            model='gpt-4o-mini',
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0,
-            max_tokens=len(texts) * 20  # Enough for responses
-        )
-        
-        # Parse the response
-        result_text = response.choices[0].message.content.strip()
-        results = [None] * len(texts)
-        
-        # Parse lines like "1: English"
-        for line in result_text.split('\n'):
-            line = line.strip()
-            if ':' in line:
-                try:
-                    num_part, lang_part = line.split(':', 1)
-                    num = int(num_part.strip())
-                    lang = lang_part.strip().lower()
-                    
-                    # Map to our codes
-                    lang_map = {'english': 'en', 'german': 'de', 'hebrew': 'he'}
-                    if 1 <= num <= len(texts):
-                        results[num - 1] = lang_map.get(lang)
-                except:
-                    continue
-        
-        return results
-        
-    except Exception as e:
-        logger.error(f"Batch language detection failed: {e}")
+    result_text = _call_openai_with_retry(
+        openai_client,
+        prompt,
+        max_tokens=len(texts) * 20,
+        max_retries=5,
+    )
+
+    if not result_text:
+        logger.error("Batch language detection failed after retries")
         return [None] * len(texts)
+
+    results = [None] * len(texts)
+    # Parse lines like "1: English"
+    for line in result_text.split('\n'):
+        line = line.strip()
+        if ':' in line:
+            try:
+                num_part, lang_part = line.split(':', 1)
+                num = int(num_part.strip())
+                lang = lang_part.strip().lower()
+                lang_map = {'english': 'en', 'german': 'de', 'hebrew': 'he'}
+                if 1 <= num <= len(texts):
+                    results[num - 1] = lang_map.get(lang)
+            except Exception:
+                continue
+    return results
 
 
 def detect_languages_for_segments(segments, openai_client, batch_size=50):

@@ -366,6 +366,8 @@ reprocessing_backups/
     └── batch_results.json       # Final results summary
 ```
 
+Note: `reprocessing_backups/*/status.json` is the canonical source for current-batch progress (processed/total, ETA, rate, current_file_id). `progress.log` is auxiliary and human-readable; it can lag. Tools and scripts should prefer `status.json` and fall back to `progress.log` only if `status.json` is missing or temporarily unwritable.
+
 ### Troubleshooting
 
 #### Check for Stalled Processing
