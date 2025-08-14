@@ -14,6 +14,9 @@ Features:
 
 import re
 import logging
+import hashlib
+import json
+import os
 from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass
 from pathlib import Path
@@ -239,9 +242,24 @@ class SRTTranslator:
             
         except Exception as e:
             logger.error(f"Batch translation failed: {e}")
-            # Fall back to individual translation
-            return [self.translator.translate(text, target_language, source_language) or '' 
-                    for text in texts]
+            # CRITICAL FIX: Use direct provider methods to prevent infinite recursion
+            logger.warning("SRT batch translation failed, falling back to direct individual calls")
+            fallback_results = []
+            for text in texts:
+                try:
+                    # For Hebrew, call OpenAI directly to prevent infinite recursion
+                    if target_language.lower() in ['he', 'heb', 'hebrew']:
+                        if hasattr(self.translator, '_translate_openai'):
+                            result = self.translator._translate_openai(text, target_language, source_language)
+                        else:
+                            result = self.translator.translate(text, target_language, source_language, 'openai')
+                    else:
+                        result = self.translator.translate(text, target_language, source_language)
+                    fallback_results.append(result or '')
+                except Exception as individual_error:
+                    logger.error(f"Individual SRT translation failed: {individual_error}")
+                    fallback_results.append('')
+            return fallback_results
     
     def _normalize_spacing(self, text: str) -> str:
         """
@@ -265,7 +283,8 @@ class SRTTranslator:
                       target_language: str,
                       source_language: Optional[str] = None,
                       preserve_original_when_matching: bool = True,
-                      batch_size: int = 200) -> List[SRTSegment]:
+                       batch_size: int = 200,
+                       detect_batch_size: int = 200) -> List[SRTSegment]:
         """
         Translate an SRT file using batch optimization for 50-100x efficiency.
         
@@ -297,15 +316,56 @@ class SRTTranslator:
         total_segments = len(segments)
         logger.info(f"Parsed {total_segments} segments from {srt_path}")
         
-        # Batch language detection for efficiency (if OpenAI client available)
+        # Batch language detection with checksum-based cache (if OpenAI client available)
         if self.translator and hasattr(self.translator, 'openai_client') and self.translator.openai_client:
-            logger.info("Running batch language detection with GPT-4o-mini...")
-            language_map = detect_languages_for_segments(
-                segments, 
-                self.translator.openai_client,
-                batch_size=50
-            )
-            logger.info(f"Detected languages for {len(language_map)} segments")
+            # Compute checksum of the source file for caching
+            try:
+                sha256 = hashlib.sha256()
+                with open(srt_path, 'rb') as sf:
+                    for chunk in iter(lambda: sf.read(1024 * 1024), b''):
+                        sha256.update(chunk)
+                source_hash = sha256.hexdigest()
+            except Exception:
+                source_hash = None
+
+            cache_used = False
+            if source_hash:
+                cache_dir = Path('reprocessing_backups') / 'cache' / 'detect'
+                try:
+                    cache_dir.mkdir(parents=True, exist_ok=True)
+                except Exception:
+                    pass
+                cache_file = cache_dir / f"{source_hash}.json"
+                if cache_file.exists():
+                    try:
+                        cached = json.loads(cache_file.read_text())
+                        # Apply cached languages by segment index
+                        for idx, lang in cached.get('languages', {}).items():
+                            i = int(idx)
+                            if 0 <= i < len(segments):
+                                segments[i].detected_language = lang
+                        cache_used = True
+                        logger.info(f"Language detection cache hit for {srt_path}")
+                    except Exception:
+                        cache_used = False
+
+            if not cache_used:
+                logger.info("Running batch language detection with GPT-4o-mini...")
+                language_map = detect_languages_for_segments(
+                    segments, 
+                    self.translator.openai_client,
+                    batch_size=detect_batch_size
+                )
+                logger.info(f"Detected languages for {len(language_map)} segments")
+                # Save cache
+                if source_hash:
+                    try:
+                        languages = {str(i): seg.detected_language for i, seg in enumerate(segments) if seg.detected_language}
+                        (Path('reprocessing_backups') / 'cache' / 'detect' / f"{source_hash}.json").write_text(
+                            json.dumps({'source': str(srt_path), 'sha256': source_hash, 'languages': languages}, indent=2)
+                        )
+                    except Exception:
+                        pass
         
         # Build translation map - only unique texts that need translation
         texts_to_translate = {}  # {original_text: translated_text}
@@ -565,6 +625,7 @@ def translate_srt_file(srt_path: str,
                        source_language: Optional[str] = None,
                        preserve_original_when_matching: bool = True,
                        batch_size: int = 200,
+                       detect_batch_size: int = 200,
                        estimate_only: bool = False,
                        config: Optional[Dict] = None) -> bool:
     """
@@ -606,7 +667,8 @@ def translate_srt_file(srt_path: str,
             target_language,
             source_language,
             preserve_original_when_matching,
-            batch_size
+            batch_size,
+            detect_batch_size
         )
         
         if not translated_segments:
