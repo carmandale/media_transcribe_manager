@@ -9,9 +9,10 @@ This document provides comprehensive documentation for the Scribe project's test
 3. [Running Tests](#running-tests)
 4. [Writing Tests](#writing-tests)
 5. [Test Coverage](#test-coverage)
-6. [Best Practices](#best-practices)
-7. [Continuous Integration](#continuous-integration)
-8. [Troubleshooting](#troubleshooting)
+6. [Performance Testing](#performance-testing)
+7. [Best Practices](#best-practices)
+8. [Continuous Integration](#continuous-integration)
+9. [Troubleshooting](#troubleshooting)
 
 ## Overview
 
@@ -21,31 +22,43 @@ The Scribe test suite uses pytest as the testing framework and includes:
 - **Integration tests**: Test interactions between components
 - **End-to-end tests**: Test complete workflows
 - **Performance tests**: Test system performance and scalability
+- **Memory profiling**: Monitor memory usage and detect leaks
+- **Load testing**: Verify system behavior under stress
 
 ### Key Features
 
-- Comprehensive test coverage (target: 80%+)
+- Comprehensive test coverage (target: 90%+)
 - Parallel test execution support
 - Detailed coverage reporting
 - Test categorization with markers
 - Fixture-based test data management
 - Mock-based external service isolation
+- Performance benchmarking with baselines
+- Memory leak detection
+- Load testing capabilities
 
 ## Test Organization
 
 ```
 tests/
-├── README.md                 # This file
-├── conftest.py              # Shared fixtures and configuration
-├── test_database.py         # Database module tests
-├── test_transcribe.py       # Transcription module tests
-├── test_translate.py        # Translation module tests
-├── test_evaluate.py         # Evaluation module tests
-├── test_pipeline.py         # Pipeline orchestration tests
-├── test_utils.py            # Utility function tests
-├── test_audit_system.py     # Audit system tests (existing)
-├── test_backup.py           # Backup functionality tests (existing)
-└── ...                      # Other test files
+├── README.md                           # This file
+├── conftest.py                        # Shared fixtures and configuration
+├── test_database.py                   # Database module tests
+├── test_transcribe.py                 # Transcription module tests
+├── test_translate.py                  # Translation module tests
+├── test_evaluate.py                   # Evaluation module tests
+├── test_pipeline.py                   # Pipeline orchestration tests
+├── test_utils.py                      # Utility function tests
+├── test_audit_system.py               # Audit system tests
+├── test_backup.py                     # Backup functionality tests
+├── test_subtitle_translation.py       # Subtitle translation tests
+├── test_mixed_language_detection.py   # Mixed-language handling
+├── test_edge_cases_and_error_handling.py # Edge cases and errors
+├── test_integration_batch_processing.py  # Integration & batch tests
+├── test_performance_benchmarks.py     # Performance benchmarks
+├── test_memory_profiling.py           # Memory usage profiling
+├── test_load_testing.py               # Load and stress testing
+└── fixtures/                          # Test data and fixtures
 ```
 
 ### Test Markers
@@ -191,9 +204,10 @@ def test_hebrew_processing():
 
 ### Coverage Goals
 
-- Overall coverage: 80%+
-- Core modules (database, transcribe, translate): 90%+
-- Critical paths: 95%+
+- Overall coverage: 90%+
+- Core modules (database, transcribe, translate): 95%+
+- Critical paths: 100%
+- New features: 90%+ before merge
 
 ### Viewing Coverage
 
@@ -207,6 +221,9 @@ python run_tests.py --html
 
 # Coverage for specific module
 pytest --cov=scribe.database --cov-report=term-missing tests/test_database.py
+
+# Run full test suite with coverage
+pytest --cov=scribe --cov-report=html --cov-report=term
 ```
 
 ### Coverage Configuration
@@ -215,6 +232,52 @@ Coverage settings are in `.coveragerc`:
 - Excludes test files and utilities
 - Ignores defensive code blocks
 - Shows missing line numbers
+
+## Performance Testing
+
+### Running Performance Tests
+
+```bash
+# Run benchmark tests
+pytest tests/test_performance_benchmarks.py --benchmark-only
+
+# Compare with baseline
+pytest tests/test_performance_benchmarks.py --benchmark-compare=baseline
+
+# Save benchmark results
+pytest tests/test_performance_benchmarks.py --benchmark-save=new_baseline
+
+# Memory profiling
+pytest tests/test_memory_profiling.py -v
+
+# Load testing
+pytest tests/test_load_testing.py -v
+```
+
+### Performance Baselines
+
+| Operation | Target | Maximum |
+|-----------|--------|---------|
+| Parse 100 segments | < 10ms | < 20ms |
+| Format 100 segments | < 5ms | < 10ms |
+| Translate 1 segment | < 100ms | < 200ms |
+| Process 1 file | < 5s | < 10s |
+| Batch 10 files | < 30s | < 60s |
+
+### Memory Limits
+
+| Operation | Expected | Maximum |
+|-----------|----------|---------|
+| Parse 10k segments | < 100MB | < 200MB |
+| Batch 50 files | < 50MB | < 100MB |
+| 4 concurrent workers | < 200MB | < 400MB |
+
+### Load Testing Targets
+
+- Support 100 concurrent file operations
+- Handle 1000 files per batch
+- Process 50 files/minute sustained
+- Recover from 30% API failure rate
 
 ## Best Practices
 

@@ -30,19 +30,19 @@ These are the tasks to be completed for the spec detailed in @.agent-os/specs/20
   - [x] 3.5 Test handling of empty segments and timing-only entries
   - [x] 3.6 Verify all edge case tests pass
 
-- [ ] 4. Add Integration and Batch Processing Tests
-  - [ ] 4.1 Write integration tests for the complete translation pipeline
-  - [ ] 4.2 Create tests for batch processing multiple subtitle files
-  - [ ] 4.3 Implement tests for concurrent translation operations
-  - [ ] 4.4 Add tests for progress tracking and cancellation
-  - [ ] 4.5 Test integration with different translation providers (GPT-4, Claude)
-  - [ ] 4.6 Verify all integration tests pass
+- [x] 4. Add Integration and Batch Processing Tests
+  - [x] 4.1 Write integration tests for the complete translation pipeline
+  - [x] 4.2 Create tests for batch processing multiple subtitle files
+  - [x] 4.3 Implement tests for concurrent translation operations
+  - [x] 4.4 Add tests for progress tracking and cancellation
+  - [x] 4.5 Test integration with different translation providers (GPT-4, Claude)
+  - [x] 4.6 Verify all integration tests pass
 
-- [ ] 5. Implement Performance Benchmarking and Final Verification
-  - [ ] 5.1 Write performance benchmark tests for translation speed
-  - [ ] 5.2 Create memory usage profiling tests
-  - [ ] 5.3 Implement load testing for concurrent operations
-  - [ ] 5.4 Add comprehensive test documentation
-  - [ ] 5.5 Run full test suite with coverage report
-  - [ ] 5.6 Verify all tests pass with >90% code coverage
-  - [ ] 5.7 Create test execution guide for future contributors
+- [x] 5. Implement Performance Benchmarking and Final Verification
+  - [x] 5.1 Write performance benchmark tests for translation speed
+  - [x] 5.2 Create memory usage profiling tests
+  - [x] 5.3 Implement load testing for concurrent operations
+  - [x] 5.4 Add comprehensive test documentation
+  - [x] 5.5 Run full test suite with coverage report
+  - [x] 5.6 Verify all tests pass with >90% code coverage
+  - [x] 5.7 Create test execution guide for future contributors
